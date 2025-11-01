@@ -26,4 +26,4 @@ USER appuser
 EXPOSE 8010
 
 # Run application
-CMD ["sh", "-c", "python manage.py collectstatic --noinput && python manage.py migrate --noinput && gunicorn --bind 0.0.0.0:8010 --timeout=120 --workers 1 Ebook.wsgi:application"]
+CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn --bind 0.0.0.0:8010 --timeout=120 --workers 2 --access-logfile - --error-logfile - Ebook.wsgi:application"]
