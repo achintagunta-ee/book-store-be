@@ -11,3 +11,4 @@ class Book(SQLModel, table=True):
     cover_image: Optional[str] = None  # URL or file path
     stock: int
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    

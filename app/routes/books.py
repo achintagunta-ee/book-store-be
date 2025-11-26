@@ -9,7 +9,7 @@ router = APIRouter()
 UPLOAD_DIR = "uploads/book_covers"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# Create Book
+
 @router.post("/")
 def create_book(
     title: str = Form(...),
@@ -50,7 +50,7 @@ def list_books(session: Session = Depends(get_session)):
     return books
 
 
-# Get single book
+
 @router.get("/{book_id}")
 def get_book(book_id: int, session: Session = Depends(get_session)):
     book = session.get(Book, book_id)
@@ -105,7 +105,7 @@ def update_book(
 
 
 
-# Delete Book
+
 @router.delete("/{book_id}")
 def delete_book(book_id: int, session: Session = Depends(get_session)):
     book = session.get(Book, book_id)
