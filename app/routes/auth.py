@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 from app.database import get_session
 from app.models.user import User
-from app.schemas.user_schemas import UserRegister, UserLogin, Token
+from app.schemas.user_schemas import UserRegister, UserLogin, Token ,UserResponse
 from app.schemas.google_schemas import GoogleTokenRequest
 from app.utils.hash import hash_password, verify_password
 from app.utils.token import create_access_token
@@ -62,38 +62,37 @@ def google_login(
     )
 
 
-@router.post("/register", status_code=status.HTTP_201_CREATED)
-def register_user(
-    payload: UserRegister,
-    session: Session = Depends(get_session)
-):
-    """Register new user with email and password"""
-    existing = session.exec(
-        select(User).where(User.email == payload.email)
-    ).first()
-    
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
-        )
-    
+@router.post("/register", response_model=UserResponse)
+def register_user(payload: UserRegister, session: Session = Depends(get_session)):
+    # Check if email exists
+    existing_user = session.exec(select(User).where(User.email == payload.email)).first()
+    if existing_user:
+        raise HTTPException(400, "Email already registered")
+
+    # Hash password
     hashed = hash_password(payload.password)
+
     user = User(
+        first_name=payload.first_name,
+        last_name=payload.last_name,
+        username=payload.username,
         email=payload.email,
         password=hashed,
-        name=payload.email.split("@")[0]  # Default name from email
+        role="user",
     )
-    
+
     session.add(user)
     session.commit()
     session.refresh(user)
-    
-    return {
-        "message": "User registered successfully",
-        "id": user.id,
-        "email": user.email
-    }
+
+    return UserResponse(
+        message="Registration successful for Hithabodha. You can now log in.",
+        user_id=user.id,
+        email=user.email,
+        client=user.client,
+        role=user.role,
+        can_login=True
+    )
 
 
 @router.post("/login", response_model=Token)
