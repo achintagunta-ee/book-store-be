@@ -12,7 +12,7 @@ app.add_middleware(
         "http://localhost:3000",  # React default port
         "http://127.0.0.1:5173",
         "http://127.0.0.1:3000",
-        "https://hbn-be.efficientemengineering.com/api/"
+        "https://hbn-be.efficientemengineering.com"
     ],
     allow_credentials=True,
     allow_methods=["*"],
