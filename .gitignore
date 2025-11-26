@@ -1,8 +1,33 @@
-venv/
-__pycache__/
+# Environment variables
 .env
+
+# Python
+*.py[cod]
+*$py.class
+*.so
+.Python
+__pycache__/
 *.pyc
-uploads/
-.DS_Store
+
+# Databases
 *.db
+
+# Uploads
+uploads/
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
 .vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+Thumbs.db
