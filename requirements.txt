@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+sqlmodel
+python-jose
+passlib[bcrypt]
+psycopg2-binary
+pydantic-settings
+python-multipart
+requests
