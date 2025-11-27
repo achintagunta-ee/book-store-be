@@ -2,19 +2,18 @@ from pydantic_settings import BaseSettings
 from urllib.parse import quote_plus
 
 class Settings(BaseSettings):
-    # PostgreSQL
     postgres_user: str
     postgres_password: str
     postgres_db: str
     postgres_host: str = "localhost"
     postgres_port: str = "5432"
 
-    # JWT - these are REQUIRED now
+    
     secret_key: str
     algorithm: str
     access_token_expire_minutes: int
 
-    # Google Auth
+    
     google_client_id: str
     google_client_secret: str
 

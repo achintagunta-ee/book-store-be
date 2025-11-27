@@ -10,7 +10,7 @@ class User(SQLModel, table=True):
     username: str
     email: str
     password: str
-    role: str = Field(default="user")   # default role
+    role: str = Field(default="user") 
     can_login: bool = Field(default=True)
     client: str = Field(default="Hithabodha Bookstore")
     created_at: datetime = Field(default_factory=datetime.utcnow)

@@ -5,23 +5,21 @@ from app.models.user import User
 from app.schemas.user_schemas import UserRegister, UserLogin, Token ,UserResponse
 from app.schemas.google_schemas import GoogleTokenRequest
 from app.utils.hash import hash_password, verify_password
-from app.utils.token import create_access_token
+from app.utils.token import create_access_token ,decode_access_token
 from app.utils.google_auth import verify_google_token
+from fastapi.security import OAuth2PasswordBearer
 
 router = APIRouter()
-
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 @router.post("/google", response_model=Token)
 def google_login(
-    request: GoogleTokenRequest,  # ✅ Use Pydantic model for body
+    request: GoogleTokenRequest,  
     session: Session = Depends(get_session)
 ):
-    """
-    Login or register user with Google ID token
-    Frontend should send the ID token from Google Sign-In
-    """
     
-    # Verify Google token
+    
+    
     google_user = verify_google_token(request.token)
     
     if not google_user:
@@ -30,30 +28,30 @@ def google_login(
             detail="Invalid or expired Google token"
         )
     
-    # Check if user already exists
+
     user = session.exec(
         select(User).where(User.email == google_user["email"])
     ).first()
     
     if not user:
-        # Register new Google user
+    
         user = User(
             email=google_user["email"],
             name=google_user["name"],
-            password=None,  # Google users don't have password
+            password=None, 
             profile_pic=google_user.get("picture")
         )
         session.add(user)
         session.commit()
         session.refresh(user)
     else:
-        # Update profile picture if changed
+        
         if google_user.get("picture"):
             user.profile_pic = google_user["picture"]
             session.add(user)
             session.commit()
     
-    # Create JWT access token
+    
     access_token = create_access_token({"user_id": user.id})
     
     return Token(
@@ -64,12 +62,12 @@ def google_login(
 
 @router.post("/register", response_model=UserResponse)
 def register_user(payload: UserRegister, session: Session = Depends(get_session)):
-    # Check if email exists
+
     existing_user = session.exec(select(User).where(User.email == payload.email)).first()
     if existing_user:
         raise HTTPException(400, "Email already registered")
 
-    # Hash password
+
     hashed = hash_password(payload.password)
 
     user = User(
@@ -111,7 +109,7 @@ def login(
             detail="Invalid email or password"
         )
     
-    # Check if user registered with Google
+    
     if user.password is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -127,3 +125,57 @@ def login(
     token = create_access_token({"user_id": user.id})
     
     return Token(access_token=token, token_type="bearer")
+
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    session: Session = Depends(get_session)
+) -> User:
+    """Get current authenticated user from JWT token"""
+    payload = decode_access_token(token)
+    
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    user_id = payload.get("user_id") or payload.get("sub")
+    
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload"
+        )
+    
+    user = session.get(User, int(user_id))
+    
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found"
+        )
+    
+    if not user.can_login:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is disabled"
+        )
+    
+    return user
+
+@router.get("/me")
+async def get_current_user_info(
+    current_user: User = Depends(get_current_user)
+):
+    """Get current logged-in user info"""
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "username": current_user.username,
+        "first_name": current_user.first_name,
+        "last_name": current_user.last_name,
+        "role": current_user.role,
+        "client": current_user.client,
+        "created_at": current_user.created_at
+    }

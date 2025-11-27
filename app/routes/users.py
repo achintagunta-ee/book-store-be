@@ -4,7 +4,6 @@ from app.utils.token import get_current_user
 
 router = APIRouter()
 
-# Accessible by all authenticated users
 @router.get("/me")
 def get_my_profile(current_user: User = Depends(get_current_user)):
     return {
@@ -15,7 +14,7 @@ def get_my_profile(current_user: User = Depends(get_current_user)):
         "message": "Any authenticated user can access this"
     }
 
-# Admin only
+
 @router.get("/admin-feature")
 def admin_feature(current_user: User = Depends(get_current_user)):
     if current_user.role != "admin":
@@ -29,7 +28,6 @@ def admin_feature(current_user: User = Depends(get_current_user)):
         "role": current_user.role
     }
 
-# Free user dashboard
 @router.get("/free-dashboard")
 def free_dashboard(current_user: User = Depends(get_current_user)):
     return {
@@ -38,7 +36,7 @@ def free_dashboard(current_user: User = Depends(get_current_user)):
         "features": ["basic_profile", "limited_search", "view_matches"]
     }
 
-@router.get("/admin/dashboard") # Admin only
+@router.get("/admin/dashboard") 
 def admin_dashboard(current_user: User = Depends(get_current_user)):
     if current_user.role != "admin":
         raise HTTPException(

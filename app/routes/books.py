@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException
 from sqlmodel import Session, select
 from app.database import get_session
 from app.models.book import Book
+from app.models.category import Category
 import os
 
 router = APIRouter()
@@ -17,13 +18,21 @@ def create_book(
     price: float = Form(...),
     description: str = Form(...),
     stock: int = Form(...),
+    category_id: int = Form(...),
     cover_image: UploadFile = File(None),
     session: Session = Depends(get_session),
 ):
+
+
+    category = session.get(Category, category_id)
+    if not category:
+        raise HTTPException(400, "Invalid category_id")
+
+    
     image_path = None
     if cover_image:
-        file_ext = cover_image.filename.split(".")[-1]
-        filename = f"{title.replace(' ', '_')}.{file_ext}"
+        ext = cover_image.filename.split(".")[-1]
+        filename = f"{title.replace(' ', '_')}.{ext}"
         image_path = os.path.join(UPLOAD_DIR, filename)
 
         with open(image_path, "wb") as f:
@@ -36,20 +45,20 @@ def create_book(
         description=description,
         stock=stock,
         cover_image=image_path,
+        category_id=category_id
     )
+
     session.add(book)
     session.commit()
     session.refresh(book)
     return book
 
 
-# Get all books
+
 @router.get("/")
 def list_books(session: Session = Depends(get_session)):
     books = session.exec(select(Book)).all()
     return books
-
-
 
 @router.get("/{book_id}")
 def get_book(book_id: int, session: Session = Depends(get_session)):
@@ -67,29 +76,30 @@ def update_book(
     price: float = Form(None),
     description: str = Form(None),
     stock: int = Form(None),
+    category_id: int = Form(None),
     cover_image: UploadFile = File(None),
     session: Session = Depends(get_session),
 ):
+
     book = session.get(Book, book_id)
     if not book:
         raise HTTPException(404, "Book not found")
 
-    # Update fields only if values provided
-    if title:
-        book.title = title
-    if author:
-        book.author = author
-    if price:
-        book.price = price
-    if description:
-        book.description = description
-    if stock:
-        book.stock = stock
+    if category_id:
+        category = session.get(Category, category_id)
+        if not category:
+            raise HTTPException(400, "Invalid category_id")
+        book.category_id = category_id
 
-    # If image uploaded
+    if title: book.title = title
+    if author: book.author = author
+    if price: book.price = price
+    if description: book.description = description
+    if stock: book.stock = stock
+
     if cover_image:
-        file_ext = cover_image.filename.split(".")[-1]
-        filename = f"{book.title.replace(' ', '_')}_updated.{file_ext}"
+        ext = cover_image.filename.split(".")[-1]
+        filename = f"{book.title.replace(' ', '_')}_updated.{ext}"
         image_path = os.path.join(UPLOAD_DIR, filename)
 
         with open(image_path, "wb") as f:
@@ -101,9 +111,7 @@ def update_book(
     session.commit()
     session.refresh(book)
 
-    return {"message": "Book updated", "book": book}
-
-
+    return book
 
 
 @router.delete("/{book_id}")
