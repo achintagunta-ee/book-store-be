@@ -5,16 +5,14 @@ from app.models.user import User
 from app.schemas.user_schemas import UserRegister, UserLogin, Token ,UserResponse
 from app.schemas.google_schemas import GoogleTokenRequest
 from app.utils.hash import hash_password, verify_password
-from app.utils.token import create_access_token ,decode_access_token
+from app.utils.token import create_access_token, get_current_user
 from app.utils.google_auth import verify_google_token
-from fastapi.security import OAuth2PasswordBearer
 
 router = APIRouter()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 @router.post("/google", response_model=Token)
 def google_login(
-    request: GoogleTokenRequest,  
+    request: GoogleTokenRequest,
     session: Session = Depends(get_session)
 ):
     
@@ -34,22 +32,21 @@ def google_login(
     ).first()
     
     if not user:
-    
+        # Split name into first and last
+        full_name = google_user.get("name", "Google User").split(" ", 1)
+        first_name = full_name[0]
+        last_name = full_name[1] if len(full_name) > 1 else ""
+
         user = User(
             email=google_user["email"],
-            name=google_user["name"],
-            password=None, 
-            profile_pic=google_user.get("picture")
+            first_name=first_name,
+            last_name=last_name,
+            username=google_user["email"],  # Use email as username
+            password=None,
         )
         session.add(user)
         session.commit()
         session.refresh(user)
-    else:
-        
-        if google_user.get("picture"):
-            user.profile_pic = google_user["picture"]
-            session.add(user)
-            session.commit()
     
     
     access_token = create_access_token({"user_id": user.id})
@@ -126,43 +123,7 @@ def login(
     
     return Token(access_token=token, token_type="bearer")
 
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    session: Session = Depends(get_session)
-) -> User:
-    """Get current authenticated user from JWT token"""
-    payload = decode_access_token(token)
-    
-    if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    user_id = payload.get("user_id") or payload.get("sub")
-    
-    if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload"
-        )
-    
-    user = session.get(User, int(user_id))
-    
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found"
-        )
-    
-    if not user.can_login:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is disabled"
-        )
-    
-    return user
+
 
 @router.get("/me")
 async def get_current_user_info(

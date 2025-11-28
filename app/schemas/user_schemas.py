@@ -3,9 +3,9 @@ from typing import Optional
 
 
 class UserRegister(BaseModel):
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    username: Optional[str] = None
+    first_name: str
+    last_name: str
+    username: str
     email: EmailStr
     password: str
     confirm_password: str
@@ -31,5 +31,3 @@ class UserLogin(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
-
-

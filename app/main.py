@@ -2,14 +2,22 @@ from fastapi import FastAPI
 from app.database import create_db_and_tables
 from app.routes import auth ,users , books ,categories
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 
-app = FastAPI(title="Hithabodha Bookstore API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Create database tables
+    create_db_and_tables()
+    yield
+    # Shutdown: Add cleanup logic here if needed
+
+app = FastAPI(title="Hithabodha Bookstore API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",  
-        "http://localhost:3000",  
+        "http://localhost:5173",
+        "http://localhost:3000",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:3000",
         "https://hbn-be.efficientemengineering.com",
@@ -18,10 +26,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-@app.on_event("startup")
-def on_startup():
-    create_db_and_tables()
 
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(users.router, prefix="/users", tags=["Users"]) 
@@ -36,5 +40,3 @@ def root():
         "book_endpoints":["/books","/books/{id}"],
         "category_endpoints":["/categories","/categories/{id}"]
     }
-
-

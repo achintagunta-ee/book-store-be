@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException
+from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, status
 from sqlmodel import Session, select
 from app.database import get_session
 from app.models.book import Book
 from app.models.category import Category
+from app.models.user import User
+from app.utils.token import get_current_user
 import os
 
 router = APIRouter()
@@ -21,7 +23,13 @@ def create_book(
     category_id: int = Form(...),
     cover_image: UploadFile = File(None),
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
 
 
     category = session.get(Category, category_id)
@@ -79,7 +87,13 @@ def update_book(
     category_id: int = Form(None),
     cover_image: UploadFile = File(None),
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
 
     book = session.get(Book, book_id)
     if not book:
@@ -115,7 +129,17 @@ def update_book(
 
 
 @router.delete("/{book_id}")
-def delete_book(book_id: int, session: Session = Depends(get_session)):
+def delete_book(
+    book_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+
     book = session.get(Book, book_id)
     if not book:
         raise HTTPException(404, "Book not found")

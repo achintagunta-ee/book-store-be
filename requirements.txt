@@ -7,3 +7,5 @@ psycopg2-binary
 pydantic-settings
 python-multipart
 requests
+google-auth
+email-validator
