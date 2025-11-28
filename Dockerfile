@@ -1,29 +1,51 @@
-FROM python:3.13-slim
+# -------------------------------
+# Stage 1: Builder (installs uv and dependencies)
+# -------------------------------
+FROM python:3.12-slim AS builder
 
-# Create non-root user
-RUN useradd -m -r appuser && mkdir /app && chown -R appuser /app
+# Install system deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl build-essential \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
+# Install uv (Rust-based ultra-fast Python package manager)
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:${PATH}"
+
 WORKDIR /app
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app
+# Copy dependency files
+COPY pyproject.toml uv.lock ./
 
-# Install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Install dependencies using uv (creates .venv)
+RUN uv sync --frozen
 
-# Copy application code
-COPY --chown=appuser:appuser . .
+# Copy source
+COPY . .
 
-# Switch to non-root user
-USER appuser
+# -------------------------------
+# Stage 2: Final runtime
+# -------------------------------
+FROM python:3.12-slim AS runner
 
-# Expose port
+ENV PATH="/root/.local/bin:${PATH}"
+ENV PYTHONUNBUFFERED=1
+
+# Install uv again (small install, needed to activate venv)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh
+
+WORKDIR /app
+
+# Copy virtual environment + source from builder
+COPY --from=builder /app /app
+
+# Expose default port (if FastAPI, Flask etc)
 EXPOSE 8010
 
-# Run application
-CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn --bind 0.0.0.0:8010 --timeout=120 --workers 2 --access-logfile - --error-logfile - Ebook.wsgi:application"]
+# Default command (FastAPI example)
+# Change this according to your application
+# CMD ["uv", "run", "uvicorn", "app.main:app", "--reload"]
+CMD ["uvicorn", "run", "app.main:app", "--host", "0.0.0.0", "--port", "8010"]
