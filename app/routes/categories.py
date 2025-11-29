@@ -97,12 +97,12 @@ def get_books_by_category(
     category_id: int,
     session: Session = Depends(get_session)
 ):
-    # Validate category
+    
     category = session.get(Category, category_id)
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
 
-    # Fetch books
+    
     books = session.exec(
         select(Book).where(Book.category_id == category_id)
     ).all()
@@ -113,3 +113,57 @@ def get_books_by_category(
         "total_books": len(books),
         "books": books
     }
+
+@router.get("/categories/{category_name}/list")
+def list_books_by_category_name(
+    category_name: str,
+    session: Session = Depends(get_session)
+):
+
+    # Convert input to lowercase for case-insensitive match
+    category = session.exec(
+        select(Category).where(Category.name.ilike(category_name))
+    ).first()
+
+    if not category:
+        raise HTTPException(404, f"Category '{category_name}' not found")
+
+    # Fetch books in this category
+    books = session.exec(
+        select(Book).where(Book.category_id == category.id)
+    ).all()
+
+    return {
+        "category": category.name,
+        "category_id": category.id,
+        "total_books": len(books),
+        "books": books
+    }
+
+@router.get("/categories/{category_name}/list-of-books/{book_name}")
+def get_book_in_category(
+    category_name: str,
+    book_name: str,
+    session: Session = Depends(get_session)
+):
+
+    # Check category
+    category = session.exec(
+        select(Category).where(Category.name.ilike(category_name))
+    ).first()
+
+    if not category:
+        raise HTTPException(404, f"Category '{category_name}' not found")
+
+    # Check book inside this category
+    book = session.exec(
+        select(Book).where(
+            Book.category_id == category.id,
+            Book.title.ilike(book_name)
+        )
+    ).first()
+
+    if not book:
+        raise HTTPException(404, f"Book '{book_name}' not found in category '{category_name}'")
+
+    return book

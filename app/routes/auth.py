@@ -17,7 +17,6 @@ def google_login(
 ):
     
     
-    
     google_user = verify_google_token(request.token)
     
     if not google_user:

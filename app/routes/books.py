@@ -43,12 +43,12 @@ def create_book(
     if current_user.role != "admin":
         raise HTTPException(403, "Admin access required")
 
-    # Validate Category
+    
     category = session.get(Category, category_id)
     if not category:
         raise HTTPException(400, "Invalid category_id")
 
-    # Save Image
+    
     image_path = None
     if cover_image:
         ext = cover_image.filename.split(".")[-1]
@@ -58,7 +58,7 @@ def create_book(
         with open(image_path, "wb") as f:
             f.write(cover_image.file.read())
 
-    # Create Book Object
+    
     book = Book(
         title=title,
         slug=slug,
@@ -162,14 +162,14 @@ def update_book(
     if is_featured is not None: book.is_featured = is_featured
     if is_featured_author is not None: book.is_featured_author = is_featured_author
 
-    # Category update
+    
     if category_id is not None:
         category = session.get(Category, category_id)
         if not category:
             raise HTTPException(400, "Invalid category_id")
         book.category_id = category_id
 
-    # Image update
+    
     if cover_image:
         ext = cover_image.filename.split(".")[-1]
         filename = f"{book.title.replace(' ', '_')}_updated.{ext}"
