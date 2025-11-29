@@ -4,10 +4,11 @@ from app.database import get_session
 from app.models.category import Category
 from app.models.user import User
 from app.utils.token import get_current_user
+from app.models.book import Book
 
 router = APIRouter()
 
-@router.post("/")
+@router.post("/create-category")
 def create_category(
     category: Category,
     session: Session = Depends(get_session),
@@ -30,13 +31,13 @@ def create_category(
 
 
 
-@router.get("/")
+@router.get("/list")
 def list_categories(session: Session = Depends(get_session)):
     categories = session.exec(select(Category)).all()
     return categories
 
 
-@router.get("/{category_id}")
+@router.get("/get-category/{category_id}")
 def get_category(category_id: int, session: Session = Depends(get_session)):
     category = session.get(Category, category_id)
     if not category:
@@ -45,7 +46,7 @@ def get_category(category_id: int, session: Session = Depends(get_session)):
 
 
 
-@router.put("/{category_id}")
+@router.put("/update-category/{category_id}")
 def update_category(
     category_id: int,
     updated: Category,
@@ -71,7 +72,7 @@ def update_category(
     return category
 
 
-@router.delete("/{category_id}")
+@router.delete("/delete-category/{category_id}")
 def delete_category(
     category_id: int,
     session: Session = Depends(get_session),
@@ -90,3 +91,25 @@ def delete_category(
     session.delete(category)
     session.commit()
     return {"message": "Category deleted"}
+
+@router.get("/{category_id}/list-of-books")
+def get_books_by_category(
+    category_id: int,
+    session: Session = Depends(get_session)
+):
+    # Validate category
+    category = session.get(Category, category_id)
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    # Fetch books
+    books = session.exec(
+        select(Book).where(Book.category_id == category_id)
+    ).all()
+
+    return {
+        "category_id": category_id,
+        "category_name": category.name,
+        "total_books": len(books),
+        "books": books
+    }

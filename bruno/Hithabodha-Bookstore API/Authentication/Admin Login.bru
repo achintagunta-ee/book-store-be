@@ -1,0 +1,27 @@
+meta {
+  name: Admin Login
+  type: http
+  seq: 2
+}
+
+post {
+  url: http://localhost:8000/auth/login
+  body: json
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo2LCJleHAiOjE3NjQzMzUxNDh9.Xwa_xS5XNQW4S0DQ2zRkZrr4X3B7zIh2IExJoE-7VnA
+}
+
+body:json {
+  {
+    "email":"admin@example.com",
+    "password":"Admin@123"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

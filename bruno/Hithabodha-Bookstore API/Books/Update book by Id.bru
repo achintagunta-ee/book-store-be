@@ -1,0 +1,28 @@
+meta {
+  name: Update book by Id
+  type: http
+  seq: 7
+}
+
+put {
+  url: http://localhost:8000/books/update-book/24
+  body: multipartForm
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo2LCJleHAiOjE3NjQzOTYzNDB9.gEcCvKpqZMG-4eJftdr9eWoaOXf89VJY564bvYdH8bo
+}
+
+body:multipart-form {
+  book_id: 24
+  slug: happy-people
+  language: English
+  offer_price: 350
+  isbn: 13456789
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

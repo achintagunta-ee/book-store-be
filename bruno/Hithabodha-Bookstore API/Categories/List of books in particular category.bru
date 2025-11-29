@@ -1,0 +1,16 @@
+meta {
+  name: List of books in particular category
+  type: http
+  seq: 7
+}
+
+get {
+  url: http://localhost:8000/categories/5/books
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

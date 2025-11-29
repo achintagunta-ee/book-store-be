@@ -6,6 +6,7 @@ from app.models.category import Category
 from app.models.user import User
 from app.utils.token import get_current_user
 import os
+from datetime import datetime
 
 router = APIRouter()
 
@@ -13,30 +14,41 @@ UPLOAD_DIR = "uploads/book_covers"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
-@router.post("/")
+
+@router.post("/create-book")
 def create_book(
     title: str = Form(...),
+    slug: str = Form(None),
+    excerpt: str = Form(None),
     author: str = Form(...),
-    price: float = Form(...),
     description: str = Form(...),
+    language: str = Form(None),
+    rating: float = Form(None),
+    price: float = Form(...),
+    discount_price: float = Form(None),
+    offer_price: float = Form(None),
     stock: int = Form(...),
+    isbn: str = Form(None),
+    publisher: str = Form(None),
+    published_date: str = Form(None),
+    is_featured: bool = Form(False),
+    is_featured_author: bool = Form(False),
+    tags: str = Form(None),
     category_id: int = Form(...),
     cover_image: UploadFile = File(None),
+
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
+        raise HTTPException(403, "Admin access required")
 
-
+    # Validate Category
     category = session.get(Category, category_id)
     if not category:
         raise HTTPException(400, "Invalid category_id")
 
-    
+    # Save Image
     image_path = None
     if cover_image:
         ext = cover_image.filename.split(".")[-1]
@@ -46,12 +58,25 @@ def create_book(
         with open(image_path, "wb") as f:
             f.write(cover_image.file.read())
 
+    # Create Book Object
     book = Book(
         title=title,
+        slug=slug,
+        excerpt=excerpt,
         author=author,
-        price=price,
         description=description,
+        language=language,
+        rating=rating,
+        price=price,
+        discount_price=discount_price,
+        offer_price=offer_price,
         stock=stock,
+        isbn=isbn,
+        publisher=publisher,
+        published_date=published_date,
+        is_featured=is_featured,
+        is_featured_author=is_featured_author,
+        tags=tags,
         cover_image=image_path,
         category_id=category_id
     )
@@ -59,16 +84,18 @@ def create_book(
     session.add(book)
     session.commit()
     session.refresh(book)
+
     return book
 
 
 
-@router.get("/")
+@router.get("/list")
 def list_books(session: Session = Depends(get_session)):
-    books = session.exec(select(Book)).all()
-    return books
+    return session.exec(select(Book)).all()
 
-@router.get("/{book_id}")
+
+
+@router.get("/get-book/{book_id}")
 def get_book(book_id: int, session: Session = Depends(get_session)):
     book = session.get(Book, book_id)
     if not book:
@@ -76,41 +103,73 @@ def get_book(book_id: int, session: Session = Depends(get_session)):
     return book
 
 
-@router.put("/{book_id}")
+
+@router.put("/update-book/{book_id}")
 def update_book(
     book_id: int,
+
     title: str = Form(None),
-    author: str = Form(None),
-    price: float = Form(None),
+    slug: str = Form(None),
+    excerpt: str = Form(None),
     description: str = Form(None),
+    author: str = Form(None),
+    language: str = Form(None),
+    rating: float = Form(None),
+    isbn: str = Form(None),
+    publisher: str = Form(None),
+    published_date: datetime = Form(None),
+    tags: str = Form(None),
+
+    price: float = Form(None),
+    discount_price: float = Form(None),
+    offer_price: float = Form(None),
     stock: int = Form(None),
+
+    is_featured: bool = Form(None),
+    is_featured_author: bool = Form(None),
+
     category_id: int = Form(None),
     cover_image: UploadFile = File(None),
+
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user)
 ):
     if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
+        raise HTTPException(403, "Admin access required")
 
     book = session.get(Book, book_id)
     if not book:
         raise HTTPException(404, "Book not found")
 
-    if category_id:
+  
+    if title is not None: book.title = title
+    if slug is not None: book.slug = slug
+    if excerpt is not None: book.excerpt = excerpt
+    if description is not None: book.description = description
+    if author is not None: book.author = author
+    if language is not None: book.language = language
+    if rating is not None: book.rating = rating
+    if isbn is not None: book.isbn = isbn
+    if publisher is not None: book.publisher = publisher
+    if published_date is not None: book.published_date = published_date
+    if tags is not None: book.tags = tags
+
+    if price is not None: book.price = price
+    if discount_price is not None: book.discount_price = discount_price
+    if offer_price is not None: book.offer_price = offer_price
+    if stock is not None: book.stock = stock
+
+    if is_featured is not None: book.is_featured = is_featured
+    if is_featured_author is not None: book.is_featured_author = is_featured_author
+
+    # Category update
+    if category_id is not None:
         category = session.get(Category, category_id)
         if not category:
             raise HTTPException(400, "Invalid category_id")
         book.category_id = category_id
 
-    if title: book.title = title
-    if author: book.author = author
-    if price: book.price = price
-    if description: book.description = description
-    if stock: book.stock = stock
-
+    # Image update
     if cover_image:
         ext = cover_image.filename.split(".")[-1]
         filename = f"{book.title.replace(' ', '_')}_updated.{ext}"
@@ -124,21 +183,18 @@ def update_book(
     session.add(book)
     session.commit()
     session.refresh(book)
-
     return book
 
 
-@router.delete("/{book_id}")
+
+@router.delete("/delete-book/{book_id}")
 def delete_book(
     book_id: int,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
     if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
+        raise HTTPException(403, "Admin access required")
 
     book = session.get(Book, book_id)
     if not book:

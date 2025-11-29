@@ -1,0 +1,20 @@
+meta {
+  name: Delete Category by ID
+  type: http
+  seq: 7
+}
+
+delete {
+  url: http://localhost:8000/categories/delete-category/11
+  body: none
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo2LCJleHAiOjE3NjQzOTc1NDZ9.VvVB7dbwTwUIFS_6jaC6oxrTfAUH9RhY3nDza5f1RjA
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
