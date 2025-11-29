@@ -50,4 +50,8 @@ EXPOSE 8010
 
 # Default command (FastAPI example)
 # The dependencies (like uvicorn) are already installed via uv
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8010"]
+# CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8010"]
+# ... (Runner Stage continues) ...
+
+# Default command using 'uv run'
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8010"]
