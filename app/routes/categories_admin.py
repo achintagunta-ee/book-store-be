@@ -8,7 +8,7 @@ from app.models.book import Book
 
 router = APIRouter()
 
-@router.post("/admin/create-category")
+@router.post("/")
 def create_category(
     category: Category,
     session: Session = Depends(get_session),
@@ -37,7 +37,7 @@ def list_categories(session: Session = Depends(get_session)):
     return categories
 
 
-@router.get("/get-category/{category_id}")
+@router.get("/{category_id}")
 def get_category(category_id: int, session: Session = Depends(get_session)):
     category = session.get(Category, category_id)
     if not category:
@@ -46,7 +46,7 @@ def get_category(category_id: int, session: Session = Depends(get_session)):
 
 
 
-@router.put("/admin/update-category/{category_id}")
+@router.put("/{category_id}")
 def update_category(
     category_id: int,
     updated: Category,
@@ -72,7 +72,7 @@ def update_category(
     return category
 
 
-@router.delete("/admin/delete-category/{category_id}")
+@router.delete("/{category_id}")
 def delete_category(
     category_id: int,
     session: Session = Depends(get_session),

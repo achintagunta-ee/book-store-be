@@ -1,23 +1,23 @@
 meta {
   name: Create Category 1
   type: http
-  seq: 1
+  seq: 6
 }
 
 post {
-  url: http://localhost:8000/categories/create-category
+  url: http://localhost:8000/admin/categories/
   body: json
   auth: inherit
 }
 
 headers {
-  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo2LCJleHAiOjE3NjQzOTc1NDZ9.VvVB7dbwTwUIFS_6jaC6oxrTfAUH9RhY3nDza5f1RjA
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo2LCJleHAiOjE3NjQ1ODA3OTh9.jS7ChlrYOcjefVr7crmScNHILJILnsjw-tbdNLjX4TU
 }
 
 body:json {
   {
-      "name":"category_one",
-      "description":"category_description_one"
+    "name":"category_1",
+    "description":"description_1"
   }
 }
 

@@ -1,17 +1,17 @@
 meta {
   name: Update Category by ID
   type: http
-  seq: 6
+  seq: 3
 }
 
 put {
-  url: http://localhost:8000/categories/update-category/4
+  url: http://localhost:8000/admin/categories/1
   body: json
   auth: inherit
 }
 
 headers {
-  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo2LCJleHAiOjE3NjQzOTc1NDZ9.VvVB7dbwTwUIFS_6jaC6oxrTfAUH9RhY3nDza5f1RjA
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo2LCJleHAiOjE3NjQ1ODA3OTh9.jS7ChlrYOcjefVr7crmScNHILJILnsjw-tbdNLjX4TU
 }
 
 body:json {

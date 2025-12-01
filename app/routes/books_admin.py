@@ -15,7 +15,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 
-@router.post("/create-book")
+@router.post("/")
 def create_book(
     title: str = Form(...),
     slug: str = Form(None),
@@ -90,21 +90,35 @@ def create_book(
 
 
 @router.get("/list")
-def list_books(session: Session = Depends(get_session)):
+def list_books(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != "admin":
+        raise HTTPException(403, "Admin access required")
+
     return session.exec(select(Book)).all()
 
 
+@router.get("/{book_id}")
+def get_book_admin(
+    book_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != "admin":
+        raise HTTPException(403, "Admin access required")
 
-@router.get("/get-book/{book_id}")
-def get_book(book_id: int, session: Session = Depends(get_session)):
     book = session.get(Book, book_id)
     if not book:
         raise HTTPException(404, "Book not found")
+
     return book
 
 
 
-@router.put("/update-book/{book_id}")
+
+@router.put("/{book_id}")
 def update_book(
     book_id: int,
 
@@ -187,7 +201,7 @@ def update_book(
 
 
 
-@router.delete("/delete-book/{book_id}")
+@router.delete("/{book_id}")
 def delete_book(
     book_id: int,
     session: Session = Depends(get_session),
