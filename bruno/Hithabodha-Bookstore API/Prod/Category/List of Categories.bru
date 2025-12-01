@@ -1,11 +1,11 @@
 meta {
-  name: List Books
+  name: List of Categories
   type: http
-  seq: 1
+  seq: 4
 }
 
 get {
-  url: http://localhost:8000/books/list
+  url: {{BASE_URL}}/admin/categories/list
   body: none
   auth: inherit
 }

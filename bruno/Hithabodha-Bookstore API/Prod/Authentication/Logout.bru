@@ -1,15 +1,16 @@
 meta {
-  name: Creating category
+  name: Logout
   type: http
-  seq: 1
+  seq: 3
 }
 
 post {
-  url: {{BASE_URL}}/categories/create-category
+  url: {{BASE_URL}}/auth/logout
   body: none
   auth: inherit
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }

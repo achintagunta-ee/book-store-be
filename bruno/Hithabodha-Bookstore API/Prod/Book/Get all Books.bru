@@ -1,0 +1,20 @@
+meta {
+  name: Get all Books
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{BASE_URL}}/admin/books/list
+  body: none
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo2LCJleHAiOjE3NjQ2MjAwMjl9.V76zJwiqGA1-jIRRx-1OKlXA6hulrnVk--_E4kuIPQA
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

@@ -1,0 +1,24 @@
+meta {
+  name: Update Book
+  type: http
+  seq: 3
+}
+
+put {
+  url: {{BASE_URL}}/admin/books/4
+  body: multipartForm
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo2LCJleHAiOjE3NjQ1OTAyMzV9.MP6ZdjoGj_LXBEHpdOuZCvYqUq2o-erlcFjxDivZCQc
+}
+
+body:multipart-form {
+  isbn: 123456789
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
