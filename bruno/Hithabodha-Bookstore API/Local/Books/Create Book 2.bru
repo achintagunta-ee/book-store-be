@@ -6,8 +6,21 @@ meta {
 
 post {
   url: http://localhost:8000/admin/books
-  body: none
+  body: multipartForm
   auth: inherit
+}
+
+headers {
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo2LCJleHAiOjE3NjQ1ODk3NDl9.VAmPNoLwYnESjq60n9m1cN7ArEYRg5_advZbTbfgDms
+}
+
+body:multipart-form {
+  title: title_one
+  author: author_one
+  description: description_one
+  price: 100
+  stock: 10
+  category_id: 1
 }
 
 settings {

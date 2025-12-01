@@ -1,0 +1,29 @@
+meta {
+  name: Create book 2
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{BASE_URL}}/admin/books/
+  body: multipartForm
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo2LCJleHAiOjE3NjQ1ODY3ODN9.f5pTNn29OgE6tU1tbof4IZf0EoS4QPjsXVlzP_mepKQ
+}
+
+body:multipart-form {
+  title: book-two
+  "author ": Peter
+  description: description-two
+  price: 200
+  stock: 20
+  category_id: 3
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
