@@ -8,6 +8,7 @@ from app.utils.hash import hash_password, verify_password
 from app.utils.token import create_access_token, get_current_user
 from app.utils.google_auth import verify_google_token
 
+
 router = APIRouter()
 
 @router.post("/google", response_model=Token)
@@ -139,3 +140,33 @@ async def get_current_user_info(
         "client": current_user.client,
         "created_at": current_user.created_at
     }
+
+
+@router.post("/register-admin")
+def register_admin(payload: UserRegister, session: Session = Depends(get_session)):
+    # Check if email exists
+    existing = session.exec(select(User).where(User.email == payload.email)).first()
+    if existing:
+        raise HTTPException(400, "Email already registered")
+
+    hashed = hash_password(payload.password)
+
+    admin = User(
+        first_name=payload.first_name,
+        last_name=payload.last_name,
+        username=payload.username,
+        email=payload.email,
+        password=hashed,
+        role="admin",       # <--- MOST IMPORTANT
+        can_login=True
+    )
+
+    session.add(admin)
+    session.commit()
+    session.refresh(admin)
+
+    return {"message": "Admin registered successfully", "admin_id": admin.id}
+
+@router.post("/logout")
+def logout():
+    return {"message": "Logout successful"}

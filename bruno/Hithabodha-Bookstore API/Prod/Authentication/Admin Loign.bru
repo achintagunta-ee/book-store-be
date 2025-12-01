@@ -1,0 +1,23 @@
+meta {
+  name: Admin Loign
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{BASE_URL}}/auth/login
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "email":"anjurivimalashidhvi@gmail.com",
+    "password":"Securepass123"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

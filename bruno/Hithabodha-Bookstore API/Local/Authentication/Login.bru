@@ -1,11 +1,11 @@
 meta {
-  name: Admin Login
+  name: Login 
   type: http
   seq: 2
 }
 
 post {
-  url: https://hbn-be.efficientemengineering.com/auth/login
+  url: http://localhost:8000/auth/login
   body: json
   auth: inherit
 }
@@ -16,9 +16,10 @@ headers {
 
 body:json {
   {
-    "email":"admin@example.com",
-    "password":"Admin@123"
+    "email": "admin1@hithabodha.com",
+    "password": "Admin1@123"
   }
+  
 }
 
 settings {

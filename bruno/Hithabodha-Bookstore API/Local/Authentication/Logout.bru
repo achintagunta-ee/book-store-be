@@ -1,11 +1,11 @@
 meta {
-  name: Get Category by ID
+  name: Logout
   type: http
-  seq: 3
+  seq: 4
 }
 
-get {
-  url: http://localhost:8000/categories/get-category/4
+post {
+  url: http://localhost:8000/auth/logout
   body: none
   auth: inherit
 }

@@ -1,11 +1,11 @@
 meta {
-  name: Get books by category_name
+  name: Get Category by ID
   type: http
   seq: 5
 }
 
 get {
-  url: http://localhost:8000/categories/Fantasy/list
+  url: http://localhost:8000/categories/get-category/4
   body: none
   auth: inherit
 }
