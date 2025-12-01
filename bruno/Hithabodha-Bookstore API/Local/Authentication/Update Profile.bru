@@ -1,0 +1,15 @@
+meta {
+  name: Update Profile
+  type: http
+  seq: 8
+}
+
+put {
+  url: localhost:8000/auth/update-profile
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}

@@ -1,13 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status , Form , UploadFile , File
 from sqlmodel import Session, select
 from app.database import get_session
 from app.models.user import User
 from app.schemas.user_schemas import UserRegister, UserLogin, Token ,UserResponse
 from app.schemas.google_schemas import GoogleTokenRequest
 from app.utils.hash import hash_password, verify_password
-from app.utils.token import create_access_token, get_current_user
+from app.utils.token import create_access_token, get_current_user ,decode_access_token
 from app.utils.google_auth import verify_google_token
-
+from datetime import timedelta
 
 router = APIRouter()
 
@@ -170,3 +170,74 @@ def register_admin(payload: UserRegister, session: Session = Depends(get_session
 @router.post("/logout")
 def logout():
     return {"message": "Logout successful"}
+
+
+@router.post("/forgot-password")
+def forgot_password(email: str, session: Session = Depends(get_session)):
+    user = session.exec(select(User).where(User.email == email)).first()
+    if not user:
+        raise HTTPException(404, "User not found")
+    
+    reset_token = create_access_token(
+        {"user_id": user.id, "action": "reset_password"},
+        expires_delta=timedelta(minutes=15)
+    )
+
+    reset_link = f"https://hbn-be.efficinentemengineering.com/reset-password?token={reset_token}"
+
+    return {"message": "Reset link sent", "reset_link": reset_link}
+
+
+@router.post("/reset-password")
+def reset_password(token: str, new_password: str, session: Session = Depends(get_session)):
+    payload = decode_access_token(token)
+    
+    if payload is None or payload.get("action") != "reset_password":
+        raise HTTPException(400, "Invalid or expired token")
+
+    user_id = payload.get("user_id")
+    user = session.get(User, user_id)
+
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    user.password = hash_password(new_password)
+    session.add(user)
+    session.commit()
+
+    return {"message": "Password updated successfully"}
+
+@router.put("/update-profile")
+def update_profile(
+    first_name: str | None = Form(None),
+    last_name: str | None = Form(None),
+    username: str | None = Form(None),
+    profile_image: UploadFile | None = File(None),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    user = current_user
+
+    if first_name:
+        user.first_name = first_name
+    if last_name:
+        user.last_name = last_name
+    if username:
+        user.username = username
+
+    # profile image upload
+    if profile_image:
+        ext = profile_image.filename.split(".")[-1]
+        filename = f"profile_{user.id}.{ext}"
+        path = f"uploads/profiles/{filename}"
+
+        with open(path, "wb") as f:
+            f.write(profile_image.file.read())
+
+        user.profile_image = path
+
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
+    return {"message": "Profile updated", "user": user}

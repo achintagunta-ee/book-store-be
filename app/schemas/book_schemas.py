@@ -3,10 +3,6 @@ from typing import Optional, List
 from datetime import datetime
 
 
-# -----------------------------
-# CREATE BOOK
-# -----------------------------
-
 class BookCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     slug: Optional[str] = None
@@ -36,10 +32,6 @@ class BookCreate(BaseModel):
 
 
 
-# -----------------------------
-# UPDATE BOOK
-# -----------------------------
-
 class BookUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     slug: Optional[str] = None
@@ -67,10 +59,6 @@ class BookUpdate(BaseModel):
     is_featured_author: Optional[bool] = None
 
 
-
-# -----------------------------
-# BASE RESPONSE
-# -----------------------------
 
 class BookResponse(BaseModel):
     id: int
@@ -103,22 +91,15 @@ class BookResponse(BaseModel):
     updated_at: datetime
 
     class Config:
-        from_attributes = True  # important for SQLModel ORM
+        from_attributes = True  
 
 
-# -----------------------------
-# BOOK WITH CATEGORY NAME
-# -----------------------------
 
 class BookWithCategory(BookResponse):
     category_name: Optional[str] = None
     category_description: Optional[str] = None
 
 
-
-# -----------------------------
-# PAGINATED LIST RESPONSE
-# -----------------------------
 
 class BookList(BaseModel):
     total: int

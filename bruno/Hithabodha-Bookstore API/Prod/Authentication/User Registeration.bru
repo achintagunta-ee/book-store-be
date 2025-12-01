@@ -1,0 +1,27 @@
+meta {
+  name: User Registeration
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{BASE_URL}}/auth/register
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+     "first_name":"Sidhvi",
+     "last_name": "Anjuri",
+     "email":"anjurivimalashidhvi@gmail.com",
+     "username":"sidhvi",
+     "password": "Securepass123",
+     "confirm_password":"Securepass123"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
