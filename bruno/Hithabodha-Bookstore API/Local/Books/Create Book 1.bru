@@ -1,15 +1,29 @@
 meta {
-  name: Create Book 1
+  name: Create book 1
   type: http
-  seq: 7
+  seq: 6
 }
 
 post {
-  url: http://localhost:8000/books/create-book
-  body: none
+  url: http://localhost:8000/admin/books/
+  body: multipartForm
   auth: inherit
+}
+
+headers {
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo2LCJleHAiOjE3NjQ1ODUzNzZ9.Lm932sKRsPiWHGEp9rgPvUw7AOdk75F02Hz7K4bxA1E
+}
+
+body:multipart-form {
+  title: The Morning Journey
+  author: Matt
+  description: full description
+  price: 499
+  stock: 20
+  category_id: 1
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }
