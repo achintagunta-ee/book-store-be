@@ -11,12 +11,12 @@ post {
 }
 
 headers {
-  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo2LCJleHAiOjE3NjQ1ODY3ODN9.f5pTNn29OgE6tU1tbof4IZf0EoS4QPjsXVlzP_mepKQ
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo2LCJleHAiOjE3NjQ2NTA4NDF9.CT3QKI0ATz0Wlyv6_af90pAnNJxILN2ADeH-rzQ-MGg
 }
 
 body:multipart-form {
   title: book-two
-  "author ": Peter
+  "author ": Peter @contentType(text)
   description: description-two
   price: 200
   stock: 20
