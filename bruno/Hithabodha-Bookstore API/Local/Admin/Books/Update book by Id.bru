@@ -1,0 +1,26 @@
+meta {
+  name: Update book by Id
+  type: http
+  seq: 6
+}
+
+put {
+  url: http://localhost:8000/admin/books/5
+  body: multipartForm
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo2LCJleHAiOjE3NjQ2NzI3NTF9.wTLM0yU79W1AEts2IsU2JiAgpVv8ZHiOUZJE4nUZzl8
+}
+
+body:multipart-form {
+  rating: 4.0
+  is_featured: true
+  is_featured_author: true
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

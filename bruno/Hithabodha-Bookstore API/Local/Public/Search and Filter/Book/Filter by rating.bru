@@ -1,0 +1,19 @@
+meta {
+  name: Filter by rating
+  type: http
+  seq: 9
+}
+
+get {
+  url: http://localhost:8000/books/filter?rating=4
+  body: none
+  auth: inherit
+}
+
+params:query {
+  rating: 4
+}
+
+settings {
+  encodeUrl: true
+}

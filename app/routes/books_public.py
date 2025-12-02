@@ -22,13 +22,121 @@ def list_books(session: Session = Depends(get_session)):
     }
 
 
+
+
+
+# ------------------ FILTER BOOKS ------------------
+@router.get("/filter")
+def filter_books(
+    category: str | None = None,
+    author: str | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
+    rating: float | None = None,
+    session: Session = Depends(get_session)
+):
+    query = select(Book)
+
+    # CATEGORY FILTER
+    if category:
+        cat = session.exec(
+            select(Category).where(Category.name.ilike(f"%{category}%"))
+        ).first()
+        if cat:
+            query = query.where(Book.category_id == cat.id)
+        else:
+            return {"books": []}
+
+    # AUTHOR FILTER
+    if author:
+        query = query.where(Book.author.ilike(f"%{author}%"))
+
+    # PRICE FILTER
+    if min_price is not None:
+        query = query.where(Book.price >= min_price)
+
+    if max_price is not None:
+        query = query.where(Book.price <= max_price)
+
+    # RATING FILTER
+    if rating is not None:
+        query = query.where(Book.rating >= rating)
+
+    books = session.exec(query).all()
+
+    return {
+        "total": len(books),
+        "filters": {
+            "category": category,
+            "author": author,
+            "min_price": min_price,
+            "max_price": max_price,
+            "rating": rating
+        },
+        "books": books
+    }
+
+
+@router.get("/featured")
+def featured_books(session: Session = Depends(get_session)):
+    books = session.exec(select(Book).where(Book.is_featured == True)).all()
+    
+    return {
+        "total": len(books),
+        "featured_books": books
+    }
+@router.get("/featured-authors")
+def featured_authors(session: Session = Depends(get_session)):
+    authors = session.exec(
+        select(Book).where(Book.is_featured_author == True)
+    ).all()
+
+    unique_authors = list({book.author: book for book in authors}.values())
+
+    return {
+        "total_authors": len(unique_authors),
+        "authors": unique_authors
+    }
+
+
+
+# ---------- SEARCH BOOKS ----------
+@router.get("/search/query", summary="Search books by title or author")
+def search_books(
+    query: str = Query(..., description="Search term for title or author"),
+    session: Session = Depends(get_session)
+):
+
+    books = session.exec(
+        select(Book).where(
+            Book.title.ilike(f"%{query}%") |
+            Book.author.ilike(f"%{query}%")
+        )
+    ).all()
+
+    return {
+        "query": query,
+        "total": len(books),
+        "results": books
+    }
+
+
+
+
+
+
+
 # ---------- GET BOOK BY ID ----------
-@router.get("/id/{book_id}", summary="Get a book by ID")
+@router.get("/{book_id}", summary="Get a book by ID")
 def get_book_by_id(book_id: int, session: Session = Depends(get_session)):
     book = session.get(Book, book_id)
     if not book:
         raise HTTPException(404, "Book not found")
     return book
+
+
+
+
 
 
 # ---------- LIST BOOKS BY CATEGORY ID ----------
@@ -100,42 +208,6 @@ def get_book_in_category(category_name: str, book_name: str, session: Session = 
     return book
 
 
-# ---------- FEATURED BOOKS ----------
-@router.get("/filters/featured", summary="Get featured books")
-def featured_books(session: Session = Depends(get_session)):
-    books = session.exec(select(Book).where(Book.is_featured == True)).all()
-    return {
-        "total": len(books),
-        "books": books
-    }
 
 
-# ---------- FEATURED AUTHORS ----------
-@router.get("/filters/featured-authors", summary="Get featured authors' books")
-def featured_authors(session: Session = Depends(get_session)):
-    books = session.exec(select(Book).where(Book.is_featured_author == True)).all()
-    return {
-        "total": len(books),
-        "books": books
-    }
 
-
-# ---------- SEARCH BOOKS ----------
-@router.get("/search/query", summary="Search books by title or author")
-def search_books(
-    query: str = Query(..., description="Search term for title or author"),
-    session: Session = Depends(get_session)
-):
-
-    books = session.exec(
-        select(Book).where(
-            Book.title.ilike(f"%{query}%") |
-            Book.author.ilike(f"%{query}%")
-        )
-    ).all()
-
-    return {
-        "query": query,
-        "total": len(books),
-        "results": books
-    }

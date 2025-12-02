@@ -1,0 +1,19 @@
+meta {
+  name: Search Book by Author
+  type: http
+  seq: 14
+}
+
+get {
+  url: //localhost:8000/books/search/query?query=author_five
+  body: none
+  auth: inherit
+}
+
+params:query {
+  query: author_five
+}
+
+settings {
+  encodeUrl: true
+}
