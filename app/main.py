@@ -1,8 +1,10 @@
 from fastapi import FastAPI
 from app.database import create_db_and_tables
-from app.routes import auth, books_admin, categories_admin ,users
+from app.routes import auth, books_admin, categories_admin ,users , categories_public ,users , books_public
+
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from app.routes import books_public
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -25,6 +27,9 @@ app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(users.router, prefix="/users", tags=["Users"]) 
 app.include_router(books_admin.router, prefix="/admin/books", tags =["Admin Books"])
 app.include_router(categories_admin.router,prefix="/admin/categories", tags=["Admin Categories"])
+app.include_router(books_public.router, prefix="/books", tags=["Public Books"])
+app.include_router(categories_public.router, prefix="/categories", tags=["Public Categories"])
+
 
 app.get("/")
 def root():
