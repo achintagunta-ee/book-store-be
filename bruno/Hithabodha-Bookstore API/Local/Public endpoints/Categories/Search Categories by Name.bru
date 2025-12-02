@@ -1,0 +1,16 @@
+meta {
+  name: Search Categories by Name
+  type: http
+  seq: 4
+}
+
+get {
+  url: http://localhost:8000/categories/search/Non Fiction Books
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
