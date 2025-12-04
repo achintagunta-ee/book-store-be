@@ -5,17 +5,18 @@ meta {
 }
 
 put {
-  url: {{BASE_URL}}/admin/books/4
+  url: {{BASE_URL}}/admin/books/1
   body: multipartForm
   auth: inherit
 }
 
 headers {
-  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo2LCJleHAiOjE3NjQ1OTAyMzV9.MP6ZdjoGj_LXBEHpdOuZCvYqUq2o-erlcFjxDivZCQc
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo2LCJleHAiOjE3NjQ4MzI4NDR9.LmipjB_A4RydSg86V66dedYDyPnKHGzZnKXE17f51Gk
 }
 
 body:multipart-form {
   isbn: 123456789
+  cover_image: @file(C:\Users\anjur\Downloads\OIP (2).jpeg)
 }
 
 settings {

@@ -1,10 +1,11 @@
 from fastapi import FastAPI
 from app.database import create_db_and_tables
 from app.routes import auth, books_admin, categories_admin ,users , categories_public ,users , books_public
-
+import os
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.routes import books_public
+from fastapi.staticfiles import StaticFiles
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -30,6 +31,11 @@ app.include_router(categories_admin.router,prefix="/admin/categories", tags=["Ad
 app.include_router(books_public.router, prefix="/books", tags=["Public Books"])
 app.include_router(categories_public.router, prefix="/categories", tags=["Public Categories"])
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+
 
 app.get("/")
 def root():
@@ -38,4 +44,15 @@ def root():
         "user_endpoints": ["/users/me", "/users/admin-feature"] ,
         "book_endpoints":["/books","/books/{id}"],
         "category_endpoints":["/categories","/categories/{id}"]
+    }
+
+print("UPLOAD PATH:", UPLOAD_DIR)
+
+@app.get("/debug/uploads")
+def debug_uploads():
+    import os
+    return {
+        "exists": os.path.exists(UPLOAD_DIR),
+        "path": UPLOAD_DIR,
+        "files": os.listdir(UPLOAD_DIR) if os.path.exists(UPLOAD_DIR) else []
     }

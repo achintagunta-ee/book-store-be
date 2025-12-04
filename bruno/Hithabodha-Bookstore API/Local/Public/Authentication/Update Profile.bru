@@ -5,11 +5,27 @@ meta {
 }
 
 put {
-  url: localhost:8000/auth/update-profile
-  body: none
+  url: http://localhost:8000/auth/update-profile
+  body: multipartForm
   auth: inherit
+}
+
+headers {
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo3LCJleHAiOjE3Njc0MjU3Mjl9._nUCZ7JJbG_9M6LOgSRaq9cZjSaj5Up4Ucdfr-4bnvw
+}
+
+body:json {
+  {
+    "first_name":"user"
+  }
+}
+
+body:multipart-form {
+  first_name: User
+  last_name: one
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }

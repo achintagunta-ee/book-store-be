@@ -7,6 +7,7 @@ from app.models.user import User
 from app.utils.token import get_current_user
 import os
 from datetime import datetime
+from app.config import settings
 
 router = APIRouter()
 
@@ -49,7 +50,7 @@ def create_book(
         raise HTTPException(400, "Invalid category_id")
 
     
-    image_path = None
+    image_realtive_url = None
     if cover_image:
         ext = cover_image.filename.split(".")[-1]
         filename = f"{title.replace(' ', '_')}.{ext}"
@@ -58,7 +59,8 @@ def create_book(
         with open(image_path, "wb") as f:
             f.write(cover_image.file.read())
 
-    
+        image_relative_url = f"/uploads/book_covers/{filename}"
+
     book = Book(
         title=title,
         slug=slug,
@@ -77,7 +79,7 @@ def create_book(
         is_featured=is_featured,
         is_featured_author=is_featured_author,
         tags=tags,
-        cover_image=image_path,
+        cover_image=image_relative_url,
         category_id=category_id
     )
 
