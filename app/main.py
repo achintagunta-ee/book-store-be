@@ -30,6 +30,10 @@ app.include_router(books_admin.router, prefix="/admin/books", tags =["Admin Book
 app.include_router(categories_admin.router,prefix="/admin/categories", tags=["Admin Categories"])
 app.include_router(books_public.router, prefix="/books", tags=["Public Books"])
 app.include_router(categories_public.router, prefix="/categories", tags=["Public Categories"])
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
