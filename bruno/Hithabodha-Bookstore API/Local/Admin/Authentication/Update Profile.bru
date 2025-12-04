@@ -1,0 +1,25 @@
+meta {
+  name: Update Profile
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{LOCAL_URL}}/auth/admin/update-profile
+  body: multipartForm
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxMCwiZXhwIjoxNzY3NDM5MTUyfQ.QuEV_AwC9iUHrNlAAdOyK5aqyEg7hT_0HRktqLcxlh8
+}
+
+body:multipart-form {
+  first_name: Super
+  last_name: admin4
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
