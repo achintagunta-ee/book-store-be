@@ -1,0 +1,24 @@
+meta {
+  name: Filter Books by Featured Books
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{LOCAL_URL}}/admin/books/filter?is_featured=true
+  body: none
+  auth: inherit
+}
+
+params:query {
+  is_featured: true
+}
+
+headers {
+  "Authorization ": Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo2LCJleHAiOjE3NjQ3NDQzOTR9.cDrLocl-C0Oig46InItVq0g71Rs4jIGabfxx0LoFqxI
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

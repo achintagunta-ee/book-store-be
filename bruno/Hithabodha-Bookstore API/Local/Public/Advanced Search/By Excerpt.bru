@@ -1,0 +1,20 @@
+meta {
+  name: By Excerpt
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{LOCAL_URL}}/books/search?excerpt=life
+  body: none
+  auth: inherit
+}
+
+params:query {
+  excerpt: life
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

@@ -1,0 +1,20 @@
+meta {
+  name: by Catergory Name
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{LOCAL_URL}}/books/search?category=Non Fiction
+  body: none
+  auth: inherit
+}
+
+params:query {
+  category: Non Fiction
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

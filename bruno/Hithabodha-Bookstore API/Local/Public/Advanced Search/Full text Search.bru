@@ -1,0 +1,20 @@
+meta {
+  name: Full text Search
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{LOCAL_URL}}/books/search?q=journey
+  body: none
+  auth: inherit
+}
+
+params:query {
+  q: journey
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

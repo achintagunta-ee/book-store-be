@@ -1,0 +1,25 @@
+meta {
+  name: Combined Search
+  type: http
+  seq: 13
+}
+
+get {
+  url: {{LOCAL_URL}}/books/search?category=Non Fiction Books&author=author_five&price_min=100&price_max=500&rating_min=3&q=life
+  body: none
+  auth: inherit
+}
+
+params:query {
+  category: Non Fiction Books
+  author: author_five
+  price_min: 100
+  price_max: 500
+  rating_min: 3
+  q: life
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

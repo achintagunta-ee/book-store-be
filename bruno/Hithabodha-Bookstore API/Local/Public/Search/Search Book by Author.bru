@@ -1,11 +1,11 @@
 meta {
   name: Search Book by Author
   type: http
-  seq: 14
+  seq: 3
 }
 
 get {
-  url: //localhost:8000/books/search/query?query=author_five
+  url: http://localhost:8000/books/search/query?query=author_five
   body: none
   auth: inherit
 }
@@ -16,4 +16,5 @@ params:query {
 
 settings {
   encodeUrl: true
+  timeout: 0
 }

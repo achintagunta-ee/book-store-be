@@ -1,0 +1,24 @@
+meta {
+  name: Search Books By title
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://localhost:8000/admin/books/filter?title=The Morning Journey
+  body: none
+  auth: inherit
+}
+
+params:query {
+  title: The Morning Journey
+}
+
+headers {
+  "Authorization  ": Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo2LCJleHAiOjE3NjQ3NDQzOTR9.cDrLocl-C0Oig46InItVq0g71Rs4jIGabfxx0LoFqxI
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

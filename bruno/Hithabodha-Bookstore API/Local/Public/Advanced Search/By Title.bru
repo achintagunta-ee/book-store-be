@@ -1,13 +1,17 @@
 meta {
-  name: Get category by Id
+  name: By Title
   type: http
   seq: 2
 }
 
 get {
-  url: http://localhost:8000/categories/1
+  url: {{LOCAL_URL}}/books/search?title=morning
   body: none
   auth: inherit
+}
+
+params:query {
+  title: morning
 }
 
 settings {

@@ -88,6 +88,71 @@ def create_book(
     return book
 
 
+@router.get("/filter")
+def filter_books_admin(
+    title: str | None = None,
+    category: str | None = None,
+    author: str | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
+    rating: float | None = None,
+    is_featured: bool | None = None,
+    is_featured_author: bool | None = None,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+
+    # Only admin can use this
+    if current_user.role != "admin":
+        raise HTTPException(403, "Admin access required")
+
+    query = select(Book)
+
+    # Filter: Title
+    if title:
+        query = query.where(Book.title.ilike(f"%{title}%"))
+
+    # Filter: Category Name
+    if category:
+        category_obj = session.exec(
+            select(Category).where(Category.name.ilike(f"%{category}%"))
+        ).first()
+
+        if not category_obj:
+            return {"total_books": 0, "results": []}
+
+        query = query.where(Book.category_id == category_obj.id)
+
+    # Filter: Author
+    if author:
+        query = query.where(Book.author.ilike(f"%{author}%"))
+
+    # Filter: Price Range
+    if min_price is not None:
+        query = query.where(Book.price >= min_price)
+
+    if max_price is not None:
+        query = query.where(Book.price <= max_price)
+
+    # Filter: Rating
+    if rating is not None:
+        query = query.where(Book.rating >= rating)
+
+    # Filter: Featured Books
+    if is_featured is not None:
+        query = query.where(Book.is_featured == is_featured)
+
+    # Filter: Featured Author Books
+    if is_featured_author is not None:
+        query = query.where(Book.is_featured_author == is_featured_author)
+
+    results = session.exec(query).all()
+
+    return {
+        "total_books": len(results),
+        "results": results
+    }
+
 
 @router.get("/list")
 def list_books(

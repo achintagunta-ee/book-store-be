@@ -1,0 +1,24 @@
+meta {
+  name: Search Books by Category
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{LOCAL_URL}}/admin/books/filter?category=Non fiction Books
+  body: none
+  auth: inherit
+}
+
+params:query {
+  category: Non fiction Books
+}
+
+headers {
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo2LCJleHAiOjE3NjQ3NDQzOTR9.cDrLocl-C0Oig46InItVq0g71Rs4jIGabfxx0LoFqxI
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

@@ -1,16 +1,19 @@
 meta {
-  name: List books by categories by id
+  name: By Author
   type: http
   seq: 3
 }
 
 get {
-  url: http://localhost:8000/categories/1/books
+  url: {{LOCAL_URL}}/books/search?author=Matt
   body: none
   auth: inherit
 }
 
+params:query {
+  author: Matt
+}
+
 settings {
   encodeUrl: true
-  timeout: 0
 }
