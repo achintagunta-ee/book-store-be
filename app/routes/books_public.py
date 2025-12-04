@@ -157,9 +157,6 @@ def advanced_search_books(
 
 
 
-
-
-
 # ------------------ FILTER BOOKS ------------------
 @router.get("/filter")
 def filter_books(
