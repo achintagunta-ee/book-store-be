@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     google_client_id: str
     google_client_secret: str
 
+    base_url :str
+
     @property
     def database_url(self):
         encoded_password = quote_plus(self.postgres_password)
