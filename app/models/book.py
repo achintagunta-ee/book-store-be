@@ -1,6 +1,8 @@
 from sqlmodel import SQLModel, Field ,Relationship
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING , List
 from datetime import datetime
+from app.models.review import Review
+
 
 if TYPE_CHECKING:
     from .category import Category
@@ -42,3 +44,5 @@ class Book(SQLModel, table=True):
 
     #tags
     tags:Optional[str]= None #comma separated string
+
+    reviews: List["Review"] = Relationship(back_populates="book")
