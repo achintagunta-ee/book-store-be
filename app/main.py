@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from app.database import create_db_and_tables
-from app.routes import auth, books_admin, categories_admin ,users , categories_public ,users , books_public , book_detail
+from app.routes import auth, books_admin, categories_admin ,users , categories_public ,users , books_public , book_detail , review
 import os
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -31,6 +31,7 @@ app.include_router(categories_admin.router,prefix="/admin/categories", tags=["Ad
 app.include_router(books_public.router, prefix="/books", tags=["Public Books"])
 app.include_router(categories_public.router, prefix="/categories", tags=["Public Categories"])
 app.include_router(book_detail.router, prefix="/book", tags=["Book Details"])
+app.include_router(review.router,prefix="/reviews",tags=["Reviews"])
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 

@@ -1,0 +1,16 @@
+meta {
+  name: Delete Review
+  type: http
+  seq: 3
+}
+
+delete {
+  url: {{LOCAL_URL}}/reviews/reviews/1
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

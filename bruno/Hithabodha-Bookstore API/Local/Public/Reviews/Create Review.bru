@@ -1,0 +1,24 @@
+meta {
+  name: Create Review
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{LOCAL_URL}}/reviews/books/the-morning-journey/reviews
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+        "user_name": "John Doe3",
+        "rating": 4.5,
+        "comment": "Very nice story3!"
+      }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
