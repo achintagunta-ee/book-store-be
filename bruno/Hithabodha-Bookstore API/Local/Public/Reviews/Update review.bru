@@ -1,0 +1,24 @@
+meta {
+  name: Update review
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{LOCAL_URL}}/reviews/reviews/1
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "rating": 4.9,
+    "comment": "Updated review text"
+  }
+  
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

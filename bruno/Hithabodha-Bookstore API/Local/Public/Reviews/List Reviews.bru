@@ -1,0 +1,16 @@
+meta {
+  name: List Reviews
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{LOCAL_URL}}/reviews/books/the-morning-journey/reviews
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

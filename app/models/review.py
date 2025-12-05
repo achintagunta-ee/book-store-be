@@ -12,5 +12,5 @@ class Review(SQLModel, table=True):
     rating: float = 0.0
     comment: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
-
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
     book: Optional["Book"] = Relationship(back_populates="reviews")
