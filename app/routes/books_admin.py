@@ -8,11 +8,12 @@ from app.utils.token import get_current_user
 import os
 from datetime import datetime
 from app.config import settings
+from slugify import slugify
 
 router = APIRouter()
 
-UPLOAD_DIR = "uploads/book_covers"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+# UPLOAD_DIR = "uploads/book_covers"
+# os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 
@@ -36,7 +37,7 @@ def create_book(
     is_featured_author: bool = Form(False),
     tags: str = Form(None),
     category_id: int = Form(...),
-    cover_image: UploadFile = File(None),
+    #cover_image: UploadFile = File(None),
 
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -49,18 +50,23 @@ def create_book(
     if not category:
         raise HTTPException(400, "Invalid category_id")
 
+    if not slug or slug.strip() == "":
+        slug = slugify(title)
+
     
-    image_realtive_url = None
-    if cover_image:
-        ext = cover_image.filename.split(".")[-1]
-        filename = f"{title.replace(' ', '_')}.{ext}"
-        image_path = os.path.join(UPLOAD_DIR, filename)
+    #image_realtive_url = None
+    #if cover_image:
+       # ext = cover_image.filename.split(".")[-1]
+       # filename = f"{title.replace(' ', '_')}.{ext}"
+       # image_path = os.path.join(UPLOAD_DIR, filename)
 
-        with open(image_path, "wb") as f:
-            f.write(cover_image.file.read())
+        #with open(image_path, "wb") as f:
+        #    f.write(cover_image.file.read())
 
-        image_relative_url = f"/uploads/book_covers/{filename}"
+        #image_relative_url = f"/uploads/book_covers/{filename}"
 
+     
+    
     book = Book(
         title=title,
         slug=slug,
@@ -79,7 +85,7 @@ def create_book(
         is_featured=is_featured,
         is_featured_author=is_featured_author,
         tags=tags,
-        cover_image=image_relative_url,
+        #cover_image=image_relative_url,
         category_id=category_id
     )
 
@@ -224,7 +230,10 @@ def update_book(
 
   
     if title is not None: book.title = title
-    if slug is not None: book.slug = slug
+    if slug is None or slug == "":
+        book.slug = slugify(book.title)   # auto-generate
+    else:
+        book.slug = slug
     if excerpt is not None: book.excerpt = excerpt
     if description is not None: book.description = description
     if author is not None: book.author = author
@@ -251,15 +260,15 @@ def update_book(
         book.category_id = category_id
 
     
-    if cover_image:
-        ext = cover_image.filename.split(".")[-1]
-        filename = f"{book.title.replace(' ', '_')}_updated.{ext}"
-        image_path = os.path.join(UPLOAD_DIR, filename)
+    #if cover_image:
+        #ext = cover_image.filename.split(".")[-1]
+        #filename = f"{book.title.replace(' ', '_')}_updated.{ext}"
+        #image_path = os.path.join(UPLOAD_DIR, filename)
 
-        with open(image_path, "wb") as f:
-            f.write(cover_image.file.read())
-
-        book.cover_image = image_path
+        #with open(image_path, "wb") as f:
+           # f.write(cover_image.file.read())
+#
+       # book.cover_image = image_path
 
     session.add(book)
     session.commit()

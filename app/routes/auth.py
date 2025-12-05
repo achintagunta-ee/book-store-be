@@ -14,9 +14,7 @@ import os
 
 router = APIRouter()
 
-# ===========================
 # HELPER DEPENDENCY
-# ===========================
 
 def require_admin(current_user: User = Depends(get_current_user)) -> User:
     """Ensure user is admin"""
@@ -28,9 +26,8 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
     return current_user
 
 
-# ===========================
 # SCHEMAS
-# ===========================
+
 
 class ForgotPasswordRequest(BaseModel):
     email: str
@@ -40,9 +37,7 @@ class ResetPasswordRequest(BaseModel):
     new_password: str
 
 
-# ===========================
 # GOOGLE AUTH
-# ===========================
 
 @router.post("/google", response_model=Token)
 def google_login(
@@ -85,9 +80,7 @@ def google_login(
     )
 
 
-# ===========================
 # PUBLIC ENDPOINTS
-# ===========================
 
 @router.post("/register", response_model=UserResponse)
 def register_user(payload: UserRegister, session: Session = Depends(get_session)):
@@ -220,9 +213,7 @@ def logout():
     return {"message": "Logout successful"}
 
 
-# ===========================
 # USER PROFILE (Regular Users)
-# ===========================
 
 @router.put("/update-profile")
 def update_user_profile(
@@ -282,9 +273,7 @@ def update_user_profile(
     }
 
 
-# ===========================
 # ADMIN ENDPOINTS
-# ===========================
 
 @router.post("/register-admin")
 def register_admin(

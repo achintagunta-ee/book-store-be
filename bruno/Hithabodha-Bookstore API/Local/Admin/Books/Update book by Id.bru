@@ -5,23 +5,17 @@ meta {
 }
 
 put {
-  url: http://localhost:8000/admin/books/5
+  url: http://localhost:8000/admin/books/10
   body: multipartForm
   auth: inherit
 }
 
 headers {
-  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo2LCJleHAiOjE3NjQ4MTQ0Njd9.vVATN6hGh8rngNrPWTA1GS_PEgatS85snGLGccXWnE0
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo2LCJleHAiOjE3Njc1MDYyODh9.q4_Z2MhEoE0jPZlok4q31zp8ErkmrSxI8rnQYoTHfCA
 }
 
 body:multipart-form {
-  rating: 4.0
-  is_featured: true
-  is_featured_author: true
-  excerpt: life
-  tags: bestseller
-  publisher: penguin
-  cover_image: @file(C:\Users\anjur\Downloads\OIP (2).jpeg)
+  category_id: 7
 }
 
 settings {
