@@ -37,11 +37,6 @@ UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
-
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
-
 
 app.get("/")
 def root():
@@ -50,15 +45,4 @@ def root():
         "user_endpoints": ["/users/me", "/users/admin-feature"] ,
         "book_endpoints":["/books","/books/{id}"],
         "category_endpoints":["/categories","/categories/{id}"]
-    }
-
-print("UPLOAD PATH:", UPLOAD_DIR)
-
-@app.get("/debug/uploads")
-def debug_uploads():
-    import os
-    return {
-        "exists": os.path.exists(UPLOAD_DIR),
-        "path": UPLOAD_DIR,
-        "files": os.listdir(UPLOAD_DIR) if os.path.exists(UPLOAD_DIR) else []
     }
