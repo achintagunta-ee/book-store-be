@@ -1,9 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session, select ,SQLModel
+from sqlmodel import Session, select 
 from app.database import get_session
 from app.models.review import Review
 from app.models.book import Book
 from datetime import datetime
+from app.schemas.review_schemas import ReviewCreate , ReviewUpdate 
+
+
 
 router = APIRouter()
 
@@ -11,35 +14,6 @@ router = APIRouter()
 # ---------------------------------------------------------
 # 1️⃣ CREATE A REVIEW (BY BOOK SLUG)
 # ---------------------------------------------------------
-class ReviewCreate(SQLModel):
-    user_name: str
-    rating: float
-    comment: str
-
-from sqlmodel import SQLModel
-from typing import List
-from datetime import datetime
-
-
-class ReviewRead(SQLModel):
-    id: int
-    book_id: int
-    user_name: str
-    rating: float
-    comment: str
-    created_at: datetime
-    updated_at: datetime | None = None
-
-
-class ReviewDeleteResponse(SQLModel):
-    message: str
-
-
-class ReviewListResponse(SQLModel):
-    book_slug: str
-    average_rating: float
-    total_reviews: int
-    reviews: List[ReviewRead]
 
 
 @router.post("/books/{slug}/reviews")
@@ -71,11 +45,9 @@ def create_review(
 # ---------------------------------------------------------
 # 2️⃣ UPDATE A REVIEW
 # ---------------------------------------------------------
-class ReviewUpdate(SQLModel):
-    rating: float | None = None
-    comment: str | None = None
 
-@router.put("/reviews/{review_id}")
+
+@router.put("/review/{review_id}")
 def update_review(
     review_id: int,
     data: ReviewUpdate,
@@ -105,7 +77,7 @@ def update_review(
 # ---------------------------------------------------------
 
 
-@router.delete("/reviews/{review_id}")
+@router.delete("/review/{review_id}")
 def delete_review(
     review_id: int,
     session: Session = Depends(get_session)
