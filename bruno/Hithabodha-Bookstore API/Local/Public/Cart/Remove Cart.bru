@@ -1,0 +1,20 @@
+meta {
+  name: Remove Cart 
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{LOCAL_URL}}/cart/remove/1
+  body: none
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3Njc1OTE5MjN9.b4aLMqqsQvK-TY4ayEOjacceGAYbzQHsZZHUsHF_zrc
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
