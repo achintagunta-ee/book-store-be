@@ -45,4 +45,10 @@ class Book(SQLModel, table=True):
     #tags
     tags:Optional[str]= None #comma separated string
 
+    
+    @property
+    def in_stock(self) -> bool:
+         return self.stock is not None and self.stock > 0
+
+
     reviews: List["Review"] = Relationship(back_populates="book")

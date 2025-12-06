@@ -1,0 +1,20 @@
+meta {
+  name: VIew Cart
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{LOCAL_URL}}/cart/
+  body: json
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3Njc1OTE5MjN9.b4aLMqqsQvK-TY4ayEOjacceGAYbzQHsZZHUsHF_zrc
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
