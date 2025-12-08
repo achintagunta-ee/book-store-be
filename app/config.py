@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     google_client_id: str
     google_client_secret: str
 
-    base_url :str
+    base_url: str = "https://book.efficientemengineering.com"
 
     @property
     def database_url(self):
