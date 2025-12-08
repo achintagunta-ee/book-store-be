@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from app.database import create_db_and_tables
-from app.routes import auth, books_admin, categories_admin, users, categories_public, books_public, book_detail, review, cart
+from app.routes import auth, books_admin, categories_admin, categories_public, books_public, book_detail, review, cart ,users
 import os
 import tempfile
 from fastapi.middleware.cors import CORSMiddleware
@@ -41,15 +41,39 @@ app.include_router(cart.router, prefix="/cart", tags=["Cart"])
 
 # Use system temp directory instead of local uploads folder
 UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "hithabodha_uploads")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+BOOK_COVER_DIR = os.path.join(UPLOAD_DIR, "book_covers")
+os.makedirs(BOOK_COVER_DIR, exist_ok=True)
 
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 @app.get("/")
 def root():
     return {
-        "auth_endpoints": ["/auth/register", "/auth/login", "/auth/google"],
-        "user_endpoints": ["/users/me", "/users/admin-feature"],
-        "book_endpoints": ["/books", "/books/{id}"],
-        "category_endpoints": ["/categories", "/categories/{id}"]
+        "auth_endpoints": [
+            "/auth/register", "/auth/login", "/auth/google",
+            "/auth/forgot-password", "/auth/reset-password", "/auth/logout"
+        ],
+        "user_endpoints": [
+            "/users/me", "/users/update-profile"
+        ],
+        "admin_book_endpoints": [
+            "/admin/books/", "/admin/books/{book_id}", 
+            "/admin/books/filter", "/admin/books/list"
+        ],
+        "admin_category_endpoints": [
+            "/admin/categories/", "/admin/categories/{category_id}"
+        ],
+        "public_books": [
+            "/books", "/books/{book_id}"
+        ],
+        "public_categories": [
+            "/categories", "/categories/{category_id}"
+        ],
+        "reviews": [
+            "/reviews", "/reviews/{review_id}", "/reviews/book/{book_id}"
+        ],
+        "cart": [
+            "/cart", "/cart/add", "/cart/update/{id}",
+            "/cart/remove/{id}", "/cart/clear"
+        ]
     }
