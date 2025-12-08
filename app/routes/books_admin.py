@@ -6,15 +6,16 @@ from app.models.category import Category
 from app.models.user import User
 from app.utils.token import get_current_user
 import os
+import tempfile
 from datetime import datetime
 from app.config import settings
 from slugify import slugify
 
 router = APIRouter()
 
-# UPLOAD_DIR = "uploads/book_covers"
-# os.makedirs(UPLOAD_DIR, exist_ok=True)
-
+# Use temp directory instead of local uploads folder
+UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "hithabodha_uploads", "book_covers")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 @router.post("/")
@@ -37,7 +38,7 @@ def create_book(
     is_featured_author: bool = Form(False),
     tags: str = Form(None),
     category_id: int = Form(...),
-    #cover_image: UploadFile = File(None),
+    cover_image: UploadFile = File(None),
 
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -45,7 +46,6 @@ def create_book(
     if current_user.role != "admin":
         raise HTTPException(403, "Admin access required")
 
-    
     category = session.get(Category, category_id)
     if not category:
         raise HTTPException(400, "Invalid category_id")
@@ -53,19 +53,16 @@ def create_book(
     if not slug or slug.strip() == "":
         slug = slugify(title)
 
-    
-    #image_realtive_url = None
-    #if cover_image:
-       # ext = cover_image.filename.split(".")[-1]
-       # filename = f"{title.replace(' ', '_')}.{ext}"
-       # image_path = os.path.join(UPLOAD_DIR, filename)
+    image_relative_url = None
+    if cover_image:
+        ext = cover_image.filename.split(".")[-1]
+        filename = f"{title.replace(' ', '_')}.{ext}"
+        image_path = os.path.join(UPLOAD_DIR, filename)
 
-        #with open(image_path, "wb") as f:
-        #    f.write(cover_image.file.read())
+        with open(image_path, "wb") as f:
+            f.write(cover_image.file.read())
 
-        #image_relative_url = f"/uploads/book_covers/{filename}"
-
-     
+        image_relative_url = f"/uploads/book_covers/{filename}"
     
     book = Book(
         title=title,
@@ -85,7 +82,7 @@ def create_book(
         is_featured=is_featured,
         is_featured_author=is_featured_author,
         tags=tags,
-        #cover_image=image_relative_url,
+        cover_image=image_relative_url,
         category_id=category_id
     )
 
@@ -109,18 +106,14 @@ def filter_books_admin(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-
-    # Only admin can use this
     if current_user.role != "admin":
         raise HTTPException(403, "Admin access required")
 
     query = select(Book)
 
-    # Filter: Title
     if title:
         query = query.where(Book.title.ilike(f"%{title}%"))
 
-    # Filter: Category Name
     if category:
         category_obj = session.exec(
             select(Category).where(Category.name.ilike(f"%{category}%"))
@@ -131,26 +124,21 @@ def filter_books_admin(
 
         query = query.where(Book.category_id == category_obj.id)
 
-    # Filter: Author
     if author:
         query = query.where(Book.author.ilike(f"%{author}%"))
 
-    # Filter: Price Range
     if min_price is not None:
         query = query.where(Book.price >= min_price)
 
     if max_price is not None:
         query = query.where(Book.price <= max_price)
 
-    # Filter: Rating
     if rating is not None:
         query = query.where(Book.rating >= rating)
 
-    # Filter: Featured Books
     if is_featured is not None:
         query = query.where(Book.is_featured == is_featured)
 
-    # Filter: Featured Author Books
     if is_featured_author is not None:
         query = query.where(Book.is_featured_author == is_featured_author)
 
@@ -187,8 +175,6 @@ def get_book_admin(
         raise HTTPException(404, "Book not found")
 
     return book
-
-
 
 
 @router.put("/{book_id}")
@@ -228,10 +214,9 @@ def update_book(
     if not book:
         raise HTTPException(404, "Book not found")
 
-  
     if title is not None: book.title = title
     if slug is None or slug == "":
-        book.slug = slugify(book.title)   # auto-generate
+        book.slug = slugify(book.title)
     else:
         book.slug = slug
     if excerpt is not None: book.excerpt = excerpt
@@ -252,29 +237,26 @@ def update_book(
     if is_featured is not None: book.is_featured = is_featured
     if is_featured_author is not None: book.is_featured_author = is_featured_author
 
-    
     if category_id is not None:
         category = session.get(Category, category_id)
         if not category:
             raise HTTPException(400, "Invalid category_id")
         book.category_id = category_id
 
-    
-    #if cover_image:
-        #ext = cover_image.filename.split(".")[-1]
-        #filename = f"{book.title.replace(' ', '_')}_updated.{ext}"
-        #image_path = os.path.join(UPLOAD_DIR, filename)
+    if cover_image:
+        ext = cover_image.filename.split(".")[-1]
+        filename = f"{book.title.replace(' ', '_')}_updated.{ext}"
+        image_path = os.path.join(UPLOAD_DIR, filename)
 
-        #with open(image_path, "wb") as f:
-           # f.write(cover_image.file.read())
-#
-       # book.cover_image = image_path
+        with open(image_path, "wb") as f:
+            f.write(cover_image.file.read())
+
+        book.cover_image = f"/uploads/book_covers/{filename}"
 
     session.add(book)
     session.commit()
     session.refresh(book)
     return book
-
 
 
 @router.delete("/{book_id}")
