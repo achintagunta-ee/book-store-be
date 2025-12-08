@@ -13,9 +13,10 @@ from slugify import slugify
 
 router = APIRouter()
 
-# Use temp directory instead of local uploads folder
-UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "hithabodha_uploads", "book_covers")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+BOOK_COVER_DIR = os.path.join(tempfile.gettempdir(), "hithabodha_uploads", "book_covers")
+os.makedirs(BOOK_COVER_DIR, exist_ok=True)
+
+
 
 
 @router.post("/")
@@ -56,13 +57,14 @@ def create_book(
     image_relative_url = None
     if cover_image:
         ext = cover_image.filename.split(".")[-1]
-        filename = f"{title.replace(' ', '_')}.{ext}"
-        image_path = os.path.join(UPLOAD_DIR, filename)
+        filename = f"{slugify(title)}_{int(datetime.now().timestamp())}.{ext}"
+        image_path = os.path.join(BOOK_COVER_DIR, filename)
 
         with open(image_path, "wb") as f:
             f.write(cover_image.file.read())
 
         image_relative_url = f"/uploads/book_covers/{filename}"
+
     
     book = Book(
         title=title,
@@ -190,7 +192,7 @@ def update_book(
     rating: float = Form(None),
     isbn: str = Form(None),
     publisher: str = Form(None),
-    published_date: datetime = Form(None),
+    published_date: str = Form(None),
     tags: str = Form(None),
 
     price: float = Form(None),
@@ -215,10 +217,8 @@ def update_book(
         raise HTTPException(404, "Book not found")
 
     if title is not None: book.title = title
-    if slug is None or slug == "":
-        book.slug = slugify(book.title)
-    else:
-        book.slug = slug
+    if slug is not None:
+        book.slug = slug or slugify(book.title)
     if excerpt is not None: book.excerpt = excerpt
     if description is not None: book.description = description
     if author is not None: book.author = author
@@ -245,13 +245,14 @@ def update_book(
 
     if cover_image:
         ext = cover_image.filename.split(".")[-1]
-        filename = f"{book.title.replace(' ', '_')}_updated.{ext}"
-        image_path = os.path.join(UPLOAD_DIR, filename)
+        filename = f"{slugify(book.title)}_{int(datetime.now().timestamp())}.{ext}"
+        image_path = os.path.join(BOOK_COVER_DIR, filename)
 
         with open(image_path, "wb") as f:
             f.write(cover_image.file.read())
 
         book.cover_image = f"/uploads/book_covers/{filename}"
+
 
     session.add(book)
     session.commit()
