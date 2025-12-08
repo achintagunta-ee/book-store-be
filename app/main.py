@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from app.database import create_db_and_tables
-from app.routes import auth, books_admin, categories_admin, categories_public, books_public, book_detail, review, cart ,users
+from app.routes import auth, books_admin, categories_admin, categories_public, books_public, book_detail, review, cart ,users ,storage
 import os
 import tempfile
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,6 +38,7 @@ app.include_router(categories_public.router, prefix="/categories", tags=["Public
 app.include_router(book_detail.router, prefix="/book", tags=["Book Details"])
 app.include_router(review.router, prefix="/reviews", tags=["Reviews"])
 app.include_router(cart.router, prefix="/cart", tags=["Cart"])
+app.include_router(storage.router, prefix="/file",tags=["Files Storage"])
 
 # Use system temp directory instead of local uploads folder
 UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "hithabodha_uploads")
