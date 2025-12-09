@@ -33,7 +33,16 @@ def add_to_cart(
         existing.quantity += data.quantity
         session.add(existing)
         session.commit()
-        return {"message": "Quantity updated", "item": existing}
+        return {
+                 "message": "Quantity updated",
+         "item": {
+        "id": existing.id,
+        "book_id": existing.book_id,
+        "user_id": existing.user_id,
+        "quantity": existing.quantity,
+        "created_at": existing.created_at
+    }
+}
 
     item = CartItem(
         user_id=current_user.id,
