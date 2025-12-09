@@ -7,8 +7,9 @@ from app.schemas.google_schemas import GoogleTokenRequest
 from app.utils.hash import hash_password, verify_password
 from app.utils.token import create_access_token, decode_access_token
 from app.utils.google_auth import verify_google_token
-from datetime import timedelta
+from datetime import timedelta , datetime
 from pydantic import BaseModel
+from random import randint
 
 
 router = APIRouter()
@@ -99,29 +100,51 @@ def forgot_password(request: ForgotPasswordRequest, session: Session = Depends(g
     if not user:
         raise HTTPException(404, "User not found")
 
-    reset_token = create_access_token(
-        {"user_id": user.id, "action": "reset_password"},
-        expires_delta=timedelta(minutes=15)
-    )
+    reset_code = str(randint(100000, 999999))
+    expires_at = datetime.utcnow() + timedelta(minutes=15)
 
-    reset_link = f"https://book.efficientemengineering.com/reset-password?token={reset_token}"
+    user.reset_code = reset_code
+    user.reset_code_expires = expires_at
+    session.add(user)
+    session.commit()
 
-    return {"message": "Reset link sent", "reset_link": reset_link}
+    return {
+        "message": "Reset code generated",
+        "reset_code": reset_code,   # FRONTEND CAN SHOW IN CONSOLE FOR NOW
+        "expires_in": 15
+    }
 
+class ResetPasswordByCode(BaseModel):
+    email: str
+    code: str
+    new_password: str
 
 @router.post("/reset-password")
-def reset_password(request: ResetPasswordRequest, session: Session = Depends(get_session)):
-    payload = decode_access_token(request.token)
-    if not payload or payload.get("action") != "reset_password":
-        raise HTTPException(400, "Invalid or expired token")
+def reset_password(request: ResetPasswordByCode, session: Session = Depends(get_session)):
+    user = session.exec(select(User).where(User.email == request.email)).first()
 
-    user = session.get(User, payload.get("user_id"))
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    # Check OTP
+    if user.reset_code != request.code:
+        raise HTTPException(400, "Invalid reset code")
+
+    if user.reset_code_expires < datetime.utcnow():
+        raise HTTPException(400, "Reset code expired")
+
+    # Update password
     user.password = hash_password(request.new_password)
+
+    # Clear OTP after use
+    user.reset_code = None
+    user.reset_code_expires = None
 
     session.add(user)
     session.commit()
 
-    return {"message": "Password updated successfully"}
+    return {"message": "Password successfully reset"}
+
 
 
 @router.post("/logout")
