@@ -15,3 +15,5 @@ class User(SQLModel, table=True):
     client: str = Field(default="Hithabodha Bookstore")
     profile_image: Optional[str] = None 
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    reset_code: Optional[str] = None
+    reset_code_expires: Optional[datetime] = None
