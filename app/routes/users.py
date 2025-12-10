@@ -3,8 +3,11 @@ from typing import Optional
 from sqlmodel import Session, select
 from app.database import get_session
 from app.models.user import User
+from app.models.order import Order
+from app.models.address import Address
 from app.utils.token import get_current_user
 import os
+from app.schemas.address_schemas import AddressCreate
 
 router = APIRouter()
 
@@ -77,3 +80,105 @@ def free_dashboard(current_user: User = Depends(get_current_user)):
         "features": ["basic_profile", "limited_search", "view_matches"],
         "role": current_user.role
     }
+
+@router.get("/orders/history")
+def get_order_history(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    orders = session.exec(
+        select(Order)
+        .where(Order.user_id == current_user.id)
+        .order_by(Order.created_at.desc())
+    ).all()
+
+    response = []
+
+    for order in orders:
+        response.append({
+            "order_id": f"#{order.id}",
+            "raw_id": order.id,  # useful for frontend links
+            "date": order.created_at.strftime("%B %d, %Y"),
+            "total": order.total,
+            "status": order.status,
+            "details_url": f"/checkout/order/{order.id}"
+        })
+
+    return response
+
+# GET ALL ADDRESSES
+
+@router.get("/profile/addresses")
+def get_user_addresses(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    addresses = session.exec(
+        select(Address).where(Address.user_id == current_user.id)
+    ).all()
+
+    return [
+        {
+            "id": addr.id,
+            "full_name": f"{addr.first_name} {addr.last_name}",
+            "address": addr.address,
+            "city": addr.city,
+            "state": addr.state,
+            "zip_code": addr.zip_code
+        }
+        for addr in addresses
+    ]
+# Add Address (Profile version)
+
+@router.post("/profile/address")
+def add_profile_address(
+    data: AddressCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    address = Address(user_id=current_user.id, **data.dict())
+
+    session.add(address)
+    session.commit()
+    session.refresh(address)
+
+    return {"message": "Address added", "address_id": address.id}
+
+#Edit Address 
+
+@router.put("/profile/address/{address_id}")
+def update_address(
+    address_id: int,
+    data: AddressCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    address = session.get(Address, address_id)
+
+    if not address or address.user_id != current_user.id:
+        raise HTTPException(404, "Address not found")
+
+    # Update fields
+    for key, value in data.dict().items():
+        setattr(address, key, value)
+
+    session.commit()
+    session.refresh(address)
+
+    return {"message": "Address updated", "address": address}
+
+@router.delete("/profile/address/{address_id}")
+def delete_address(
+    address_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    address = session.get(Address, address_id)
+
+    if not address or address.user_id != current_user.id:
+        raise HTTPException(404, "Address not found")
+
+    session.delete(address)
+    session.commit()
+
+    return {"message": "Address deleted"}
