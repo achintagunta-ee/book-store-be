@@ -13,6 +13,8 @@ from app.models.cart import CartItem
 from app.models.book import Book
 from app.schemas.orders_schemas import PlacedOrderItem , PlaceOrderResponse
 from datetime import datetime, timedelta
+import os
+from reportlab.pdfgen import canvas
 
 router = APIRouter()
 
@@ -213,3 +215,93 @@ def get_order_details(
         "order": order,
         "items": items
     }
+
+#Aftwr Place Order 
+
+@router.get("/order/{order_id}")
+def get_order_confirmation(
+    order_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    order = session.get(Order, order_id)
+
+    if not order or order.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    items = session.exec(
+        select(OrderItem).where(OrderItem.order_id == order_id)
+    ).all()
+
+    # Format order_id like #123
+    display_order_id = f"#{order.id}"
+
+    # Delivery estimate
+    start = (order.created_at + timedelta(days=3)).strftime("%B %d, %Y")
+    end = (order.created_at + timedelta(days=7)).strftime("%B %d, %Y")
+    estimate = f"{start} - {end}"
+
+    return {
+        "order_id": display_order_id,
+        "status": order.status,
+        "estimated_delivery": estimate,
+        "subtotal": order.subtotal,
+        "shipping": order.shipping,
+        "tax": order.tax,
+        "total": order.total,
+        "items": items,
+    }
+
+@router.get("/orders/{order_id}/track")
+def track_order(
+    order_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    order = session.get(Order, order_id)
+
+    if not order or order.user_id != current_user.id:
+        raise HTTPException(404, "Order not found")
+
+    return {
+        "order_id": f"#{order.id}",
+        "status": order.status,  # processing, shipped, out_for_delivery, delivered
+        "created_at": order.created_at,
+    }
+
+from fastapi.responses import FileResponse
+
+@router.get("/orders/{order_id}/invoice")
+def download_invoice(
+    order_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    order = session.get(Order, order_id)
+
+    if not order or order.user_id != current_user.id:
+        raise HTTPException(404, "Order not found")
+
+    file_path = f"invoices/invoice_{order.id}.pdf"
+
+    # Generate if missing
+    if not os.path.exists(file_path):
+        generate_invoice_pdf(order, session, file_path)
+
+    return FileResponse(
+        file_path,
+        filename=f"invoice_{order.id}.pdf",
+        media_type="application/pdf"
+    )
+
+
+
+def generate_invoice_pdf(order, session, file_path):
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+    c = canvas.Canvas(file_path)
+    c.drawString(100, 750, f"Invoice for Order #{order.id}")
+    c.drawString(100, 720, f"Total: {order.total}")
+    c.drawString(100, 700, f"Date: {order.created_at}")
+
+    c.save()
