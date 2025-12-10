@@ -6,55 +6,57 @@ from app.models.book import Book
 from app.models.user import User
 from app.schemas.cart_schemas import CartAddRequest, CartUpdateRequest
 from app.utils.token import get_current_user  # JWT dependency
+from app.models.cart import CartItem 
+from datetime import datetime
+
 
 router = APIRouter()
 
 # Add to Cart 
 
 @router.post("/add")
-def add_to_cart(
-    data: CartAddRequest,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
-):
-    # Ensure book exists
+def add_to_cart(data: CartItem, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+
+    # Fetch the book
     book = session.get(Book, data.book_id)
     if not book:
-        raise HTTPException(404, "Book not found")
+        raise HTTPException(status_code=404, detail="Book not found")
 
-    existing = session.exec(
+    # Determine the correct price (offer > discount > regular)
+    final_price = book.offer_price or book.discount_price or book.price
+
+    # Check if the user already has this item
+    existing_item = session.exec(
         select(CartItem).where(
-            CartItem.book_id == data.book_id,
-            CartItem.user_id == current_user.id
+            CartItem.user_id == current_user.id,
+            CartItem.book_id == data.book_id
         )
     ).first()
 
-    if existing:
-        existing.quantity += data.quantity
-        session.add(existing)
+    if existing_item:
+        # Increase quantity
+        existing_item.quantity += data.quantity
+        session.add(existing_item)
         session.commit()
-        return {
-                 "message": "Quantity updated",
-         "item": {
-        "id": existing.id,
-        "book_id": existing.book_id,
-        "user_id": existing.user_id,
-        "quantity": existing.quantity,
-        "created_at": existing.created_at
-    }
-}
+        session.refresh(existing_item)
+        return {"message": "Cart updated", "item": existing_item}
 
-    item = CartItem(
+    # Create a NEW cart item
+    new_item = CartItem(
         user_id=current_user.id,
-        book_id=data.book_id,
-        quantity=data.quantity
+        book_id=book.id,
+        quantity=data.quantity,
+        book_title=book.title,   # REQUIRED
+        price=final_price,       # REQUIRED
+        created_at=datetime.now()
     )
 
-    session.add(item)
+    session.add(new_item)
     session.commit()
-    session.refresh(item)
+    session.refresh(new_item)
 
-    return {"message": "Added to cart", "item": item}
+    return {"message": "Added to cart", "item": new_item}
+
 
 # View Cart 
 
@@ -102,16 +104,19 @@ def get_cart(
 
     # SHIPPING RULE
     shipping = 0 if subtotal >= 500 else 150
+    
+    tax_rate = 0.08  # 8%
+    tax = round(subtotal * tax_rate, 2)
 
 
-
-    final_total = subtotal  + shipping
+    final_total = subtotal  + tax + shipping
 
     return {
         "items": items_response,
         "summary": {
             "subtotal": subtotal,
             "shipping": shipping,
+            "tax":"tax",
             "final_total": final_total
         }
     }
@@ -160,14 +165,9 @@ def remove_item(
     return {"message": "Item removed from cart"}
 
 # Clear Cart 
-
-@router.delete("/clear")
-def clear_cart(
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
-):
+def clear_cart(session: Session, user_id: int):
     items = session.exec(
-        select(CartItem).where(CartItem.user_id == current_user.id)
+        select(CartItem).where(CartItem.user_id == user_id)
     ).all()
 
     for item in items:
@@ -175,4 +175,57 @@ def clear_cart(
 
     session.commit()
 
+
+@router.delete("/clear")
+def clear_cart_endpoint(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    clear_cart(session, current_user.id)
     return {"message": "Cart cleared"}
+
+
+
+
+def get_cart_details(session: Session, user_id: int):
+    items = session.exec(
+        select(CartItem).where(CartItem.user_id == user_id)
+    ).all()
+
+    if not items:
+        return {
+            "items": [],
+            "subtotal": 0,
+            "shipping": 0,
+            "tax": 0,
+            "total": 0
+        }
+
+    item_list = []
+    subtotal = 0
+
+    for item in items:
+        line_total = item.price * item.quantity
+        subtotal += line_total
+
+        item_list.append({
+            "book_id": item.book_id,
+            "book_title": item.book_title,
+            "price": item.price,
+            "quantity": item.quantity,
+            "total": line_total
+        })
+
+    # Example logic
+    shipping = 0 if subtotal > 500 else 150
+    tax = round(subtotal * 0.05, 2)   # 5% GST example
+    total = subtotal + shipping + tax
+
+    return {
+        "items": item_list,
+        "subtotal": subtotal,
+        "shipping": shipping,
+        "tax": tax,
+        "total": total
+    }
+
