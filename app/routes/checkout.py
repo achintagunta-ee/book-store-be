@@ -218,7 +218,7 @@ def get_order_details(
 
 #Aftwr Place Order 
 
-@router.get("/order/{order_id}")
+@router.get("/order/confirm/{order_id}")
 def get_order_confirmation(
     order_id: int,
     session: Session = Depends(get_session),
@@ -250,6 +250,7 @@ def get_order_confirmation(
         "tax": order.tax,
         "total": order.total,
         "items": items,
+        "message":"Order confirmed"
     }
 
 @router.get("/orders/{order_id}/track")
