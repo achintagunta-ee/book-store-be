@@ -4,10 +4,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-R2_ENDPOINT_URL = os.getenv("R2_ENDPOINT_URL")
-R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID")
-R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY")
-R2_BUCKET_NAME = os.getenv("R2_BUCKET_NAME")
+R2_ENDPOINT_URL = os.getenv("CLOUDFLARE_R2_BUCKET_ENDPOINT")
+R2_ACCESS_KEY_ID = os.getenv("CLOUDFLARE_R2_ACCESS_KEY")
+R2_SECRET_ACCESS_KEY = os.getenv("CLOUDFLARE_R2_SECRET_KEY")
+R2_BUCKET_NAME = os.getenv("CLOUDFLARE_R2_BUCKET")
 
 s3_client = boto3.client(
     "s3",
