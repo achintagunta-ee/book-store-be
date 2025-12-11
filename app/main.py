@@ -38,7 +38,7 @@ app.include_router(categories_public.router, prefix="/categories", tags=["Public
 app.include_router(book_detail.router, prefix="/book", tags=["Book Details"])
 app.include_router(review.router, prefix="/reviews", tags=["Reviews"])
 app.include_router(cart.router, prefix="/cart", tags=["Cart"])
-app.include_router(storage.router, prefix="/file",tags=["Files Storage"])
+app.include_router(storage.router, prefix="/storage",tags=["Files Storage"])
 
 # Use system temp directory instead of local uploads folder
 UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "hithabodha_uploads")
