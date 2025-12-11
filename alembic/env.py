@@ -16,7 +16,11 @@ from sqlmodel import SQLModel
 from app.models.book import Book
 from app.models.category import Category
 from app.models.user import User
-from app.models.review import Review
+from app.models.review import Review 
+from app.models.cart import CartItem
+from app.models.order import Order
+from app.models.address import Address
+from app.models.wishlist import Wishlist
 
 config = context.config
 
