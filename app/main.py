@@ -10,7 +10,8 @@ from app.routes import (
     book_detail,
     review,
     cart,
-    checkout
+    checkout,
+    wishlist
 )
 import os
 import tempfile
@@ -50,7 +51,7 @@ app.include_router(book_detail.router, prefix="/book", tags=["Book Details"])
 app.include_router(review.router, prefix="/reviews", tags=["Reviews"])
 app.include_router(cart.router, prefix="/cart", tags=["Cart"])
 app.include_router(checkout.router , prefix="/checkout", tags=["Checkout"])
-
+app.include_router(wishlist.router, prefix="/wishlist" , tags=["Wishlist"])
 # Use system temp directory instead of local uploads folder
 UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "hithabodha_uploads")
 BOOK_COVER_DIR = os.path.join(UPLOAD_DIR, "book_covers")
