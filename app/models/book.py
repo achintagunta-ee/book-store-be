@@ -21,7 +21,9 @@ class Book(SQLModel, table=True):
     rating:Optional[float] = 0.0
 
     #Image
-    cover_image: Optional[str] = None
+    cover_image: str = Field(default="/uploads/book_covers/placeholder.jpg")
+
+
 
     #Shop Details
     price: float

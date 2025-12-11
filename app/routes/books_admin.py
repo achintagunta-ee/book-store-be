@@ -276,3 +276,17 @@ def delete_book(
     session.delete(book)
     session.commit()
     return {"message": "Book deleted"}
+
+
+@router.get("/fix-book-placeholder")
+def fix_book_placeholder(session: Session = Depends(get_session)):
+    placeholder = "https://a047bce5cc9e171db6a84417a1d8c8b4.r2.cloudflarestorage.com//placeholders/book_cover_placeholder.jpg"
+
+    books = session.exec(select(Book).where(Book.cover_image == None)).all()
+
+    for book in books:
+        book.cover_image = placeholder
+        session.add(book)
+
+    session.commit()
+    return {"updated": len(books)}
