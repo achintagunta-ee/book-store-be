@@ -335,6 +335,8 @@ async def list_files_by_folder(folder: str = "", max_keys: int = 100):
     
     except ClientError as e:
         raise HTTPException(status_code=500, detail=f"List failed: {str(e)}")
+    
+@router.post("/upload-from-path")    
 async def upload_file_from_path(file_path: str):
     """Upload a file from local file system path to R2"""
     try:
