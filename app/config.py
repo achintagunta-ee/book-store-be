@@ -1,5 +1,8 @@
 from pydantic_settings import BaseSettings
 from urllib.parse import quote_plus
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class Settings(BaseSettings):
     postgres_user: str
@@ -18,6 +21,15 @@ class Settings(BaseSettings):
     google_client_secret: str
 
     base_url: str = "https://book.efficientemengineering.com"
+
+    # R2 STORAGE
+    R2_ACCOUNT_ID: str
+    R2_ACCESS_KEY_ID: str
+    R2_SECRET_ACCESS_KEY: str
+    R2_BUCKET_NAME: str
+
+    # ENVIRONMENT
+    ENV: str = "local"
 
     @property
     def database_url(self):
