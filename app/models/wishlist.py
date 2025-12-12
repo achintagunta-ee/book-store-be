@@ -7,4 +7,4 @@ class Wishlist(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id")
     book_id: int = Field(foreign_key="book.id")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    
