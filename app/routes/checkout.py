@@ -7,7 +7,7 @@ from app.models.order_item import OrderItem
 from app.models.address import Address
 from app.utils.token import get_current_user
 from app.schemas.address_schemas import AddressCreate
-from app.routes.cart import clear_cart , get_cart_details
+from app.routes.cart import clear_cart
 from app.models.summary import CheckoutSummaryResponse , SummaryItem
 from app.models.cart import CartItem
 from app.models.book import Book
@@ -15,6 +15,7 @@ from app.schemas.orders_schemas import PlacedOrderItem , PlaceOrderResponse
 from datetime import datetime, timedelta
 import os
 from reportlab.pdfgen import canvas
+from fastapi.responses import FileResponse
 
 router = APIRouter()
 
@@ -99,6 +100,8 @@ def checkout_summary(
         for i in item_list
     ]
 )
+
+# Checkout button in Cart page
 
 @router.post("/place-order", response_model=PlaceOrderResponse)
 def place_order(
@@ -196,27 +199,8 @@ def place_order(
 
     return response
 
-@router.get("/order/{order_id}")
-def get_order_details(
-    order_id: int,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
-):
-    order = session.get(Order, order_id)
 
-    if not order or order.user_id != current_user.id:
-        raise HTTPException(404, "Order not found")
-
-    items = session.exec(
-        select(OrderItem).where(OrderItem.order_id == order_id)
-    ).all()
-
-    return {
-        "order": order,
-        "items": items
-    }
-
-#Aftwr Place Order 
+#After checkout confirm  
 
 @router.get("/order/confirm/{order_id}")
 def get_order_confirmation(
@@ -253,6 +237,29 @@ def get_order_confirmation(
         "message":"Order confirmed"
     }
 
+
+@router.post("/orders/{order_id}/payment/complete")
+def complete_payment(
+    order_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    order = session.get(Order, order_id)
+
+    if not order or order.user_id != current_user.id:
+        raise HTTPException(404, "Order not found")
+
+    order.status = "paid"
+    session.commit()
+
+    return {
+        "message": "Payment successful",
+        "order_id": order_id,
+        "track_order_url": f"/orders/{order_id}/track"
+    }
+
+# Track Orders
+
 @router.get("/orders/{order_id}/track")
 def track_order(
     order_id: int,
@@ -270,7 +277,7 @@ def track_order(
         "created_at": order.created_at,
     }
 
-from fastapi.responses import FileResponse
+#Download Invoice
 
 @router.get("/orders/{order_id}/invoice")
 def download_invoice(
