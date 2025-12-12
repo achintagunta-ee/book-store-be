@@ -10,13 +10,13 @@ import tempfile
 from datetime import datetime
 from app.config import settings
 from slugify import slugify
+from app.services.r2_client import  s3_client, R2_BUCKET_NAME
+from app.services.r2_helper import  public_url , delete_r2_file , upload_book_cover
 
 router = APIRouter()
 
 BOOK_COVER_DIR = os.path.join(tempfile.gettempdir(), "hithabodha_uploads", "book_covers")
 os.makedirs(BOOK_COVER_DIR, exist_ok=True)
-
-
 
 
 @router.post("/")
@@ -54,16 +54,11 @@ def create_book(
     if not slug or slug.strip() == "":
         slug = slugify(title)
 
-    image_relative_url = None
+# Upload image to R2
+    r2_key = None
+
     if cover_image:
-        ext = cover_image.filename.split(".")[-1]
-        filename = f"{slugify(title)}_{int(datetime.now().timestamp())}.{ext}"
-        image_path = os.path.join(BOOK_COVER_DIR, filename)
-
-        with open(image_path, "wb") as f:
-            f.write(cover_image.file.read())
-
-        image_relative_url = f"/uploads/book_covers/{filename}"
+      r2_key = upload_book_cover(cover_image, title)
 
     
     book = Book(
@@ -84,7 +79,7 @@ def create_book(
         is_featured=is_featured,
         is_featured_author=is_featured_author,
         tags=tags,
-        cover_image=image_relative_url,
+        cover_image=r2_key, # Save R2 Key
         category_id=category_id
     )
 
@@ -244,14 +239,14 @@ def update_book(
         book.category_id = category_id
 
     if cover_image:
-        ext = cover_image.filename.split(".")[-1]
-        filename = f"{slugify(book.title)}_{int(datetime.now().timestamp())}.{ext}"
-        image_path = os.path.join(BOOK_COVER_DIR, filename)
+    # delete old from R2
+        if book.cover_image:
+            delete_r2_file(book.cover_image)
 
-        with open(image_path, "wb") as f:
-            f.write(cover_image.file.read())
+    # upload new
+        new_key = upload_book_cover(cover_image, book.title)
+        book.cover_image = new_key
 
-        book.cover_image = f"/uploads/book_covers/{filename}"
 
 
     session.add(book)
@@ -272,6 +267,9 @@ def delete_book(
     book = session.get(Book, book_id)
     if not book:
         raise HTTPException(404, "Book not found")
+    
+    if book.cover_image:
+        delete_r2_file(book.cover_image)
 
     session.delete(book)
     session.commit()

@@ -3,6 +3,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models.book import Book
 from app.models.category import Category
+from app.services.r2_client import s3_client, R2_BUCKET_NAME
 
 router = APIRouter()
 
@@ -319,8 +320,21 @@ def get_book_by_id(book_id: int, session: Session = Depends(get_session)):
         raise HTTPException(404, "Book not found")
     return book
 
+# Generate Public URL on the Fly
 
+@router.get("/public-url/{book_id}")
+def get_book_image_url(book_id: int, session: Session = Depends(get_session)):
+    book = session.get(Book, book_id)
+    if not book or not book.cover_image:
+        raise HTTPException(404, "Image not found")
 
+    url = s3_client.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": R2_BUCKET_NAME, "Key": book.cover_image},
+        ExpiresIn=3600
+    )
+
+    return {"url": url}
 
 
 
