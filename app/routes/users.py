@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Form, File, UploadFile, HTTPException
 from typing import Optional
 from sqlmodel import Session, select
 from app.database import get_session
+from app.models.order_item import OrderItem
 from app.models.user import User
 from app.models.order import Order
 from app.models.address import Address
@@ -81,7 +82,7 @@ def free_dashboard(current_user: User = Depends(get_current_user)):
         "role": current_user.role
     }
 
-@router.get("/orders/history")
+@router.get("/profile/orders/history")
 def get_order_history(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
@@ -167,7 +168,7 @@ def update_address(
 
     return {"message": "Address updated", "address": address}
 
-@router.delete("/address/{address_id}")
+@router.delete("/profile/address/{address_id}")
 def delete_address(address_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
 
     address = session.get(Address, address_id)
@@ -190,3 +191,23 @@ def delete_address(address_id: int, session: Session = Depends(get_session), cur
     session.commit()
     return {"message": "Address deleted"}
 
+# View Details
+@router.get("/profile/orders/{order_id}")
+def get_order_details(
+    order_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    order = session.get(Order, order_id)
+
+    if not order or order.user_id != current_user.id:
+        raise HTTPException(404, "Order not found")
+
+    items = session.exec(
+        select(OrderItem).where(OrderItem.order_id == order_id)
+    ).all()
+
+    return {
+        "order": order,
+        "items": items
+    }
