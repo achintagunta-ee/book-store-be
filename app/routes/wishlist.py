@@ -79,6 +79,7 @@ def get_wishlist(
         response.append({
             "wishlist_id": w.id,
             "book_id": book.id,
+            "slug":book.slug,
             "title": book.title,
             "author": book.author,
             "price": book.price,
