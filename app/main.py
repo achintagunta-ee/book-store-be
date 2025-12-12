@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from app.database import create_db_and_tables
+from app.config import settings
 from app.routes import (
     auth,
     users,
@@ -11,13 +12,15 @@ from app.routes import (
     review,
     cart,
     checkout,
-    wishlist
+    wishlist,
+    storage
 )
 
 
 from app.routes import auth, books_admin, categories_admin, categories_public, books_public, book_detail, review, cart ,users ,storage
 
 from app.routes import auth, books_admin, categories_admin, categories_public, books_public, book_detail, review, cart ,users ,storage
+
 import os
 import tempfile
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,7 +29,9 @@ from fastapi.staticfiles import StaticFiles
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    create_db_and_tables()
+    # Run DB creation ONLY in local
+    if settings.ENV == "local":
+        create_db_and_tables()
     yield
 
 app = FastAPI(title="Hithabodha Bookstore API", lifespan=lifespan)
@@ -103,3 +108,4 @@ def root():
             "/cart/remove/{id}", "/cart/clear"
         ]
     }
+
