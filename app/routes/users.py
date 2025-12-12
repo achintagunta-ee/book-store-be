@@ -167,18 +167,26 @@ def update_address(
 
     return {"message": "Address updated", "address": address}
 
-@router.delete("/profile/address/{address_id}")
-def delete_address(
-    address_id: int,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
-):
+@router.delete("/address/{address_id}")
+def delete_address(address_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+
     address = session.get(Address, address_id)
 
-    if not address or address.user_id != current_user.id:
+    if not address:
         raise HTTPException(404, "Address not found")
+
+    # check if the address is used in any order
+    existing_order = session.exec(
+        select(Order).where(Order.address_id == address_id)
+    ).first()
+
+    if existing_order:
+        raise HTTPException(
+            400, 
+            "Address cannot be deleted because it is linked to an existing order."
+        )
 
     session.delete(address)
     session.commit()
-
     return {"message": "Address deleted"}
+
