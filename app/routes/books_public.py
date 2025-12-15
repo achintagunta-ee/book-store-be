@@ -338,3 +338,9 @@ def get_book_image_url(book_id: int, session: Session = Depends(get_session)):
 
 
 
+@router.get("/slug/{slug}")
+def get_book_by_slug(slug: str, session: Session = Depends(get_session)):
+    book = session.exec(select(Book).where(Book.slug == slug)).first()
+    if not book:
+        raise HTTPException(404, "Book not found")
+    return book

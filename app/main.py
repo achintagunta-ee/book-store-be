@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from app.database import create_db_and_tables
 from app.config import settings
-from app.middleware.add_r2_url import AddR2URLMiddleware
+from app.middleware.r2_public_url import R2PublicURLMiddleware
 from app.routes import (
     auth,
     users,
@@ -23,6 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Run DB creation ONLY in local
@@ -31,6 +32,7 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="Hithabodha Bookstore API", lifespan=lifespan)
+app.add_middleware(R2PublicURLMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -46,9 +48,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.add_middleware(AddR2URLMiddleware)
-from app.middleware.r2_url_middleware import R2URLMiddleware
-app.add_middleware(R2URLMiddleware)
+
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(users.router, prefix="/users", tags=["Users"]) 
 app.include_router(books_admin.router, prefix="/admin/books", tags=["Admin Books"])
