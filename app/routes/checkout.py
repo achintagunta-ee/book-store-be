@@ -8,10 +8,8 @@ from app.models.address import Address
 from app.utils.token import get_current_user
 from app.schemas.address_schemas import AddressCreate
 from app.routes.cart import clear_cart
-from app.models.summary import CheckoutSummaryResponse , SummaryItem
 from app.models.cart import CartItem
 from app.models.book import Book
-from app.schemas.orders_schemas import PlacedOrderItem , PlaceOrderResponse
 from datetime import datetime, timedelta
 import os
 from reportlab.pdfgen import canvas
@@ -33,21 +31,74 @@ def save_address(
 
     return {"message": "Address saved", "address_id": address.id}
 
-@router.post("/summary", response_model=CheckoutSummaryResponse)
+@router.get("/get-address")
+def get_address_and_cart(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    # Get address
+    address = session.exec(
+        select(Address).where(Address.user_id == current_user.id)
+    ).all()
+
+    # Get cart
+    cart_items = session.exec(
+        select(CartItem).where(CartItem.user_id == current_user.id)
+    ).all()
+
+    items = []
+    subtotal = 0
+
+    for item in cart_items:
+        book = session.get(Book, item.book_id)
+        subtotal += item.quantity * book.price
+        items.append({
+            "title": book.title,
+            "price": book.price,
+            "quantity": item.quantity,
+            "total": item.price
+        })
+
+    shipping = 0 if subtotal >= 500 else 150
+    tax = 0   
+
+    total = subtotal + shipping + tax
+
+    return {
+        "addresses": address,
+        "summary": {
+            "subtotal": subtotal,
+            "shipping": shipping,
+            "tax": tax,
+            "total": total
+        },
+        "items": items
+    }
+
+@router.get("/list-addresses")
+def list_addresses(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    addresses = session.exec(
+        select(Address).where(Address.user_id == current_user.id)
+    ).all()
+
+    return addresses
+
+
+@router.post("/address-summary")
 def checkout_summary(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
 
-    # 1️⃣ Get user's address  
-    address = session.exec(
+    # Get ALL user's addresses  
+    addresses = session.exec(
         select(Address).where(Address.user_id == current_user.id)
-    ).first()
+    ).all()
 
-    if not address:
-        raise HTTPException(400, "No address found. Please add one.")
-
-    # 2️⃣ Get cart details  
+    # Get cart items
     cart_items = session.exec(
         select(CartItem).where(CartItem.user_id == current_user.id)
     ).all()
@@ -55,190 +106,182 @@ def checkout_summary(
     if not cart_items:
         raise HTTPException(400, "Your cart is empty.")
 
+    # If user has no addresses → frontend will show Address Form
+    if len(addresses) == 0:
+        return {
+            "has_address": False,
+            "addresses": [],
+            "summary": None,
+            "message": "No address found. Please add one."
+        }
+
+    # Build cart summary
     item_list = []
     subtotal = 0
 
-    # 3️⃣ Build item list + subtotal  
     for item in cart_items:
         book = session.get(Book, item.book_id)
         if not book:
             continue
 
-        total_price = item.quantity * book.price
-        subtotal += total_price
+        line_total = item.quantity * book.price
+        subtotal += line_total
 
         item_list.append({
             "book_title": book.title,
             "price": book.price,
             "quantity": item.quantity,
-            "total": total_price
+            "total": line_total
         })
 
-    # 4️⃣ Shipping Logic  
     shipping = 0 if subtotal >= 500 else 150
+    tax = 0
+    total = subtotal + shipping
 
-    # 5️⃣ Tax (Optional example: 5%)  
-    tax = subtotal * 0.05
+    return {
+        "has_address": True,
+        "addresses": addresses,  #  return full list
+        "summary": {
+            "subtotal": subtotal,
+            "shipping": shipping,
+            "tax": tax,
+            "total": total,
+            "items": item_list
+        }
+    }
 
-    # 6️⃣ Final total  
-    total = subtotal + shipping + tax
+# Checkout button in Cart page - Address + Summary
 
-    # 7️⃣ Return summary  
-    return CheckoutSummaryResponse(
-    address_id=address.id,
-    subtotal=subtotal,
-    shipping=shipping,
-    tax=tax,
-    total=total,
-    items=[
-      SummaryItem(
-            book_title=i["book_title"],
-            price=i["price"],
-            quantity=i["quantity"],
-            total=i["total"]
-        )
-        for i in item_list
-    ]
-)
+@router.post("/confirm-order")
+def confirm_order(
+    address_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    #  Fetch address
+    address = session.get(Address, address_id)
+    if not address or address.user_id != current_user.id:
+        raise HTTPException(404, "Address not found")
 
-# Checkout button in Cart page
+    #  Fetch cart
+    cart_items = session.exec(
+        select(CartItem).where(CartItem.user_id == current_user.id)
+    ).all()
 
-@router.post("/place-order", response_model=PlaceOrderResponse)
+    if not cart_items:
+        raise HTTPException(400, "Cart is empty")
+
+    subtotal = 0
+    items = []
+
+    for c in cart_items:
+        book = session.get(Book, c.book_id)
+        line_total = book.price * c.quantity
+        subtotal += line_total
+
+        items.append({
+            "book_title": book.title,
+            "price": book.price,
+            "quantity": c.quantity,
+            "line_total": line_total
+        })
+
+    shipping = 0 if subtotal >= 500 else 150
+    tax = 0
+    total = subtotal + shipping 
+
+    return {
+        "address": address,
+        "summary": {
+            "subtotal": subtotal,
+            "shipping": shipping,
+            "tax": tax,
+            "total": total,
+        },
+        "items": items
+    }
+
+
+#Order Confirmation Page
+
+@router.post("/order/place-order")
 def place_order(
     address_id: int,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user)
 ):
-    # --------------------------
-    # 1️⃣ Fetch address
-    # --------------------------
+
     address = session.get(Address, address_id)
     if not address:
-        raise HTTPException(status_code=404, detail="Address not found")
+        raise HTTPException(404, "Address not found")
 
-    # --------------------------
-    # 2️⃣ Fetch user's cart
-    # --------------------------
-    from app.routes.cart import get_cart_details
-    cart = get_cart_details(session, current_user.id)
+    cart_items = session.exec(
+        select(CartItem).where(CartItem.user_id == current_user.id)
+    ).all()
 
-    if not cart or len(cart["items"]) == 0:
-        raise HTTPException(status_code=400, detail="Cart is empty")
+    if not cart_items:
+        raise HTTPException(400, "Cart empty")
 
-    # --------------------------
-    # 3️⃣ Create the order
-    # --------------------------
+    subtotal = 0
+    items = []
+
+    for c in cart_items:
+        book = session.get(Book, c.book_id)
+        line_total = book.price * c.quantity
+        subtotal += line_total
+        items.append((book, c, line_total))
+
+    shipping = 0 if subtotal >= 500 else 150
+    tax = 0
+    total = subtotal + shipping
+
     order = Order(
         user_id=current_user.id,
         address_id=address_id,
-        subtotal=cart["subtotal"],
-        shipping=cart["shipping"],
-        tax=cart["tax"],
-        total=cart["total"],
+        subtotal=subtotal,
+        shipping=shipping,
+        tax=0,
+        total=total,
         status="pending"
     )
     session.add(order)
     session.commit()
     session.refresh(order)
 
-    # --------------------------
-    # 4️⃣ Create order items
-    # --------------------------
-    placed_items = []
-
-    for item in cart["items"]:
-        order_item = OrderItem(
+    # Save order items
+    for book, c, line_total in items:
+        oi = OrderItem(
             order_id=order.id,
-            book_id=item["book_id"],        # ✅ DICT KEY
-            book_title=item["book_title"],  # ✅ DICT KEY
-            price=item["price"],            # ✅ DICT KEY
-            quantity=item["quantity"] 
+            book_id=book.id,
+            book_title=book.title,
+            price=book.price,
+            quantity=c.quantity
         )
-        session.add(order_item)
-        placed_items.append(
-           PlacedOrderItem(
-              book_id=item["book_id"],
-              quantity=item["quantity"],
-              price=item["price"],
-              book_title=item["book_title"],
-              line_total=item["quantity"] * item["price"]
-)
-
-        )
+        session.add(oi)
 
     session.commit()
 
-    # --------------------------
-    # 5️⃣ Clear user cart
-    # --------------------------
-    clear_cart(session, current_user.id)
+    # DO NOT clear cart now → clear after payment success
+    # clear_cart(session, current_user.id)
 
-    # --------------------------
-    # 6️⃣ Calculate estimated delivery
-    # --------------------------
-    start_date = (datetime.utcnow() + timedelta(days=3)).strftime("%B %d, %Y")
-    end_date = (datetime.utcnow() + timedelta(days=7)).strftime("%B %d, %Y")
-    estimated_delivery = f"{start_date} - {end_date}"
-
-    # --------------------------
-    # 7️⃣ Build response for UI
-    # --------------------------
-    response = PlaceOrderResponse(
-        order_id=order.id,
-        estimated_delivery=estimated_delivery,
-        message="Thank you for your order! A confirmation email has been sent.",
-        items=placed_items,
-        subtotal=order.subtotal,
-        shipping=order.shipping,
-        tax=order.tax,
-        total=order.total,
-        track_order_url=f"/orders/{order.id}",
-        continue_shopping_url="/books",
-        invoice_url=f"/orders/{order.id}/invoice",
-    )
-
-    return response
-
-
-#After checkout confirm  
-
-@router.get("/order/confirm/{order_id}")
-def get_order_confirmation(
-    order_id: int,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
-):
-    order = session.get(Order, order_id)
-
-    if not order or order.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Order not found")
-
-    items = session.exec(
-        select(OrderItem).where(OrderItem.order_id == order_id)
-    ).all()
-
-    # Format order_id like #123
-    display_order_id = f"#{order.id}"
-
-    # Delivery estimate
-    start = (order.created_at + timedelta(days=3)).strftime("%B %d, %Y")
-    end = (order.created_at + timedelta(days=7)).strftime("%B %d, %Y")
-    estimate = f"{start} - {end}"
+    # delivery date
+    start = (datetime.utcnow() + timedelta(days=3)).strftime("%b %d")
+    end = (datetime.utcnow() + timedelta(days=5)).strftime("%b %d")
 
     return {
-        "order_id": display_order_id,
-        "status": order.status,
-        "estimated_delivery": estimate,
+        "order_id": f"#{order.id}",
+        "status": "pending",
+        "estimated_delivery": f"{start} - {end}",
         "subtotal": order.subtotal,
         "shipping": order.shipping,
-        "tax": order.tax,
+        "tax": 0,
         "total": order.total,
-        "items": items,
-        "message":"Order confirmed"
+        "address": address
     }
 
 
-@router.post("/orders/{order_id}/payment/complete")
+
+@router.post("/orders/{order_id}/payment-complete")
 def complete_payment(
     order_id: int,
     session: Session = Depends(get_session),
@@ -252,11 +295,38 @@ def complete_payment(
     order.status = "paid"
     session.commit()
 
+    # Clear cart after successful payment
+    clear_cart(session, current_user.id)
+
+    # Load actual order items
+    order_items = session.exec(
+        select(OrderItem).where(OrderItem.order_id == order_id)
+    ).all()
+
+    items = [
+        {
+            "book_title": i.book_title,
+            "price": i.price,
+            "quantity": i.quantity,
+            "line_total": i.quantity * i.price
+        }
+        for i in order_items
+    ]
+
+    start = (datetime.utcnow() + timedelta(days=3)).strftime("%B %d, %Y")
+    end = (datetime.utcnow() + timedelta(days=7)).strftime("%B %d, %Y")
+
     return {
         "message": "Payment successful",
         "order_id": order_id,
-        "track_order_url": f"/orders/{order_id}/track"
+        "estimated_delivery": f"{start} - {end}",
+        "message": "Thank you for your order! A confirmation email has been sent.",
+        "items": items,
+        "track_order_url": f"/orders/{order_id}/track",
+        "invoice_url": f"/orders/{order_id}/invoice",
+        "continue_shopping_url": "/books"
     }
+
 
 # Track Orders
 
