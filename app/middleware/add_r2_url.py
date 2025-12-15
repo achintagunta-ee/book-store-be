@@ -1,31 +1,35 @@
 # app/middleware/add_r2_url.py
 
 from starlette.middleware.base import BaseHTTPMiddleware
-from fastapi.responses import JSONResponse
-import os
-import json
+from starlette.responses import JSONResponse
+from app.services.r2_helper import public_url
 
-R2_PUBLIC_BASE = os.getenv("CLOUDFLARE_R2_PUBLIC_BASE")
-
-def attach_url(obj):
-    if isinstance(obj, dict):
-        for k, v in obj.items():
-            if k == "cover_image" and v and not v.startswith("http"):
-                obj[k] = f"{R2_PUBLIC_BASE}/{v}"
-            else:
-                attach_url(v)
-    elif isinstance(obj, list):
-        for i in obj:
-            attach_url(i)
 
 class AddR2URLMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         response = await call_next(request)
 
-        if not isinstance(response, JSONResponse):
-            return response
+        # Only modify JSON responses
+        if isinstance(response, JSONResponse):
+            body = response.body.decode()
+            try:
+                import json
+                data = json.loads(body)
 
-        data = json.loads(response.body)
-        attach_url(data)
+                def convert(obj):
+                    if isinstance(obj, dict):
+                        return {
+                            k: (public_url(v) if k == "cover_image" and isinstance(v, str) else convert(v))
+                            for k, v in obj.items()
+                        }
+                    if isinstance(obj, list):
+                        return [convert(i) for i in obj]
+                    return obj
 
-        return JSONResponse(content=data, status_code=response.status_code)
+                new_data = convert(data)
+                return JSONResponse(content=new_data, status_code=response.status_code)
+
+            except Exception:
+                return response
+
+        return response

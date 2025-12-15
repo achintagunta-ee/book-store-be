@@ -27,6 +27,7 @@ def delete_r2_file(key: str):
     except:
         pass
 
-
 def public_url(key: str):
+    from app.services.r2_client import R2_PUBLIC_BASE
     return f"{R2_PUBLIC_BASE}/{key}"
+
