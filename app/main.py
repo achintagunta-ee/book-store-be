@@ -3,6 +3,7 @@ from app.database import create_db_and_tables
 from app.config import settings
 from app.middleware.r2_public_url import R2PublicURLMiddleware
 from app.routes import (
+    admin,
     auth,
     books_public,
     users,
@@ -72,6 +73,10 @@ app.include_router(storage.router, prefix="/storage",tags=["Files Storage"])
 app.include_router(checkout.router , prefix="/checkout", tags=["Checkout"])
 app.include_router(wishlist.router, prefix="/wishlist" , tags=["Wishlist"])
 app.include_router(storage.router, prefix="/storage",tags=["Files Storage"])
+<<<<<<< HEAD
+=======
+app.include_router(admin.router,prefix="/admin",tags= ["Admin Endpoints"])
+>>>>>>> main
 
 # Use system temp directory instead of local uploads folder
 UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "hithabodha_uploads")
