@@ -14,6 +14,8 @@ from datetime import datetime, timedelta
 import os
 from reportlab.pdfgen import canvas
 from fastapi.responses import FileResponse
+from app.models.payment import Payment
+import uuid
 
 router = APIRouter()
 
@@ -281,6 +283,10 @@ def place_order(
 
 
 
+
+from app.models.payment import Payment
+import uuid
+
 @router.post("/orders/{order_id}/payment-complete")
 def complete_payment(
     order_id: int,
@@ -292,13 +298,32 @@ def complete_payment(
     if not order or order.user_id != current_user.id:
         raise HTTPException(404, "Order not found")
 
+    # ✅ Prevent duplicate payment
+    if order.status == "paid":
+        raise HTTPException(400, "Order already paid")
+
+    # ✅ Generate transaction ID
+    txn_id = str(uuid.uuid4())
+
+    # ✅ Create payment record
+    payment = Payment(
+        txn_id=txn_id,
+        order_id=order.id,
+        user_id=current_user.id,
+        amount=order.total,
+        status="paid"
+    )
+
+    session.add(payment)
+
+    # ✅ Update order status
     order.status = "paid"
     session.commit()
 
-    # Clear cart after successful payment
+    # Clear cart
     clear_cart(session, current_user.id)
 
-    # Load actual order items
+    # Fetch order items
     order_items = session.exec(
         select(OrderItem).where(OrderItem.order_id == order_id)
     ).all()
@@ -318,15 +343,14 @@ def complete_payment(
 
     return {
         "message": "Payment successful",
+        "transaction_id": txn_id,
         "order_id": order_id,
         "estimated_delivery": f"{start} - {end}",
-        "message": "Thank you for your order! A confirmation email has been sent.",
         "items": items,
         "track_order_url": f"/orders/{order_id}/track",
         "invoice_url": f"/orders/{order_id}/invoice",
         "continue_shopping_url": "/books"
     }
-
 
 # Track Orders
 
