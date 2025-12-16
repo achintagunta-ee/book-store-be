@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 from app.database import get_session
 from app.models.book import Book
 from app.models.category import Category
@@ -344,3 +344,89 @@ def get_book_by_slug(slug: str, session: Session = Depends(get_session)):
     if not book:
         raise HTTPException(404, "Book not found")
     return book
+
+@router.get("/")
+def list_books(
+    page: int = 1,
+    limit: int = 12,
+    sort: str = "relevance",
+    category_id: int | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
+    author: str | None = None,
+    session: Session = Depends(get_session)
+):
+
+    query = select(Book)
+
+    # --- Filters ---
+    if category_id:
+        query = query.where(Book.category_id == category_id)
+
+    if min_price:
+        query = query.where(Book.price >= min_price)
+
+    if max_price:
+        query = query.where(Book.price <= max_price)
+
+    if author:
+        query = query.where(Book.author.ilike(f"%{author}%"))
+
+    # --- Sorting ---
+    if sort == "price_asc":
+        query = query.order_by(Book.price.asc())
+
+    elif sort == "price_desc":
+        query = query.order_by(Book.price.desc())
+
+    elif sort == "rating":
+        query = query.order_by(Book.rating.desc())
+
+    elif sort == "author_asc":
+        query = query.order_by(Book.author.asc())
+
+    elif sort == "author_desc":
+        query = query.order_by(Book.author.desc())
+
+    elif sort == "oldest":
+        query = query.order_by(Book.published_date.asc())
+
+    else:
+        # relevance = newest
+        query = query.order_by(Book.published_date.desc())
+
+    # --- Pagination ---
+    total_items = session.exec(select(func.count(Book.id))).first()
+    total_pages = max(1, (total_items // limit) + 1)
+
+    books = session.exec(
+        query.offset((page - 1) * limit).limit(limit)
+    ).all()
+
+    return {
+        "total_items": total_items,
+        "total_pages": total_pages,
+        "current_page": page,
+        "results": books
+    }
+
+@router.get("/dynamic-search")
+def search_books(query: str, session: Session = Depends(get_session)):
+
+    results = session.exec(
+        select(Book)
+        .where(
+            Book.title.ilike(f"%{query}%") |
+            Book.author.ilike(f"%{query}%") |
+            Book.tags.ilike(f"%{query}%")
+        )
+        .limit(10)
+    ).all()
+
+    return [{
+        "book_id": b.id,
+        "title": b.title,
+        "author": b.author,
+        "cover_image": b.cover_image,
+        "price": b.price
+    } for b in results]

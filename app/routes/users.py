@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, Form, File, UploadFile, HTTPException
 from typing import Optional
 from sqlmodel import Session, select
 from app.database import get_session
+from app.models.book import Book
+from app.models.category import Category
 from app.models.order_item import OrderItem
 from app.models.user import User
 from app.models.order import Order
@@ -210,4 +212,57 @@ def get_order_details(
     return {
         "order": order,
         "items": items
+    }
+
+
+
+
+@router.get("/home")
+def home_page(session: Session = Depends(get_session)):
+    
+    # Featured Books
+    featured_books = session.exec(
+        select(Book)
+        .where(Book.is_featured == True)
+        .limit(12)
+    ).all()
+
+    # Featured Author Books
+    featured_authors_books = session.exec(
+        select(Book)
+        .where(Book.is_featured_author == True)
+        .limit(12)
+    ).all()
+
+    # New Arrivals (latest published_date)
+    new_arrivals = session.exec(
+        select(Book).order_by(Book.published_date.desc()).limit(12)
+    ).all()
+
+    # Popular Books (rating desc)
+    popular_books = session.exec(
+        select(Book).order_by(Book.rating.desc()).limit(12)
+    ).all()
+
+    # Categories
+    categories = session.exec(select(Category)).all()
+
+    def serialize(book):
+        return {
+            "book_id": book.id,
+            "title": book.title,
+            "author": book.author,
+            "price": book.price,
+            "discount_price": book.discount_price,
+            "offer_price": book.offer_price,
+            "cover_image": book.cover_image,
+            "rating": book.rating
+        }
+
+    return {
+        "featured_books": [serialize(b) for b in featured_books],
+        "featured_authors_books": [serialize(b) for b in featured_authors_books],
+        "new_arrivals": [serialize(b) for b in new_arrivals],
+        "popular_books": [serialize(b) for b in popular_books],
+        "categories": categories
     }
