@@ -1,7 +1,10 @@
+from datetime import date
+import math
 from fastapi import APIRouter, Depends, Form, File, UploadFile, HTTPException
 from typing import Optional
-from sqlmodel import Session, select
+from sqlmodel import Session, String, func, or_, select
 from app.database import get_session
+from app.models.order import Order
 from app.models.user import User
 from app.models.book import Book
 from app.models.category import Category
@@ -111,4 +114,51 @@ def admin_dashboard(
             "username": current_admin.username,
             "email": current_admin.email
         }
+    }
+
+@router.get("/payments")
+def list_payments(
+    page: int = 1,
+    limit: int = 10,
+    search: str | None = None,
+    status: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    session: Session = Depends(get_session),
+    admin=Depends(get_current_user)
+):
+    query = select(Payment).join(Order).join(User)
+
+    if search:
+        query = query.where(
+            or_(
+                Order.id.cast(String).ilike(f"%{search}%"),
+                User.name.ilike(f"%{search}%")
+            )
+        )
+
+    if status:
+        query = query.where(Payment.status == status)
+
+    if start_date and end_date:
+        query = query.where(
+            Payment.created_at.between(start_date, end_date)
+        )
+
+    total_items = session.exec(
+        select(func.count()).select_from(query.subquery())
+    ).one()
+
+    payments = session.exec(
+        query
+        .order_by(Payment.created_at.desc())
+        .offset((page - 1) * limit)
+        .limit(limit)
+    ).all()
+
+    return {
+        "total_items": total_items,
+        "total_pages": math.ceil(total_items / limit),
+        "current_page": page,
+        "results": payments
     }
