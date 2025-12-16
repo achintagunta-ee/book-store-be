@@ -4,11 +4,11 @@ from app.config import settings
 from app.middleware.r2_public_url import R2PublicURLMiddleware
 from app.routes import (
     auth,
+    books_public,
     users,
     books_admin,
     categories_admin,
     categories_public,
-    books_public,
     book_detail,
     review,
     cart,

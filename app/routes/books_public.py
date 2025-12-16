@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, func, select
 from app.database import get_session
@@ -6,9 +7,6 @@ from app.models.category import Category
 from app.services.r2_client import s3_client, R2_BUCKET_NAME
 
 router = APIRouter()
-
-
-
 
 # ---------- SEARCH BOOKS ----------
 @router.get("/search/query", summary="Search books by title or author")
@@ -345,70 +343,6 @@ def get_book_by_slug(slug: str, session: Session = Depends(get_session)):
         raise HTTPException(404, "Book not found")
     return book
 
-@router.get("/")
-def list_books(
-    page: int = 1,
-    limit: int = 12,
-    sort: str = "relevance",
-    category_id: int | None = None,
-    min_price: float | None = None,
-    max_price: float | None = None,
-    author: str | None = None,
-    session: Session = Depends(get_session)
-):
-
-    query = select(Book)
-
-    # --- Filters ---
-    if category_id:
-        query = query.where(Book.category_id == category_id)
-
-    if min_price:
-        query = query.where(Book.price >= min_price)
-
-    if max_price:
-        query = query.where(Book.price <= max_price)
-
-    if author:
-        query = query.where(Book.author.ilike(f"%{author}%"))
-
-    # --- Sorting ---
-    if sort == "price_asc":
-        query = query.order_by(Book.price.asc())
-
-    elif sort == "price_desc":
-        query = query.order_by(Book.price.desc())
-
-    elif sort == "rating":
-        query = query.order_by(Book.rating.desc())
-
-    elif sort == "author_asc":
-        query = query.order_by(Book.author.asc())
-
-    elif sort == "author_desc":
-        query = query.order_by(Book.author.desc())
-
-    elif sort == "oldest":
-        query = query.order_by(Book.published_date.asc())
-
-    else:
-        # relevance = newest
-        query = query.order_by(Book.published_date.desc())
-
-    # --- Pagination ---
-    total_items = session.exec(select(func.count(Book.id))).first()
-    total_pages = max(1, (total_items // limit) + 1)
-
-    books = session.exec(
-        query.offset((page - 1) * limit).limit(limit)
-    ).all()
-
-    return {
-        "total_items": total_items,
-        "total_pages": total_pages,
-        "current_page": page,
-        "results": books
-    }
 
 @router.get("/dynamic-search")
 def search_books(query: str, session: Session = Depends(get_session)):
@@ -430,3 +364,67 @@ def search_books(query: str, session: Session = Depends(get_session)):
         "cover_image": b.cover_image,
         "price": b.price
     } for b in results]
+
+
+@router.get("")
+def list_books(
+    page: int = Query(1, ge=1),
+    limit: int = Query(12, le=50),
+    sort: str = "relevance",
+
+    category_id: Optional[int] = None,
+    author: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+
+    session: Session = Depends(get_session)
+):
+    query = select(Book)
+
+    # Filters
+    if category_id:
+        query = query.where(Book.category_id == category_id)
+
+    if author:
+        query = query.where(Book.author.ilike(f"%{author}%"))
+
+    if min_price is not None:
+        query = query.where(Book.price >= min_price)
+
+    if max_price is not None:
+        query = query.where(Book.price <= max_price)
+
+ # ---------------- TOTAL COUNT (FIX) ----------------
+    count_query = select(func.count()).select_from(query.subquery())
+    total_items = session.exec(count_query).one()
+
+    # Sorting
+    match sort:
+        case "price_asc":
+            query = query.order_by(Book.price.asc())
+        case "price_desc":
+            query = query.order_by(Book.price.desc())
+        case "rating":
+            query = query.order_by(Book.rating.desc())
+        case "author_asc":
+            query = query.order_by(Book.author.asc())
+        case "author_desc":
+            query = query.order_by(Book.author.desc())
+        case "oldest":
+            query = query.order_by(Book.published_date.asc())
+        case _:
+            query = query.order_by(Book.published_date.desc())  # relevance
+
+   # ---------------- PAGINATION ----------------
+    offset = (page - 1) * limit
+    books = session.exec(
+        query.offset(offset).limit(limit)
+    ).all()
+
+    total_pages = max(1, (total_items + limit - 1) // limit)
+    return {
+        "total_items": total_items,
+        "total_pages": total_pages,
+        "current_page": page,
+        "results": books
+    }
