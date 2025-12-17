@@ -146,10 +146,19 @@ def list_payments(
             (User.last_name.ilike(f"%{search}%"))
         )
 
-    # 🟡 Status filter
-    if status:
-        query = query.where(Payment.status == status)
+    # ✅ Status mapping
+    STATUS_MAPPING = {
+        "PENDING": ["pending"],
+        "COMPLETED": ["success", "paid"],
+        "FAILED": ["failed"],
+        "ALL": None
+    }
 
+    status = status.upper()
+
+    if status in STATUS_MAPPING and STATUS_MAPPING[status]:
+        query = query.where(Payment.status.in_(STATUS_MAPPING[status]))
+    
     # 📅 Date filter
     if start_date:
         query = query.where(Payment.created_at >= start_date)
