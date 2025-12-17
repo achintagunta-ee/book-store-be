@@ -281,11 +281,8 @@ def place_order(
         "address": address
     }
 
-
-
-
+from uuid import uuid4
 from app.models.payment import Payment
-import uuid
 
 @router.post("/orders/{order_id}/payment-complete")
 def complete_payment(
@@ -298,58 +295,33 @@ def complete_payment(
     if not order or order.user_id != current_user.id:
         raise HTTPException(404, "Order not found")
 
-    # ✅ Prevent duplicate payment
     if order.status == "paid":
         raise HTTPException(400, "Order already paid")
 
-    # ✅ Generate transaction ID
-    txn_id = str(uuid.uuid4())
-
-    # ✅ Create payment record
+    # 1️⃣ Create Payment record
     payment = Payment(
-        txn_id=txn_id,
         order_id=order.id,
         user_id=current_user.id,
+        txn_id=str(uuid4()),
         amount=order.total,
-        status="paid"
+        method="mock",   # change later to upi/card
+        status="success"
     )
 
     session.add(payment)
 
-    # ✅ Update order status
+    # 2️⃣ Update order
     order.status = "paid"
+
     session.commit()
 
-    # Clear cart
+    # 3️⃣ Clear cart
     clear_cart(session, current_user.id)
-
-    # Fetch order items
-    order_items = session.exec(
-        select(OrderItem).where(OrderItem.order_id == order_id)
-    ).all()
-
-    items = [
-        {
-            "book_title": i.book_title,
-            "price": i.price,
-            "quantity": i.quantity,
-            "line_total": i.quantity * i.price
-        }
-        for i in order_items
-    ]
-
-    start = (datetime.utcnow() + timedelta(days=3)).strftime("%B %d, %Y")
-    end = (datetime.utcnow() + timedelta(days=7)).strftime("%B %d, %Y")
 
     return {
         "message": "Payment successful",
-        "transaction_id": txn_id,
-        "order_id": order_id,
-        "estimated_delivery": f"{start} - {end}",
-        "items": items,
-        "track_order_url": f"/orders/{order_id}/track",
-        "invoice_url": f"/orders/{order_id}/invoice",
-        "continue_shopping_url": "/books"
+        "order_id": order.id,
+        "txn_id": payment.txn_id
     }
 
 # Track Orders
@@ -372,9 +344,8 @@ def track_order(
     }
 
 #Download Invoice
-
 @router.get("/orders/{order_id}/invoice")
-def download_invoice(
+def get_invoice(
     order_id: int,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
@@ -384,19 +355,31 @@ def download_invoice(
     if not order or order.user_id != current_user.id:
         raise HTTPException(404, "Order not found")
 
-    file_path = f"invoices/invoice_{order.id}.pdf"
+    payment = session.exec(
+        select(Payment).where(Payment.order_id == order_id)
+    ).first()
 
-    # Generate if missing
-    if not os.path.exists(file_path):
-        generate_invoice_pdf(order, session, file_path)
+    items = session.exec(
+        select(OrderItem).where(OrderItem.order_id == order_id)
+    ).all()
 
-    return FileResponse(
-        file_path,
-        filename=f"invoice_{order.id}.pdf",
-        media_type="application/pdf"
-    )
-
-
+    return {
+        "invoice_id": f"INV-{order.id}",
+        "order_id": order.id,
+        "txn_id": payment.txn_id if payment else None,
+        "date": order.created_at,
+        "total": order.total,
+        "payment_status": payment.status if payment else "unpaid",
+        "items": [
+            {
+                "title": i.book_title,
+                "price": i.price,
+                "qty": i.quantity,
+                "total": i.price * i.quantity
+            }
+            for i in items
+        ]
+    }
 
 def generate_invoice_pdf(order, session, file_path):
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
@@ -407,3 +390,4 @@ def generate_invoice_pdf(order, session, file_path):
     c.drawString(100, 700, f"Date: {order.created_at}")
 
     c.save()
+
