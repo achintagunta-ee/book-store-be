@@ -11,7 +11,7 @@ from datetime import datetime
 from app.config import settings
 from slugify import slugify
 from app.services.r2_client import  s3_client, R2_BUCKET_NAME
-from app.services.r2_helper import  public_url , delete_r2_file , upload_book_cover
+from app.services.r2_helper import  delete_r2_file , upload_book_cover
 
 router = APIRouter()
 

@@ -2,11 +2,9 @@
 import time
 from fastapi import UploadFile
 from slugify import slugify
-from app.services.r2_client import s3_client, R2_BUCKET_NAME, R2_PUBLIC_BASE
-
+from app.services.r2_client import s3_client, R2_BUCKET_NAME
 
 def upload_book_cover(file: UploadFile, title: str):
-    """Upload book cover using the book title."""
     ext = file.filename.split(".")[-1]
     filename = f"{slugify(title)}_{int(time.time())}.{ext}"
     key = f"book_covers/{filename}"
@@ -17,9 +15,7 @@ def upload_book_cover(file: UploadFile, title: str):
         key,
         ExtraArgs={"ContentType": file.content_type}
     )
-
     return key
-
 
 def delete_r2_file(key: str):
     try:
@@ -27,7 +23,9 @@ def delete_r2_file(key: str):
     except:
         pass
 
-def public_url(key: str):
-    from app.services.r2_client import R2_PUBLIC_BASE
-    return f"{R2_PUBLIC_BASE}/{key}"
-
+def to_presigned_url(key: str, expires=3600):
+    return s3_client.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": R2_BUCKET_NAME, "Key": key},
+        ExpiresIn=expires
+    )

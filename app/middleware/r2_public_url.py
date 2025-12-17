@@ -1,13 +1,13 @@
+# app/middleware/r2_public_url.py
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
-from app.services.r2_helper import public_url
+from app.services.r2_helper import to_presigned_url
 import json
 
 class R2PublicURLMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         response = await call_next(request)
 
-        # Only modify JSON responses
         if "application/json" not in response.headers.get("content-type", ""):
             return response
 
@@ -18,19 +18,17 @@ class R2PublicURLMiddleware(BaseHTTPMiddleware):
         try:
             data = json.loads(body)
         except:
-            return response  # Not JSON → return unchanged
+            return response
 
-        # Recursively replace R2 keys with URLs
         def transform(obj):
             if isinstance(obj, dict):
                 if "cover_image" in obj and obj["cover_image"]:
-                    obj["cover_image_url"] = public_url(obj["cover_image"])
-                for value in obj.values():
-                    transform(value)
-
+                    obj["cover_image_url"] = to_presigned_url(obj["cover_image"])
+                for v in obj.values():
+                    transform(v)
             elif isinstance(obj, list):
-                for item in obj:
-                    transform(item)
+                for i in obj:
+                    transform(i)
 
         transform(data)
 
