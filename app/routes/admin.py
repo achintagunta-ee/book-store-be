@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime ,timedelta
 import math
 from fastapi import APIRouter, Depends, Form, File, Query, UploadFile, HTTPException
 from typing import Optional
@@ -120,6 +120,11 @@ def admin_dashboard(
         }
     }
 
+def parse_date(date_str: str, end=False):
+    dt = datetime.strptime(date_str, "%Y-%m-%d")
+    if end:
+        return dt + timedelta(days=1) - timedelta(seconds=1)
+    return dt
 
 
 
@@ -128,8 +133,8 @@ def list_payments(
     page: int = 1,
     limit: int = 10,
     status: str | None = None,
-    start_date: date | None = None,
-    end_date: date | None = None,
+    start_date: date | None = Query(None),
+    end_date: date | None = Query(None),
     search: str | None = None,
     session: Session = Depends(get_session)
 ):
@@ -154,12 +159,14 @@ def list_payments(
         "ALL": None
     }
 
-    status = status.upper()
-
     if status in STATUS_MAPPING and STATUS_MAPPING[status]:
         query = query.where(Payment.status.in_(STATUS_MAPPING[status]))
     
     # 📅 Date filter
+    if status:
+        query = query.where(Payment.status == status)
+
+    # ✅ Date filters (FIXED)
     if start_date:
         query = query.where(Payment.created_at >= start_date)
 
@@ -191,7 +198,8 @@ def list_payments(
                 "status": p.status,
                 "method": p.method,
                 "customer_name": f"{u.first_name} {u.last_name}",
-                "created_at": p.created_at
+                "created_at": p.created_at,
+                "date": p.created_at.strftime("%Y-%m-%d"),
             }
             for p, u in results
         ]
