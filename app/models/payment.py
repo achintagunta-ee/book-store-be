@@ -12,5 +12,5 @@ class Payment(SQLModel, table=True):
 
     amount: float
     status: str  # pending | completed | failed
-
+    method: str = Field(default="upi")   
     created_at: datetime = Field(default_factory=datetime.utcnow)
