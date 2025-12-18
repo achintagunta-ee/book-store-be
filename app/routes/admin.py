@@ -17,6 +17,8 @@ import os
 import uuid
 from reportlab.pdfgen import canvas
 from enum import Enum   
+from sqlalchemy import String, cast
+
 
 
 
@@ -150,10 +152,11 @@ def list_payments(
     # 🔍 Search (order_id or customer name)
     if search:
         query = query.where(
-            (Payment.order_id.cast(str).ilike(f"%{search}%")) |
-            (User.first_name.ilike(f"%{search}%")) |
-            (User.last_name.ilike(f"%{search}%"))
-        )
+        (cast(Payment.order_id, String).ilike(f"%{search}%")) |
+        (User.first_name.ilike(f"%{search}%")) |
+        (User.last_name.ilike(f"%{search}%"))
+    )
+
 
     # ✅ Status mapping
     STATUS_MAPPING = {
