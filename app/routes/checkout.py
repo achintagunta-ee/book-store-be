@@ -5,7 +5,7 @@ from app.models.user import User
 from app.models.order import Order 
 from app.models.order_item import OrderItem
 from app.models.address import Address
-from app.utils.token import get_current_admin, get_current_user
+from app.utils.token import get_current_user
 from app.schemas.address_schemas import AddressCreate
 from app.routes.cart import clear_cart
 from app.models.cart import CartItem
@@ -343,12 +343,12 @@ def track_order(
         "created_at": order.created_at,
     }
 
-#View Invoice 
+#Download Invoice
 @router.get("/orders/{order_id}/invoice")
 def get_invoice(
     order_id: int,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_admin)
+    current_user: User = Depends(get_current_user)
 ):
     order = session.get(Order, order_id)
 
@@ -380,33 +380,6 @@ def get_invoice(
             for i in items
         ]
     }
-
-
-from fastapi.responses import FileResponse
-import os
-
-@router.get("/orders/{order_id}/invoice/download")
-def download_invoice_pdf(
-    order_id: int,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
-):
-    order = session.get(Order, order_id)
-
-    if not order or order.user_id != current_user.id:
-        raise HTTPException(404, "Order not found")
-
-    file_path = f"invoices/user_invoice_{order.id}.pdf"
-
-    if not os.path.exists(file_path):
-        generate_invoice_pdf(order, session, file_path)
-
-    return FileResponse(
-        file_path,
-        media_type="application/pdf",
-        filename=f"invoice_{order.id}.pdf"
-    )
-
 
 def generate_invoice_pdf(order, session, file_path):
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
