@@ -2,6 +2,7 @@ from datetime import date, datetime ,timedelta
 import math
 from fastapi import APIRouter, Depends, Form, File, Query, UploadFile, HTTPException
 from typing import Optional
+from fastapi.responses import FileResponse
 from sqlmodel import Session, String, func, or_, select
 from app.database import get_session
 from app.models.order import Order
@@ -11,9 +12,11 @@ from app.models.user import User
 from app.models.book import Book
 from app.models.category import Category
 from app.utils.hash import verify_password, hash_password
-from app.utils.token import get_current_user
+from app.utils.token import get_current_admin, get_current_user
 import os
 import uuid
+from reportlab.pdfgen import canvas
+from enum import Enum   
 
 
 
@@ -242,14 +245,23 @@ def get_payment_detail(
         "created_at": payment.created_at
     }
 
+class OrderStatus(str, Enum):
+    pending = "pending"
+    paid = "paid"
+    processing = "processing"
+    shipped = "shipped"
+    delivered = "delivered"
+    cancelled = "cancelled"
+    failed = "failed"
+    
 @router.get("/orders")
 def list_orders(
     page: int = 1,
     limit: int = 10,
     search: str | None = None,
-    status: str | None = None,
-    start_date: date | None = None,
-    end_date: date | None = None,
+    status: OrderStatus | None = None,
+    start_date: date | None = Query(None),
+    end_date: date | None = Query(None),
     session: Session = Depends(get_session),
     _: User = Depends(require_admin)
 ):
@@ -264,14 +276,18 @@ def list_orders(
             (User.last_name.ilike(f"%{search}%")) |
             (Order.id.cast(String).ilike(f"%{search}%"))
         )
-
+    
     if status:
-        query = query.where(Order.status == status)
+        query = query.where(Order.status == status.value)
 
-    if start_date and end_date:
-        query = query.where(
-            Order.created_at.between(start_date, end_date)
-        )
+
+     # ✅ Date filters (FIXED)
+    if start_date:
+     query = query.where(Order.created_at >= start_date)
+
+    if end_date:
+     query = query.where(Order.created_at <= end_date)
+
 
     total = session.exec(
         select(func.count()).select_from(query.subquery())
@@ -342,26 +358,50 @@ def order_details(
         "invoice_url": f"/admin/invoices/{order.id}",
     }
 
-@router.post("/orders/{order_id}/notify")
-def notify_customer(
+@router.get("/orders/{order_id}/invoice")
+def download_invoice(
     order_id: int,
-    body: dict,
     session: Session = Depends(get_session),
-    _: User = Depends(get_current_user)
+    admin: User = Depends(get_current_admin),
 ):
-    order = session.exec(
-    select(Order, User)
-    .join(User, User.id == Order.user_id)
-    .where(Order.id == order_id)
-).first()
-
+    order = session.get(Order, order_id)
     if not order:
         raise HTTPException(404, "Order not found")
 
-    order_obj, user = order
+    file_path = f"invoices/invoice_{order.id}.pdf"
 
-    print(f"Notify {user.email}: {body['message']}")
-    # Email/SMS mock
-    print(f"Notify {order.user.email}: {body['message']}")
+    if not os.path.exists(file_path):
+        generate_invoice_pdf(order, session, file_path)
 
-    return {"message": "Notification sent successfully"}
+    return FileResponse(
+        file_path,
+        filename=f"invoice_{order.id}.pdf",
+        media_type="application/pdf"
+    )
+
+
+def generate_invoice_pdf(order, session, file_path):
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+    c = canvas.Canvas(file_path)
+    c.drawString(100, 750, f"Invoice for Order #{order.id}")
+    c.drawString(100, 720, f"Total: {order.total}")
+    c.drawString(100, 700, f"Date: {order.created_at}")
+
+    c.save()
+
+@router.post("/orders/{order_id}/notify")
+def notify_customer(
+    order_id: int,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_admin),
+):
+    order = session.get(Order, order_id)
+    if not order:
+        raise HTTPException(404, "Order not found")
+
+    # mock notification
+    return {
+        "message": "Customer notified successfully",
+        "order_id": order_id
+    }

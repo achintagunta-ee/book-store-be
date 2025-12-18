@@ -79,3 +79,23 @@ def get_current_user(
 
     return user
 
+def get_current_admin(
+    token: str = Depends(oauth2_scheme),
+    session: Session = Depends(get_session),
+) -> User:
+    payload = decode_access_token(token)
+
+    if payload is None:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    user_id = payload.get("user_id") or payload.get("sub")
+
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+
+    user = session.get(User, int(user_id))
+
+    if not user or user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    return user
