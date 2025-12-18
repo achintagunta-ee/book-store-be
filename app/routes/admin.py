@@ -200,7 +200,12 @@ def list_payments(
                 "customer_name": f"{u.first_name} {u.last_name}",
                 "created_at": p.created_at,
                 "date": p.created_at.strftime("%Y-%m-%d"),
+                "actions": {
+                "view_invoice": f"/admin/invoices/{p.order_id}",
+                "download_receipt": f"/admin/payments/{p.id}/receipt"
+}
             }
+
             for p, u in results
         ]
     }
