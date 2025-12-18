@@ -12,7 +12,7 @@ router = APIRouter()
 def get_payment_receipt(
     payment_id: int,
     session: Session = Depends(get_session),
-     current_user: User = Depends(get_current_user)
+    _: User = Depends(get_current_user),
 ):
     payment = session.get(Payment, payment_id)
 
