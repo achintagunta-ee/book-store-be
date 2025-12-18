@@ -348,7 +348,7 @@ def track_order(
 def get_invoice(
     order_id: int,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_admin)
+    current_user: User = Depends(get_current_user)
 ):
     order = session.get(Order, order_id)
 
@@ -417,4 +417,3 @@ def generate_invoice_pdf(order, session, file_path):
     c.drawString(100, 700, f"Date: {order.created_at}")
 
     c.save()
-
