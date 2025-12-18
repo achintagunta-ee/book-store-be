@@ -5,6 +5,7 @@ from typing import Optional
 from sqlmodel import Session, String, func, or_, select
 from app.database import get_session
 from app.models.order import Order
+from app.models.order_item import OrderItem
 from app.models.payment import Payment
 from app.models.user import User
 from app.models.book import Book
@@ -240,3 +241,127 @@ def get_payment_detail(
         },
         "created_at": payment.created_at
     }
+
+@router.get("/orders")
+def list_orders(
+    page: int = 1,
+    limit: int = 10,
+    search: str | None = None,
+    status: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin)
+):
+    query = (
+        select(Order, User)
+        .join(User, User.id == Order.user_id)
+    )
+
+    if search:
+        query = query.where(
+            (User.first_name.ilike(f"%{search}%")) |
+            (User.last_name.ilike(f"%{search}%")) |
+            (Order.id.cast(String).ilike(f"%{search}%"))
+        )
+
+    if status:
+        query = query.where(Order.status == status)
+
+    if start_date and end_date:
+        query = query.where(
+            Order.created_at.between(start_date, end_date)
+        )
+
+    total = session.exec(
+        select(func.count()).select_from(query.subquery())
+    ).one()
+
+    orders = session.exec(
+        query
+        .order_by(Order.created_at.desc())
+        .offset((page - 1) * limit)
+        .limit(limit)
+    ).all()
+
+    return {
+        "total_items": total,
+        "total_pages": (total + limit - 1) // limit,
+        "current_page": page,
+        "results": [
+            {
+                "order_id": o.id,
+                "customer_name": f"{u.first_name} {u.last_name}",
+                "date": o.created_at.date(),
+                "total_amount": o.total,   # or calculated
+                "status": o.status
+            }
+            for o, u in orders
+        ]
+    }
+
+
+@router.get("/orders/{order_id}")
+def order_details(
+    order_id: int,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    result = session.exec(
+        select(Order, User)
+        .join(User, User.id == Order.user_id)
+        .where(Order.id == order_id)
+    ).first()
+
+    if not result:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    order, user = result
+
+    items = session.exec(
+        select(OrderItem).where(OrderItem.order_id == order.id)
+    ).all()
+
+    return {
+        "order_id": order.id,
+        "customer": {
+            "name": f"{user.first_name} {user.last_name}",
+            "email": user.email,
+        },
+        "status": order.status,
+        "created_at": order.created_at,
+        "items": [
+            {
+                "title": i.book_title,
+                "price": i.price,
+                "quantity": i.quantity,
+                "total": i.price * i.quantity,
+            }
+            for i in items
+        ],
+        "invoice_url": f"/admin/invoices/{order.id}",
+    }
+
+@router.post("/orders/{order_id}/notify")
+def notify_customer(
+    order_id: int,
+    body: dict,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user)
+):
+    order = session.exec(
+    select(Order, User)
+    .join(User, User.id == Order.user_id)
+    .where(Order.id == order_id)
+).first()
+
+    if not order:
+        raise HTTPException(404, "Order not found")
+
+    order_obj, user = order
+
+    print(f"Notify {user.email}: {body['message']}")
+    # Email/SMS mock
+    print(f"Notify {order.user.email}: {body['message']}")
+
+    return {"message": "Notification sent successfully"}
