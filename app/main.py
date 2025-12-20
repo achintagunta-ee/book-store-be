@@ -4,6 +4,9 @@ from app.config import settings
 from app.middleware.r2_public_url import R2PublicURLMiddleware
 from app.routes import (
     admin,
+    admin_notifications,
+    admin_orders,
+    admin_payments,
     auth,
     books_public,
     users,
@@ -75,6 +78,9 @@ app.include_router(checkout.router , prefix="/checkout", tags=["Checkout"])
 app.include_router(wishlist.router, prefix="/wishlist" , tags=["Wishlist"])
 app.include_router(storage.router, prefix="/storage",tags=["Files Storage"])
 app.include_router(admin.router,prefix="/admin",tags= ["Admin Endpoints"])
+app.include_router(admin_payments.router,prefix="/admin/payments",tags= ["Admin Payments"])
+app.include_router(admin_orders.router,prefix="/admin/orders",tags= ["Admin Payments"])
+app.include_router(admin_notifications.router,prefix="/admin/notifications",tags= ["Admin Notifications"])
 
 
 # Use system temp directory instead of local uploads folder
