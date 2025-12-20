@@ -283,3 +283,16 @@ def home_page(session: Session = Depends(get_session)):
         "popular_books": [serialize(b) for b in popular_books],
         "categories": categories
     }
+@router.get("/notifications/{notification_id}")
+def get_notification_detail(
+    notification_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    notification = session.get(Notification, notification_id)
+
+    if not notification or notification.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Notification not found")
+
+    return notification
+
