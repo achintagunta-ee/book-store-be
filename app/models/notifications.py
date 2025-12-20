@@ -1,24 +1,43 @@
-from sqlmodel import SQLModel, Field
 from datetime import datetime
+from enum import Enum
 from typing import Optional
+
+from sqlmodel import SQLModel, Field
+
+
+# ---------- ENUMS (SAFE FOR SQLMODEL) ----------
+
+class RecipientRole(str, Enum):
+    admin = "admin"
+    customer = "customer"
+
+
+class NotificationChannel(str, Enum):
+    email = "email"
+    sms = "sms"
+    system = "system"
+
+
+class NotificationStatus(str, Enum):
+    sent = "sent"
+    failed = "failed"
+
+
+# ---------- MODEL ----------
 
 class Notification(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    user_id: int = Field(index=True)
+    recipient_role: RecipientRole
+    user_id: Optional[int] = None
 
-    trigger_source: str = Field(index=True)  
-    # "order", "payment", "inventory"
+    trigger_source: str  # order / payment / inventory
+    related_id: int     # order_id or payment_id
 
-    related_id: int = Field(index=True)  
-    # order_id / payment_id / etc.
-
-    channel: str = Field(default="email")  
-    # email / sms / push
-
-    status: str = Field(default="sent")  
-    # sent / failed
-
+    title: str
     content: str
+
+    channel: NotificationChannel = NotificationChannel.email
+    status: NotificationStatus = NotificationStatus.sent
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
