@@ -22,3 +22,4 @@ class Order(SQLModel, table=True):
     # relationships (important!)
     user: Optional["User"] = Relationship()
     items: List["OrderItem"] = Relationship(back_populates="order")
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
