@@ -5,6 +5,7 @@ from typing import Optional
 from fastapi.responses import FileResponse
 from sqlmodel import Session, String, func, or_, select
 from app.database import get_session
+from app.models.notifications import Notification
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.payment import Payment
@@ -18,8 +19,6 @@ import uuid
 from reportlab.pdfgen import canvas
 from enum import Enum   
 from sqlalchemy import String, cast
-
-
 
 
 router = APIRouter()
@@ -125,6 +124,8 @@ def admin_dashboard(
             "email": current_admin.email
         }
     }
+
+# -------- ADMIN PAYMENTS --------
 
 def parse_date(date_str: str, end=False):
     dt = datetime.strptime(date_str, "%Y-%m-%d")
@@ -248,6 +249,32 @@ def get_payment_detail(
         "created_at": payment.created_at
     }
 
+
+@router.get("/payments/{payment_id}/receipt")
+def get_payment_receipt(
+    payment_id: int,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    payment = session.get(Payment, payment_id)
+
+    if not payment:
+        raise HTTPException(404, "Payment not found")
+
+    return {
+        "receipt_id": f"RCT-{payment.id}",
+        "payment_id": payment.id,
+        "txn_id": payment.txn_id,
+        "order_id": payment.order_id,
+        "amount": payment.amount,
+        "method": payment.method,
+        "status": payment.status,
+        "paid_at": payment.created_at
+    }
+
+
+# -------- ADMIN ORDERS --------
+
 class OrderStatus(str, Enum):
     pending = "pending"
     paid = "paid"
@@ -266,7 +293,7 @@ def list_orders(
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
     session: Session = Depends(get_session),
-    _: User = Depends(require_admin)
+    _: User = Depends(get_current_admin)
 ):
     query = (
         select(Order, User)
@@ -362,6 +389,65 @@ def order_details(
     }
 
 @router.get("/orders/{order_id}/invoice")
+def view_invoice_admin(
+    order_id: int,
+    session: Session = Depends(get_session),
+    admin: User = Depends(get_current_admin)
+):
+    # 1. Fetch order
+    order = session.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    # 2. Fetch customer
+    customer = session.get(User, order.user_id)
+
+    # 3. Fetch payment
+    payment = session.exec(
+        select(Payment).where(Payment.order_id == order_id)
+    ).first()
+
+    # 4. Fetch order items
+    items = session.exec(
+        select(OrderItem).where(OrderItem.order_id == order_id)
+    ).all()
+
+    return {
+        "invoice_id": f"INV-{order.id}",
+        "order_id": order.id,
+        "customer": {
+            "id": customer.id,
+            "name": f"{customer.first_name} {customer.last_name}",
+            "email": customer.email
+        },
+        "payment": {
+            "txn_id": payment.txn_id if payment else None,
+            "method": payment.method if payment else None,
+            "status": payment.status if payment else "unpaid",
+            "amount": payment.amount if payment else order.total
+        },
+        "order_status": order.status,
+        "date": order.created_at,
+        "summary": {
+            "subtotal": order.subtotal,
+            "shipping": order.shipping,
+            "tax": order.tax,
+            "total": order.total
+        },
+        "items": [
+            {
+                "title": item.book_title,
+                "price": item.price,
+                "quantity": item.quantity,
+                "total": item.price * item.quantity
+            }
+            for item in items
+        ]
+    }
+
+
+
+@router.get("/orders/{order_id}/invoice/download")
 def download_invoice(
     order_id: int,
     session: Session = Depends(get_session),
@@ -407,4 +493,154 @@ def notify_customer(
     return {
         "message": "Customer notified successfully",
         "order_id": order_id
+    }
+
+# -------- ADMIN NOTIFICATIONS --------
+
+def create_notification(
+    session: Session,
+    *,
+    trigger_source: str,
+    related_id: int,
+    user_id: int,
+    content: str,
+    channel: str = "email"
+):
+    notification = Notification(
+        trigger_source=trigger_source,
+        related_id=related_id,
+        user_id=user_id,
+        content=content,
+        channel=channel,
+        status="sent"  # mock success
+    )
+    session.add(notification)
+
+
+ALLOWED_TRANSITIONS = {
+    "pending": ["processing", "cancelled"],
+    "paid": ["processing", "shipped"],
+    "processing": ["shipped", "failed"],
+    "shipped": ["delivered", "failed"],
+    "delivered": [],
+    "failed": [],
+    "cancelled": []
+}
+
+
+@router.patch("/orders/{order_id}/status")
+def update_order_status(
+    order_id: int,
+    new_status: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_admin)
+):
+    # Admin check
+    if current_user.role != "admin":
+        raise HTTPException(403, "Admin access required")
+
+    order = session.get(Order, order_id)
+    if not order:
+        raise HTTPException(404, "Order not found")
+
+    current_status = order.status
+
+    # Validate transition
+    allowed = ALLOWED_TRANSITIONS.get(current_status, [])
+    if new_status not in allowed:
+        raise HTTPException(
+            400,
+            f"Invalid status change from {current_status} → {new_status}"
+        )
+
+    # Update order
+    order.status = new_status
+    session.add(order)
+
+    # Notification content
+    content_map = {
+        "processing": f"Your order #{order.id} is being processed.",
+        "shipped": f"Your order #{order.id} has been shipped.",
+        "delivered": f"Your order #{order.id} was delivered successfully.",
+        "failed": f"Delivery failed for order #{order.id}.",
+        "cancelled": f"Your order #{order.id} was cancelled."
+    }
+
+    create_notification(
+        session=session,
+        trigger_source="order",
+        related_id=order.id,
+        user_id=order.user_id,
+        content=content_map[new_status]
+    )
+
+    session.commit()
+
+    return {
+        "message": "Order status updated",
+        "order_id": order.id,
+        "old_status": current_status,
+        "new_status": new_status
+    }
+
+
+
+@router.get("/notifications")
+def list_notifications(
+    page: int = 1,
+    limit: int = 10,
+    status: str | None = None,
+    channel: str | None = None,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != "admin":
+        raise HTTPException(403, "Admin only")
+
+    query = select(Notification)
+
+    if status:
+        query = query.where(Notification.status == status)
+
+    if channel:
+        query = query.where(Notification.channel == channel)
+
+    total = session.exec(
+        select(func.count()).select_from(query.subquery())
+    ).one()
+
+    notifications = session.exec(
+        query.order_by(Notification.created_at.desc())
+        .offset((page - 1) * limit)
+        .limit(limit)
+    ).all()
+
+    return {
+        "total_items": total,
+        "total_pages": (total // limit) + 1,
+        "current_page": page,
+        "results": notifications
+    }
+
+@router.post("/notifications/{notification_id}/resend")
+def resend_notification(
+    notification_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != "admin":
+        raise HTTPException(403, "Admin only")
+
+    notification = session.get(Notification, notification_id)
+    if not notification:
+        raise HTTPException(404, "Notification not found")
+
+    # Mock resend success
+    notification.status = "sent"
+    session.add(notification)
+    session.commit()
+
+    return {
+        "message": "Notification resent successfully",
+        "notification_id": notification.id
     }
