@@ -4,6 +4,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models.book import Book
 from app.models.category import Category
+from app.models.notifications import Notification
 from app.models.order_item import OrderItem
 from app.models.user import User
 from app.models.order import Order
@@ -30,6 +31,22 @@ def get_my_profile(current_user: User = Depends(get_current_user)):
         "client": current_user.client,
         "created_at": current_user.created_at
     }
+
+@router.get("/me/notifications")
+def customer_notifications(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    notifications = session.exec(
+        select(Notification)
+        .where(
+            Notification.recipient_role == "customer",
+            Notification.user_id == user.id
+        )
+        .order_by(Notification.created_at.desc())
+    ).all()
+
+    return notifications
 
 
 @router.put("/update-profile")
