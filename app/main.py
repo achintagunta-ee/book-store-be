@@ -1,13 +1,11 @@
 from fastapi import FastAPI
 from app.database import create_db_and_tables
 from app.config import settings
-#from app.middleware.r2_public_url import R2PublicURLMiddleware
 from app.middleware.r2_public_url import R2PublicURLMiddleware
 from app.routes import (
     admin,
     auth,
     books_public,
-    payments,
     users,
     books_admin,
     categories_admin,
@@ -18,7 +16,7 @@ from app.routes import (
     checkout,
     wishlist,
     storage,
-    payments
+    
 )
 
 import os
@@ -66,7 +64,6 @@ app.include_router(checkout.router , prefix="/checkout", tags=["Checkout"])
 app.include_router(wishlist.router, prefix="/wishlist" , tags=["Wishlist"])
 app.include_router(storage.router, prefix="/storage",tags=["Files Storage"])
 app.include_router(admin.router,prefix="/admin",tags= ["Admin Endpoints"])
-app.include_router(payments.router,prefix="/admin/payments", tags=["Admin Payments"])
 
 # Use system temp directory instead of local uploads folder
 UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "hithabodha_uploads")
