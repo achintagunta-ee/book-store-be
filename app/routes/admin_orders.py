@@ -188,7 +188,7 @@ def view_invoice_admin(
         },
         "items": [
             {
-                "title": item.title,   # ✅ adjust to actual column
+                "title": item.book_title,   # ✅ adjust to actual column
                 "price": item.price,
                 "quantity": item.quantity,
                 "total": item.price * item.quantity

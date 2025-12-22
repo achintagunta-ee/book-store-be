@@ -68,7 +68,7 @@ app.include_router(wishlist.router, prefix="/wishlist" , tags=["Wishlist"])
 app.include_router(storage.router, prefix="/storage",tags=["Files Storage"])
 app.include_router(admin.router,prefix="/admin",tags= ["Admin Endpoints"])
 app.include_router(admin_payments.router,prefix="/admin/payments",tags= ["Admin Payments"])
-app.include_router(admin_orders.router,prefix="/admin/orders",tags= ["Admin Payments"])
+app.include_router(admin_orders.router,prefix="/admin/orders",tags= ["Admin Orders"])
 app.include_router(admin_notifications.router,prefix="/admin/notifications",tags= ["Admin Notifications"])
 
 # Use system temp directory instead of local uploads folder
