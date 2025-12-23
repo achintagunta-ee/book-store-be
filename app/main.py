@@ -8,7 +8,6 @@ from app.routes import (
     admin_orders,
     admin_payments,
     auth,
-    book_inventory,
     books_public,
     users,
     books_admin,

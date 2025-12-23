@@ -66,16 +66,23 @@ def create_notification(
     session.add(notification)
 
 
-@router.get("/orders")
+@router.get("")
 def list_admin_notifications(
+    trigger_source: str | None = None,
     session: Session = Depends(get_session),
-    admin: User = Depends(get_current_admin),
+    admin: User = Depends(get_current_admin)
 ):
+    query = select(Notification).where(
+        Notification.recipient_role == "admin"
+    )
+
+    if trigger_source:
+        query = query.where(Notification.trigger_source == trigger_source)
+
     notifications = session.exec(
-        select(Notification)
-        .where(Notification.recipient_role == "admin")
-        .order_by(Notification.created_at.desc())
-    ).all()
+        query.order_by(Notification.created_at.desc())
+    ).all() 
+
 
     return [
         {
@@ -91,34 +98,48 @@ def list_admin_notifications(
     ]
 
 
-@router.get("/orders/{notification_id}")
+@router.get("/{notification_id}")
 def view_notification(
     notification_id: int,
     session: Session = Depends(get_session),
     admin: User = Depends(get_current_admin),
 ):
     notification = session.get(Notification, notification_id)
-    if not notification or notification.recipient_role != "admin":
+
+    if not notification or notification.recipient_role != RecipientRole.admin:
         raise HTTPException(404, "Notification not found")
 
-    return notification
+    return {
+        "notification_id": notification.id,
+        "title": notification.title,
+        "content": notification.content,
+        "trigger_source": notification.trigger_source,  # ✅ added
+        "related_id": notification.related_id,
+        "status": notification.status,
+        "channel": notification.channel,
+        "created_at": notification.created_at,
+    }
 
-@router.post("/orders/{notification_id}/resend")
+
+@router.post("/{notification_id}/resend")
 def resend_notification(
     notification_id: int,
     session: Session = Depends(get_session),
     admin: User = Depends(get_current_admin),
 ):
     notification = session.get(Notification, notification_id)
+
     if not notification:
         raise HTTPException(404, "Notification not found")
 
     notification.status = NotificationStatus.sent
     session.add(notification)
     session.commit()
+    session.refresh(notification)
 
     return {
         "message": "Notification resent",
         "notification_id": notification.id,
+        "trigger_source": notification.trigger_source,  # ✅ added
+        "status": notification.status,
     }
-
