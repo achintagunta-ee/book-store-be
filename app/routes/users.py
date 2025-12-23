@@ -32,21 +32,7 @@ def get_my_profile(current_user: User = Depends(get_current_user)):
         "created_at": current_user.created_at
     }
 
-@router.get("/me/notifications")
-def customer_notifications(
-    session: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
-):
-    notifications = session.exec(
-        select(Notification)
-        .where(
-            Notification.recipient_role == "customer",
-            Notification.user_id == user.id
-        )
-        .order_by(Notification.created_at.desc())
-    ).all()
 
-    return notifications
 
 
 @router.put("/update-profile")
