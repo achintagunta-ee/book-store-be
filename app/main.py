@@ -8,6 +8,7 @@ from app.routes import (
     admin_orders,
     admin_payments,
     auth,
+    book_inventory,
     books_public,
     users,
     books_admin,
@@ -19,7 +20,7 @@ from app.routes import (
     checkout,
     wishlist,
     storage,
-    
+    book_inventory   
 )
 
 import os
@@ -70,6 +71,7 @@ app.include_router(admin.router,prefix="/admin",tags= ["Admin Endpoints"])
 app.include_router(admin_payments.router,prefix="/admin/payments",tags= ["Admin Payments"])
 app.include_router(admin_orders.router,prefix="/admin/orders",tags= ["Admin Orders"])
 app.include_router(admin_notifications.router,prefix="/admin/notifications",tags= ["Admin Notifications"])
+app.include_router(book_inventory.router,prefix="/admin/book",tags= ["Book Inventory"])
 
 # Use system temp directory instead of local uploads folder
 UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "hithabodha_uploads")
