@@ -8,6 +8,7 @@ from app.routes import (
     admin_orders,
     admin_payments,
     auth,
+    book_inventory,
     books_public,
     users,
     books_admin,
@@ -19,13 +20,8 @@ from app.routes import (
     checkout,
     wishlist,
     storage,
-    book_inventory   
+    
 )
-
-
-from app.routes import auth, books_admin, categories_admin, categories_public, books_public, book_detail, review, cart ,users ,storage
-
-from app.routes import auth, books_admin, categories_admin, categories_public, books_public, book_detail, review, cart ,users ,storage
 
 import os
 import tempfile
@@ -68,12 +64,6 @@ app.include_router(categories_public.router, prefix="/categories", tags=["Public
 app.include_router(book_detail.router, prefix="/book", tags=["Book Details"])
 app.include_router(review.router, prefix="/reviews", tags=["Reviews"])
 app.include_router(cart.router, prefix="/cart", tags=["Cart"])
-
-app.include_router(checkout.router , prefix="/checkout", tags=["Checkout"])
-app.include_router(wishlist.router, prefix="/wishlist" , tags=["Wishlist"])
-
-app.include_router(storage.router, prefix="/storage",tags=["Files Storage"])
-
 app.include_router(checkout.router , prefix="/checkout", tags=["Checkout"])
 app.include_router(wishlist.router, prefix="/wishlist" , tags=["Wishlist"])
 app.include_router(storage.router, prefix="/storage",tags=["Files Storage"])
@@ -82,7 +72,6 @@ app.include_router(admin_payments.router,prefix="/admin/payments",tags= ["Admin 
 app.include_router(admin_orders.router,prefix="/admin/orders",tags= ["Admin Orders"])
 app.include_router(admin_notifications.router,prefix="/admin/notifications",tags= ["Admin Notifications"])
 app.include_router(book_inventory.router,prefix="/admin/book",tags= ["Book Inventory"])
-
 
 # Use system temp directory instead of local uploads folder
 UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "hithabodha_uploads")
