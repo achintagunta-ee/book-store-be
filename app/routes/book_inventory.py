@@ -84,6 +84,17 @@ def update_book_inventory(
     book.stock = stock
     book.updated_at = datetime.utcnow()
 
+    if book.stock <= 5:
+        create_notification(
+            session=session,
+            recipient_role="admin",
+            user_id=admin.id,
+            trigger_source="inventory",
+            related_id=book.id,
+            title="Low stock alert",
+            content=f"'{book.title}' stock is low ({book.stock})"
+        )
+
     session.add(book)
     session.commit()
     session.refresh(book)

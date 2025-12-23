@@ -172,6 +172,7 @@ def create_notification(
 
 @router.get("/orders/notifications")
 def list_admin_notifications(
+    trigger_source: str | None = None ,
     session: Session = Depends(get_session),
     admin: User = Depends(get_current_admin),
 ):
@@ -180,6 +181,9 @@ def list_admin_notifications(
         .where(Notification.recipient_role == "admin")
         .order_by(Notification.created_at.desc())
     ).all()
+
+    if trigger_source:
+        query = query.where(Notification.trigger_source == trigger_source)
 
     return [
         {
