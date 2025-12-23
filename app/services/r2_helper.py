@@ -29,3 +29,14 @@ def to_presigned_url(key: str, expires=3600):
         Params={"Bucket": R2_BUCKET_NAME, "Key": key},
         ExpiresIn=expires
     )
+def upload_profile_image(file: UploadFile, user_id: int):
+    ext = file.filename.split(".")[-1]
+    key = f"profiles/user_{user_id}.{ext}"
+
+    s3_client.upload_fileobj(
+        file.file,
+        R2_BUCKET_NAME,
+        key,
+        ExtraArgs={"ContentType": file.content_type}
+    )
+    return key

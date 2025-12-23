@@ -12,6 +12,7 @@ from app.models.address import Address
 from app.utils.token import get_current_user
 import os
 from app.schemas.address_schemas import AddressCreate
+from app.services.r2_helper import upload_profile_image, delete_r2_file
 
 router = APIRouter()
 
@@ -31,6 +32,7 @@ def get_my_profile(current_user: User = Depends(get_current_user)):
         "client": current_user.client,
         "created_at": current_user.created_at
     }
+
 
 
 
@@ -58,23 +60,23 @@ def update_user_profile(
     if last_name:
         current_user.last_name = last_name
 
-    # Save profile image
+    # ✅ Upload profile image to R2
     if profile_image:
-        os.makedirs("uploads/profiles", exist_ok=True)
-        ext = profile_image.filename.split(".")[-1]
-        filename = f"profile_{current_user.id}.{ext}"
-        file_path = f"uploads/profiles/{filename}"
+        # delete old image
+        if current_user.profile_image:
+            delete_r2_file(current_user.profile_image)
 
-        with open(file_path, "wb") as f:
-            f.write(profile_image.file.read())
-
-        current_user.profile_image = f"/{file_path}"
+        r2_key = upload_profile_image(profile_image, current_user.id)
+        current_user.profile_image = r2_key  # store only key
 
     session.add(current_user)
     session.commit()
     session.refresh(current_user)
 
-    return {"message": "Profile updated successfully", "user": current_user}
+    return {
+        "message": "Profile updated successfully",
+        "user": current_user
+    }
 
 
 # -------- USER DASHBOARD --------

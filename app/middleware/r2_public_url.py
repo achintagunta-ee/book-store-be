@@ -24,6 +24,8 @@ class R2PublicURLMiddleware(BaseHTTPMiddleware):
             if isinstance(obj, dict):
                 if "cover_image" in obj and obj["cover_image"]:
                     obj["cover_image_url"] = to_presigned_url(obj["cover_image"])
+                if "profile_image" in obj and obj["profile_image"]:
+                    obj["profile_image_url"] = to_presigned_url(obj["profile_image"])
                 for v in obj.values():
                     transform(v)
             elif isinstance(obj, list):
