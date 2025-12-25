@@ -7,6 +7,7 @@ from requests import session
 from sqlmodel import Session, String, func, or_, select
 from app.database import get_session
 from app.models import order
+from app.models.general_settings import GeneralSettings
 from app.models.notifications import Notification
 from app.models.order import Order
 from app.models.order_item import OrderItem
@@ -112,6 +113,95 @@ def admin_change_password(
 
     return {"message": "Password changed successfully"}
 
+@router.get("/settings/general")
+def get_general_settings(
+    session: Session = Depends(get_session),
+    admin: User = Depends(get_current_admin)
+):
+    settings = session.get(GeneralSettings, 1)
+
+    if not settings:
+        settings = GeneralSettings(
+            site_title="Hithabodha Book Store",
+            store_address="",
+            contact_email=""
+        )
+        session.add(settings)
+        session.commit()
+        session.refresh(settings)
+
+    return {
+        "site_title": settings.site_title,
+        "site_logo": settings.site_logo,
+        "store_address": settings.store_address,
+        "contact_email": settings.contact_email,
+        "updated_at": settings.updated_at
+    }
+
+
+@router.put("/settings/general/update")
+def update_general_settings(
+    site_title: str = Form(...),
+    store_address: str = Form(...),
+    contact_email: str = Form(...),
+    site_logo: UploadFile | None = File(None),
+    session: Session = Depends(get_session),
+    admin: User = Depends(get_current_admin),
+):
+    # Save logo if provided
+    logo_path = None
+    if site_logo:
+        filename = f"logo_{site_logo.filename}"
+        logo_path = f"uploads/{filename}"
+        with open(logo_path, "wb") as f:
+            f.write(site_logo.file.read())
+
+    # Save settings (DB example)
+    settings = session.exec(select(GeneralSettings)).first()
+    if not settings:
+        settings = GeneralSettings()
+
+    settings.site_title = site_title
+    settings.store_address = store_address
+    settings.contact_email = contact_email
+    if logo_path:
+        settings.site_logo = logo_path
+
+    session.add(settings)
+    session.commit()
+
+    return {
+        "message": "General settings updated successfully",
+        "site_title": site_title,
+        "site_logo": logo_path
+    }
+
+
+@router.post("/settings/logo")
+def upload_site_logo(
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session),
+    admin: User = Depends(get_current_admin)
+):
+    filename = f"logo_{uuid.uuid4()}.png"
+    path = f"uploads/{filename}"
+
+    with open(path, "wb") as f:
+        f.write(file.file.read())
+
+    settings = session.get(GeneralSettings, 1)
+    if not settings:
+        settings = GeneralSettings(id=1)
+        session.add(settings)
+
+    settings.site_logo = path
+    session.commit()
+
+    return {
+        "message": "Logo updated",
+        "logo_url": path
+    }
+
 
 # -------- ADMIN DASHBOARD --------
 
@@ -120,12 +210,26 @@ def admin_dashboard(
     session: Session = Depends(get_session),
     current_admin: User = Depends(require_admin)
 ):
+    total_revenue = session.exec(
+        select(func.coalesce(func.sum(Payment.amount), 0))
+        .where(Payment.status == "paid")
+    ).one()
+
+    total_orders = session.exec(
+        select(func.count(Order.id))
+    ).one()
+
+    low_stock_count = session.exec(
+        select(func.count(Book.id)).where(Book.stock <= 5)
+    ).one()
+
     return {
-        "total_users": len(session.exec(select(User)).all()),
-        "total_books": len(session.exec(select(Book)).all()),
-        "total_categories": len(session.exec(select(Category)).all()),
-        "total_admins": len(session.exec(select(User).where(User.role == "admin")).all()),
-        "total_regular_users": len(session.exec(select(User).where(User.role == "user")).all()),
+        "cards": {
+            "total_books": session.exec(select(func.count(Book.id))).one(),
+            "total_orders": total_orders,
+            "total_revenue": float(total_revenue),
+            "low_stock": low_stock_count
+        },
         "admin_info": {
             "id": current_admin.id,
             "username": current_admin.username,
@@ -325,4 +429,50 @@ def view_order_status(
         "order_id": order.id,
         "status": order.status,
         "updated_at": order.updated_at
+    }
+
+@router.get("/search")
+def admin_search(
+    q: str,
+    session: Session = Depends(get_session),
+    admin: User = Depends(require_admin)
+):
+    books = session.exec(
+        select(Book).where(
+            or_(
+                Book.title.ilike(f"%{q}%"),
+                Book.author.ilike(f"%{q}%"),
+                Book.isbn.ilike(f"%{q}%")
+            )
+        )
+    ).all()
+
+    orders = session.exec(
+        select(Order).where(
+            cast(Order.id, String).ilike(f"%{q}%")
+        )
+    ).all()
+
+    users = session.exec(
+        select(User).where(
+            or_(
+                User.email.ilike(f"%{q}%"),
+                User.username.ilike(f"%{q}%")
+            )
+        )
+    ).all()
+
+    return {
+        "books": [
+            {"id": b.id, "title": b.title, "stock": b.stock}
+            for b in books
+        ],
+        "orders": [
+            {"id": o.id, "status": o.status, "total": o.total_amount}
+            for o in orders
+        ],
+        "users": [
+            {"id": u.id, "email": u.email, "role": u.role}
+            for u in users
+        ]
     }
