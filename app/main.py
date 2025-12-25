@@ -73,6 +73,7 @@ app.include_router(admin_orders.router,prefix="/admin/orders",tags= ["Admin Orde
 app.include_router(admin_notifications.router,prefix="/admin/notifications",tags= ["Admin Notifications"])
 app.include_router(book_inventory.router,prefix="/admin/book",tags= ["Book Inventory"])
 
+
 # Use system temp directory instead of local uploads folder
 UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "hithabodha_uploads")
 BOOK_COVER_DIR = os.path.join(UPLOAD_DIR, "book_covers")
