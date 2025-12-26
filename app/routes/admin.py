@@ -141,39 +141,41 @@ def get_general_settings(
 
 @router.put("/settings/general/update")
 def update_general_settings(
-    site_title: str = Form(...),
-    store_address: str = Form(...),
-    contact_email: str = Form(...),
-    site_logo: UploadFile | None = File(None),
     session: Session = Depends(get_session),
-    admin: User = Depends(get_current_admin),
+    admin: User = Depends(require_admin),
+
+    site_title: Optional[str] = Form(None),
+    store_address: Optional[str] = Form(None),
+    contact_email: Optional[str] = Form(None),
+    site_logo: Optional[UploadFile] = File(None),
 ):
-    # Save logo if provided
-    logo_path = None
-    if site_logo:
-        filename = f"logo_{site_logo.filename}"
-        logo_path = f"uploads/{filename}"
-        with open(logo_path, "wb") as f:
-            f.write(site_logo.file.read())
+    settings = session.get(GeneralSettings, 1)
 
-    # Save settings (DB example)
-    settings = session.exec(select(GeneralSettings)).first()
     if not settings:
-        settings = GeneralSettings()
+        settings = GeneralSettings(id=1)
+        session.add(settings)
 
-    settings.site_title = site_title
-    settings.store_address = store_address
-    settings.contact_email = contact_email
-    if logo_path:
-        settings.site_logo = logo_path
+    if site_title is not None:
+        settings.site_title = site_title
 
-    session.add(settings)
+    if store_address is not None:
+        settings.store_address = store_address
+
+    if contact_email is not None:
+        settings.contact_email = contact_email
+
+    if site_logo:
+        # save file somewhere (S3/local/R2)
+        logo_url = site_logo(site_logo)
+        settings.site_logo = logo_url
+
+    settings.updated_at = datetime.utcnow()
     session.commit()
+    session.refresh(settings)
 
     return {
         "message": "General settings updated successfully",
-        "site_title": site_title,
-        "site_logo": logo_path
+        "data": settings,
     }
 
 
@@ -204,31 +206,31 @@ def upload_site_logo(
 
 
 # -------- ADMIN DASHBOARD --------
+from sqlmodel import select, func
 
 @router.get("/dashboard")
 def admin_dashboard(
     session: Session = Depends(get_session),
     current_admin: User = Depends(require_admin)
 ):
+    total_books = session.exec(select(func.count(Book.id))).one()
+    total_orders = session.exec(select(func.count(Order.id))).one()
+
     total_revenue = session.exec(
-        select(func.coalesce(func.sum(Payment.amount), 0))
-        .where(Payment.status == "paid")
+        select(func.coalesce(func.sum(Order.total), 0))
+        .where(Order.status.in_(["paid", "shipped", "delivered"]))
     ).one()
 
-    total_orders = session.exec(
-        select(func.count(Order.id))
-    ).one()
-
-    low_stock_count = session.exec(
+    low_stock = session.exec(
         select(func.count(Book.id)).where(Book.stock <= 5)
     ).one()
 
     return {
         "cards": {
-            "total_books": session.exec(select(func.count(Book.id))).one(),
+            "total_books": total_books,
             "total_orders": total_orders,
             "total_revenue": float(total_revenue),
-            "low_stock": low_stock_count
+            "low_stock": low_stock
         },
         "admin_info": {
             "id": current_admin.id,
@@ -236,6 +238,44 @@ def admin_dashboard(
             "email": current_admin.email
         }
     }
+
+
+@router.get("/search")
+def admin_search(
+    q: str,
+    session: Session = Depends(get_session),
+    admin: User = Depends(require_admin)
+):
+    books = session.exec(
+        select(Book).where(Book.title.ilike(f"%{q}%"))
+    ).all()
+
+    users = session.exec(
+        select(User).where(
+            (User.username.ilike(f"%{q}%")) |
+            (User.email.ilike(f"%{q}%"))
+        )
+    ).all()
+
+    orders = []
+    if q.isdigit():
+        orders = session.exec(
+            select(Order).where(Order.id == int(q))
+        ).all()
+
+    return {
+        "books": books,
+        "users": users,
+        "orders": orders
+    }
+
+
+
+
+
+
+
+
 
 
 
@@ -429,50 +469,4 @@ def view_order_status(
         "order_id": order.id,
         "status": order.status,
         "updated_at": order.updated_at
-    }
-
-@router.get("/search")
-def admin_search(
-    q: str,
-    session: Session = Depends(get_session),
-    admin: User = Depends(require_admin)
-):
-    books = session.exec(
-        select(Book).where(
-            or_(
-                Book.title.ilike(f"%{q}%"),
-                Book.author.ilike(f"%{q}%"),
-                Book.isbn.ilike(f"%{q}%")
-            )
-        )
-    ).all()
-
-    orders = session.exec(
-        select(Order).where(
-            cast(Order.id, String).ilike(f"%{q}%")
-        )
-    ).all()
-
-    users = session.exec(
-        select(User).where(
-            or_(
-                User.email.ilike(f"%{q}%"),
-                User.username.ilike(f"%{q}%")
-            )
-        )
-    ).all()
-
-    return {
-        "books": [
-            {"id": b.id, "title": b.title, "stock": b.stock}
-            for b in books
-        ],
-        "orders": [
-            {"id": o.id, "status": o.status, "total": o.total_amount}
-            for o in orders
-        ],
-        "users": [
-            {"id": u.id, "email": u.email, "role": u.role}
-            for u in users
-        ]
     }
