@@ -337,11 +337,28 @@ def track_order(
     if not order or order.user_id != current_user.id:
         raise HTTPException(404, "Order not found")
 
+    # Fetch order items
+    items = session.exec(
+        select(OrderItem).where(OrderItem.order_id == order.id)
+    ).all()
+
     return {
         "order_id": f"#{order.id}",
-        "status": order.status,  # processing, shipped, out_for_delivery, delivered
+        "status": order.status,
         "created_at": order.created_at,
+        "updated_at": order.updated_at,
+        "books": [
+            {
+                "book_id": item.book_id,
+                "title": item.book_title,   # or item.book.title if relation exists
+                "quantity": item.quantity,
+                "price": item.price,
+                "total": item.price * item.quantity
+            }
+            for item in items
+        ]
     }
+
 
 #View Invoice 
 @router.get("/orders/{order_id}/invoice")
