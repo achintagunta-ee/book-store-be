@@ -151,12 +151,8 @@ def update_general_settings(
 ):
     settings = session.get(GeneralSettings, 1)
 
-    if not settings:
-        settings = GeneralSettings(id=1)
-        session.add(settings)
-
     if site_title is not None:
-        settings.site_title = site_title
+     settings.site_title = site_title
 
     if store_address is not None:
         settings.store_address = store_address
@@ -165,13 +161,19 @@ def update_general_settings(
         settings.contact_email = contact_email
 
     if site_logo:
-        # save file somewhere (S3/local/R2)
-        logo_url = site_logo(site_logo)
-        settings.site_logo = logo_url
+        filename = f"logo_{uuid.uuid4()}.png"
+        path = f"uploads/settings/{filename}"
+
+    with open(path, "wb") as f:
+        f.write(site_logo.file.read())
+
+    settings.site_logo = path
 
     settings.updated_at = datetime.utcnow()
+    session.add(settings)
     session.commit()
     session.refresh(settings)
+
 
     return {
         "message": "General settings updated successfully",
