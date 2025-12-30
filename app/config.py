@@ -17,8 +17,8 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int
 
     
-    google_client_id: str
-    google_client_secret: str
+    GOOGLE_CLIENT_ID: str
+    GOOGLE_CLIENT_SECRET: str
 
     base_url: str = "https://book.efficientemengineering.com"
 
