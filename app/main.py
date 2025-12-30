@@ -29,6 +29,7 @@ from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Run DB creation ONLY in local
@@ -77,9 +78,14 @@ app.include_router(book_inventory.router,prefix="/admin/book",tags= ["Book Inven
 UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "hithabodha_uploads")
 BOOK_COVER_DIR = os.path.join(UPLOAD_DIR, "book_covers")
 os.makedirs(BOOK_COVER_DIR, exist_ok=True)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
-
+app.mount(
+    "/static",
+    StaticFiles(directory=os.path.join(BASE_DIR, "static")),
+    name="static"
+)
 @app.get("/")
 def root():
     return {

@@ -161,13 +161,16 @@ def update_general_settings(
         settings.contact_email = contact_email
 
     if site_logo:
+        os.makedirs("uploads/settings", exist_ok=True)
+
         filename = f"logo_{uuid.uuid4()}.png"
         path = f"uploads/settings/{filename}"
 
-    with open(path, "wb") as f:
-        f.write(site_logo.file.read())
+        with open(path, "wb") as f:
+            f.write(site_logo.file.read())
 
-    settings.site_logo = path
+        settings.site_logo = f"/{path}"
+
 
     settings.updated_at = datetime.utcnow()
     session.add(settings)
