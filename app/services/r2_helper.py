@@ -40,3 +40,19 @@ def upload_profile_image(file: UploadFile, user_id: int):
         ExtraArgs={"ContentType": file.content_type}
     )
     return key
+
+def upload_site_logo(file: UploadFile):
+    ext = file.filename.split(".")[-1].lower()
+    filename = f"site_logo_{int(time.time())}.{ext}"
+    key = f"settings/{filename}"
+
+    s3_client.upload_fileobj(
+        file.file,
+        R2_BUCKET_NAME,
+        key,
+        ExtraArgs={
+            "ContentType": file.content_type,
+            "ACL": "private"  # keep private → presigned URL
+        }
+    )
+    return key

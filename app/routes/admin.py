@@ -15,6 +15,7 @@ from app.models.payment import Payment
 from app.models.user import User
 from app.models.book import Book
 from app.models.category import Category
+from app.services.r2_helper import to_presigned_url, upload_site_logo
 from app.utils.hash import verify_password, hash_password
 from app.utils.token import get_current_admin, get_current_user
 import os
@@ -115,13 +116,14 @@ def admin_change_password(
 
 @router.get("/settings/general")
 def get_general_settings(
-    session: Session = Depends(get_session),
-    admin: User = Depends(get_current_admin)
+    session = Depends(get_session),
+    admin = Depends(require_admin)
 ):
     settings = session.get(GeneralSettings, 1)
 
     if not settings:
         settings = GeneralSettings(
+            id=1,
             site_title="Hithabodha Book Store",
             store_address="",
             contact_email=""
@@ -132,17 +134,23 @@ def get_general_settings(
 
     return {
         "site_title": settings.site_title,
-        "site_logo": settings.site_logo,
         "store_address": settings.store_address,
         "contact_email": settings.contact_email,
-        "updated_at": settings.updated_at
+        "updated_at": settings.updated_at,
+        "site_logo_url": to_presigned_url(settings.site_logo),
     }
+
+
+
+
+
+
 
 
 @router.put("/settings/general/update")
 def update_general_settings(
-    session: Session = Depends(get_session),
-    admin: User = Depends(require_admin),
+    session = Depends(get_session),
+    admin = Depends(require_admin),
 
     site_title: Optional[str] = Form(None),
     store_address: Optional[str] = Form(None),
@@ -151,8 +159,12 @@ def update_general_settings(
 ):
     settings = session.get(GeneralSettings, 1)
 
+    if not settings:
+        settings = GeneralSettings(id=1)
+        session.add(settings)
+
     if site_title is not None:
-     settings.site_title = site_title
+        settings.site_title = site_title
 
     if store_address is not None:
         settings.store_address = store_address
@@ -161,52 +173,23 @@ def update_general_settings(
         settings.contact_email = contact_email
 
     if site_logo:
-        os.makedirs("uploads/settings", exist_ok=True)
-
-        filename = f"logo_{uuid.uuid4()}.png"
-        path = f"uploads/settings/{filename}"
-
-        with open(path, "wb") as f:
-            f.write(site_logo.file.read())
-
-        settings.site_logo = f"/{path}"
-
+        # Upload to R2
+        key = upload_site_logo(site_logo)
+        settings.site_logo = key  # store ONLY key
 
     settings.updated_at = datetime.utcnow()
-    session.add(settings)
     session.commit()
     session.refresh(settings)
 
-
     return {
         "message": "General settings updated successfully",
-        "data": settings,
-    }
-
-
-@router.post("/settings/logo")
-def upload_site_logo(
-    file: UploadFile = File(...),
-    session: Session = Depends(get_session),
-    admin: User = Depends(get_current_admin)
-):
-    filename = f"logo_{uuid.uuid4()}.png"
-    path = f"uploads/{filename}"
-
-    with open(path, "wb") as f:
-        f.write(file.file.read())
-
-    settings = session.get(GeneralSettings, 1)
-    if not settings:
-        settings = GeneralSettings(id=1)
-        session.add(settings)
-
-    settings.site_logo = path
-    session.commit()
-
-    return {
-        "message": "Logo updated",
-        "logo_url": path
+        "data": {
+            "site_title": settings.site_title,
+            "store_address": settings.store_address,
+            "contact_email": settings.contact_email,
+            "updated_at": settings.updated_at,
+            "site_logo_url": to_presigned_url(settings.site_logo),
+        }
     }
 
 
