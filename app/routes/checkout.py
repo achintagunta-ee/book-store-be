@@ -279,16 +279,18 @@ def place_order(
     start = (datetime.utcnow() + timedelta(days=3)).strftime("%b %d")
     end = (datetime.utcnow() + timedelta(days=5)).strftime("%b %d")
 
-    send_order_confirmation(order, current_user)
+    
+    # ✅ ADMIN notification – Order placed
     create_notification(
     session=session,
     recipient_role=RecipientRole.admin,
-    user_id=None,  # global admin notification
+    user_id=None,  # global admin
     trigger_source="order",
     related_id=order.id,
     title="New Order Placed",
-    content=f"New order #{order.id} placed by {User.email}",
+    content=f"New order #{order.id} placed by {current_user.email}",
 )
+    session.commit()
 
     return {
         "order_id": f"#{order.id}",
@@ -335,16 +337,6 @@ def complete_payment(
 
     create_notification(
     session=session,
-    recipient_role=RecipientRole.admin,
-    user_id=None,
-    trigger_source="payment",
-    related_id=order.id,
-    title="Payment received",
-    content=f"Payment successful for Order #{order.id}. Amount ₹{order.total}",
-)
-
-    create_notification(
-    session=session,
     recipient_role=RecipientRole.customer,
     user_id=current_user.id,
     trigger_source="payment",
@@ -352,6 +344,16 @@ def complete_payment(
     title="Payment Successful",
     content=f"Payment successful for Order #{order.id}. Amount ₹{order.total}.",
 )
+    create_notification(
+    session=session,
+    recipient_role=RecipientRole.admin,
+    user_id=current_user.id,
+    trigger_source="payment",
+    related_id=order.id,
+    title="Payment Successful",
+    content=f"Payment successful for Order #{order.id}. Amount ₹{order.total}.",
+)
+    session.commit()
 
     for admin_email in settings.ADMIN_EMAILS:
         send_email(
