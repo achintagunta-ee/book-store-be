@@ -39,7 +39,17 @@ async def lifespan(app: FastAPI):
         create_db_and_tables()
     yield
 
-app = FastAPI(title="Hithabodha Bookstore API", lifespan=lifespan)
+app = FastAPI(
+    title="Hithabodha Bookstore API",
+    lifespan=lifespan,
+    servers=[
+        {
+            "url": "https://hbn-be.efficientengineering.com",
+            "description": "Production server",
+        }
+    ],
+)
+
 app.add_middleware(R2PublicURLMiddleware)
 
 app.add_middleware(
