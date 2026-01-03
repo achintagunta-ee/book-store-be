@@ -1,4 +1,5 @@
 import os
+from typing import List
 from pydantic_settings import BaseSettings
 from urllib.parse import quote_plus
 from dotenv import load_dotenv
@@ -37,7 +38,7 @@ class Settings(BaseSettings):
     BREVO_API_KEY: str
     MAIL_FROM: str
     STORE_NAME: str = "Hithabodha Bookstore"
-    ADMIN_EMAILS: list[str]
+    ADMIN_EMAILS: List[str] = []
 
     @property
     def database_url(self):
