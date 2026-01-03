@@ -272,17 +272,7 @@ def update_order_status(
         title=f"Order {normalized_status.title()}",
         content=f"Your order #{order.id} has been {normalized_status}.",
     )
-
-    # 🔔 ADMIN activity log
-    create_notification(
-        session=session,
-        recipient_role=RecipientRole.admin,
-        user_id=admin.id,
-        trigger_source="order",
-        related_id=order.id,
-        title="Order status updated",
-        content=f"Order #{order.id} changed from {old_status} → {normalized_status}",
-    )
+    session.commit()
 
     # 📧 DELIVERY EMAIL (ONLY ONCE)
     if old_status != "delivered" and normalized_status == "delivered":
@@ -329,6 +319,7 @@ def notify_customer(
         title="Order update",
         content=f"Admin sent an update for your order #{order.id}"
     )
+    session.commit()
 
     return {"message": "Customer notified"}
 
@@ -397,13 +388,15 @@ def add_tracking(
 
     create_notification(
     session=session,
-    recipient_role=RecipientRole.admin,
-    user_id=admin.id,
+    recipient_role=RecipientRole.customer,
+    user_id=order.user_id,
     trigger_source="shipping",
     related_id=order.id,
-    title="Order shipped",
-    content=f"Order #{order.id} shipped with tracking ID {tracking_id}",
+    title="Order Shipped",
+    content=f"Your order #{order.id} has been shipped. Tracking ID: {tracking_id}",
 )
+
+    session.commit()
 
     html = render_template(
         "user_emails/user_order_shipped.html",
