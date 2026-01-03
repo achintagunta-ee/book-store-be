@@ -18,8 +18,8 @@ class Settings(BaseSettings):
     
     # JWT settings
     secret_key: str
-    algorithm: str   # Added default
-    access_token_expire_minutes: int # Added default
+    algorithm: str
+    access_token_expire_minutes: int
     
     # Google OAuth
     GOOGLE_CLIENT_ID: str
@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     R2_ACCESS_KEY_ID: str
     R2_SECRET_ACCESS_KEY: str
     R2_BUCKET_NAME: str
-    AWS_REGION: str = "auto"  # R2 typically uses "auto"
+    AWS_REGION: str = "auto"
     
     # ENVIRONMENT
     ENV: str = "local"
@@ -40,18 +40,20 @@ class Settings(BaseSettings):
     BREVO_API_KEY: str
     MAIL_FROM: str
     STORE_NAME: str = "Hithabodha Bookstore"
-    ADMIN_EMAILS: List[str] = Field(default_factory=list)
+    
+    # Change the type annotation to accept str or list
+    ADMIN_EMAILS: str | List[str] = Field(default_factory=list)
     
     @field_validator('ADMIN_EMAILS', mode='before')
     @classmethod
     def parse_admin_emails(cls, v):
         """Parse ADMIN_EMAILS from various formats"""
-        if v is None:
+        if v is None or v == '':
             return []
-            
+        
         if isinstance(v, str):
-            # Empty string should return empty list
-            if not v or v.strip() == '' or v.strip() == '[]':
+            # Empty string variations
+            if v.strip() in ('', '[]', ''):
                 return []
             
             # Try parsing as JSON first
@@ -65,7 +67,7 @@ class Settings(BaseSettings):
             # Fall back to comma-separated values
             return [email.strip() for email in v.split(',') if email.strip()]
         
-        # If it's already a list, return as-is
+        # If it's already a list
         if isinstance(v, list):
             return [email.strip() for email in v if email]
         
