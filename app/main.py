@@ -10,6 +10,7 @@ from app.routes import (
     auth,
     book_inventory,
     books_public,
+    test_email,
     users,
     books_admin,
     categories_admin,
@@ -73,6 +74,7 @@ app.include_router(admin_payments.router,prefix="/admin/payments",tags= ["Admin 
 app.include_router(admin_orders.router,prefix="/admin/orders",tags= ["Admin Orders"])
 app.include_router(admin_notifications.router,prefix="/admin/notifications",tags= ["Admin Notifications"])
 app.include_router(book_inventory.router,prefix="/admin/book",tags= ["Book Inventory"])
+app.include_router(test_email.router,prefix="/email",tags=["Emails"])
 
 
 # Use system temp directory instead of local uploads folder

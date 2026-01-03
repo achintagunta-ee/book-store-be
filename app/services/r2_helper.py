@@ -23,12 +23,19 @@ def delete_r2_file(key: str):
     except:
         pass
 
-def to_presigned_url(key: str, expires=3600):
+def to_presigned_url(key: str | None) -> str | None:
+    if not key or not isinstance(key, str):
+        return None
+
     return s3_client.generate_presigned_url(
         "get_object",
-        Params={"Bucket": R2_BUCKET_NAME, "Key": key},
-        ExpiresIn=expires
+        Params={
+            "Bucket": R2_BUCKET_NAME,
+            "Key": key,
+        },
+        ExpiresIn=3600,
     )
+
 def upload_profile_image(file: UploadFile, user_id: int):
     ext = file.filename.split(".")[-1]
     key = f"profiles/user_{user_id}.{ext}"

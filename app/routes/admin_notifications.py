@@ -26,45 +26,6 @@ from sqlalchemy import String, cast
 
 router = APIRouter()
 
-def require_admin(current_user: User = Depends(get_current_user)):
-    if current_user.role != "admin":
-        raise HTTPException(403, "Admin access required")
-    return current_user
-
-
-ALLOWED_TRANSITIONS = {
-    "pending": ["processing", "cancelled"],
-    "paid":["processing","cancelled"],
-    "processing": ["shipped", "failed"],
-    "shipped": ["delivered", "failed"],
-    "delivered": [],
-    "failed": [],
-    "cancelled": []
-}
-
-def create_notification(
-    session: Session,
-    *,
-    recipient_role: RecipientRole,
-    user_id: int | None,
-    trigger_source: str,
-    related_id: int,
-    title: str,
-    content: str,
-    channel: NotificationChannel = NotificationChannel.email,
-):
-    notification = Notification(
-        recipient_role=recipient_role,
-        user_id=user_id,
-        trigger_source=trigger_source,
-        related_id=related_id,
-        title=title,
-        content=content,
-        channel=channel,
-        status=NotificationStatus.sent,
-    )
-    session.add(notification)
-
 
 @router.get("")
 def list_admin_notifications(

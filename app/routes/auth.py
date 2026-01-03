@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
+from app.config import Settings
 from app.database import get_session
+from app.models import order, user
 from app.models.user import User
 from app.schemas.user_schemas import UserRegister, UserLogin, Token, UserResponse
 from app.schemas.google_schemas import GoogleTokenRequest
@@ -10,6 +12,11 @@ from app.utils.google_auth import verify_google_token
 from datetime import timedelta , datetime
 from pydantic import BaseModel
 from random import randint
+from fastapi import BackgroundTasks
+from app.services.email_service import send_email
+from app.utils.template import render_template
+from app.config import settings
+
 
 
 router = APIRouter()
@@ -26,8 +33,14 @@ class ResetPasswordRequest(BaseModel):
 
 # -------- AUTH ROUTES --------
 
+from app.config import settings  # IMPORTANT
+
 @router.post("/register", response_model=UserResponse)
-def register_user(payload: UserRegister, session: Session = Depends(get_session)):
+def register_user(
+    payload: UserRegister,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session)
+):
     existing_user = session.exec(select(User).where(User.email == payload.email)).first()
     if existing_user:
         raise HTTPException(400, "Email already registered")
@@ -44,6 +57,36 @@ def register_user(payload: UserRegister, session: Session = Depends(get_session)
     session.commit()
     session.refresh(user)
 
+    # ---- Admin email ----
+    admin_html = render_template(
+        "emails/admin_new_user.html",
+        {
+            "email": user.email,
+            "name": f"{user.first_name} {user.last_name}"
+        }
+    )
+
+    for admin_email in settings.ADMIN_EMAILS:
+        background_tasks.add_task(
+            send_email,
+            admin_email,
+            "New User Registered",
+            admin_html
+        )
+
+    # ---- User email ----
+    user_html = f"""
+    <h2>Welcome {user.first_name}!</h2>
+    <p>Your account has been created successfully.</p>
+    """
+
+    background_tasks.add_task(
+        send_email,
+        user.email,
+        "Welcome to Book Store",
+        user_html
+    )
+
     return UserResponse(
         message="Registration successful.",
         user_id=user.id,
@@ -52,7 +95,6 @@ def register_user(payload: UserRegister, session: Session = Depends(get_session)
         client=user.client,
         can_login=True
     )
-
 
 @router.post("/login", response_model=Token)
 def login(payload: UserLogin, session: Session = Depends(get_session)):
@@ -95,24 +137,36 @@ def google_login(request: GoogleTokenRequest, session: Session = Depends(get_ses
 
 
 @router.post("/forgot-password")
-def forgot_password(request: ForgotPasswordRequest, session: Session = Depends(get_session)):
+def forgot_password(
+    request: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session)
+):
     user = session.exec(select(User).where(User.email == request.email)).first()
     if not user:
         raise HTTPException(404, "User not found")
 
     reset_code = str(randint(100000, 999999))
-    expires_at = datetime.utcnow() + timedelta(minutes=15)
-
     user.reset_code = reset_code
-    user.reset_code_expires = expires_at
-    session.add(user)
+    user.reset_code_expires = datetime.utcnow() + timedelta(minutes=15)
     session.commit()
 
-    return {
-        "message": "Reset code generated",
-        "reset_code": reset_code,   # FRONTEND CAN SHOW IN CONSOLE FOR NOW
-        "expires_in": 15
-    }
+    html = render_template(
+        "user_emails/user_reset_password.html",
+        first_name=user.first_name,
+        reset_code=reset_code,
+        expires_in=15,
+        store_name="Hithabodha Bookstore"
+    )
+
+    background_tasks.add_task(
+        send_email,
+        user.email,
+        "Password Reset Code",
+        html
+    )
+
+    return {"message": "Reset code sent to email"}
 
 class ResetPasswordByCode(BaseModel):
     email: str
