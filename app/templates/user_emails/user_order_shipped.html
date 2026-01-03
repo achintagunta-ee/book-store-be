@@ -1,0 +1,29 @@
+<h2>Order Shipped</h2>
+
+<p>Hi {{ first_name | default("Customer") }},</p>
+
+<p>
+  Your order <b>#{{ order_id }}</b> has been shipped successfully.
+</p>
+
+<p>
+  <b>Tracking ID:</b> {{ tracking_id }}
+</p>
+
+<p>
+  You can track your order using the link below:
+</p>
+
+<p>
+  <a href="{{ tracking_url }}" target="_blank">
+    Track Your Order
+  </a>
+</p>
+
+<p>
+  Thank you for shopping with {{ store_name }}.
+</p>
+
+<p>
+  — {{ store_name }} Team
+</p>

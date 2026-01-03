@@ -1,10 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select 
 from app.database import get_session
+from app.models.order import Order
+from app.models.order_item import OrderItem
 from app.models.review import Review
 from app.models.book import Book
 from datetime import datetime
-from app.schemas.review_schemas import ReviewCreate , ReviewUpdate 
+from app.models.user import User
+from app.schemas.review_schemas import ReviewCreate , ReviewUpdate
+from app.utils.token import get_current_user 
 
 
 
@@ -15,31 +19,59 @@ router = APIRouter()
 # 1️⃣ CREATE A REVIEW (BY BOOK SLUG)
 # ---------------------------------------------------------
 
-
 @router.post("/books/{slug}/reviews")
 def create_review(
     slug: str,
-    data: ReviewCreate, 
-    session: Session = Depends(get_session)
+    data: ReviewCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
-
-    book = session.exec(select(Book).where(Book.slug == slug)).first()
+    book = session.exec(
+        select(Book).where(Book.slug == slug)
+    ).first()
 
     if not book:
         raise HTTPException(404, "Book not found")
 
+    # ✅ Allow review only if user bought & received the book
+    delivered_order = session.exec(
+        select(Order)
+        .join(OrderItem, OrderItem.order_id == Order.id)
+        .where(
+            Order.user_id == current_user.id,
+            Order.status == "delivered",
+            OrderItem.book_id == book.id
+        )
+    ).first()
+
+    if not delivered_order:
+        raise HTTPException(
+            403,
+            "You can review this book only after delivery"
+        )
+
     review = Review(
         book_id=book.id,
-        user_name=data.user_name,
+        user_id=current_user.id,                 # 🔒 internal
+        user_name=current_user.first_name,       # 👁️ public
         rating=data.rating,
-        comment=data.comment
+        comment=data.comment,
     )
 
     session.add(review)
     session.commit()
     session.refresh(review)
 
-    return {"message": "Review added", "review": review}
+    return {
+        "message": "Review added successfully",
+        "review": {
+            "id": review.id,
+            "user_name": review.user_name,
+            "rating": review.rating,
+            "comment": review.comment,
+            "created_at": review.created_at
+        }
+    }
 
 
 # ---------------------------------------------------------

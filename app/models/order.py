@@ -23,3 +23,7 @@ class Order(SQLModel, table=True):
     user: Optional["User"] = Relationship()
     items: List["OrderItem"] = Relationship(back_populates="order")
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    tracking_id: str | None
+    tracking_url: str | None
+    shipped_at: datetime | None = None

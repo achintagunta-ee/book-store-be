@@ -8,6 +8,11 @@ class R2PublicURLMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         response = await call_next(request)
 
+          #  Skip Swagger & OpenAPI
+        if request.url.path.startswith(("/docs", "/redoc", "/openapi.json")):
+            return response
+
+        # Only process JSON responses
         if "application/json" not in response.headers.get("content-type", ""):
             return response
 
@@ -22,10 +27,12 @@ class R2PublicURLMiddleware(BaseHTTPMiddleware):
 
         def transform(obj):
             if isinstance(obj, dict):
-                if "cover_image" in obj and obj["cover_image"]:
+                if "cover_image" in obj and isinstance(obj["cover_image"], str):
                     obj["cover_image_url"] = to_presigned_url(obj["cover_image"])
-                if "profile_image" in obj and obj["profile_image"]:
+
+                if "profile_image" in obj and isinstance(obj["profile_image"], str):
                     obj["profile_image_url"] = to_presigned_url(obj["profile_image"])
+
                 for v in obj.values():
                     transform(v)
             elif isinstance(obj, list):

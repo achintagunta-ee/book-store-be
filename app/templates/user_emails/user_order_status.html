@@ -1,0 +1,18 @@
+<h2>Order Update 🚚</h2>
+
+<p>Hi {{ first_name }},</p>
+
+<p>Your order <b>#{{ order_id }}</b> status has been updated.</p>
+
+<p><b>Current Status:</b> {{ status }}</p>
+
+{% if tracking_url %}
+<p>
+Track your shipment:
+<a href="{{ tracking_url }}">{{ tracking_url }}</a>
+</p>
+{% endif %}
+
+<p>Thank you for choosing {{ store_name }}.</p>
+
+<p>— {{ store_name }} Team</p>

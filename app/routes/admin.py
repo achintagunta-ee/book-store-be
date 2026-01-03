@@ -15,6 +15,8 @@ from app.models.payment import Payment
 from app.models.user import User
 from app.models.book import Book
 from app.models.category import Category
+from app.constants.order_status import ALLOWED_TRANSITIONS
+from app.services.notification_service import create_notification
 from app.services.r2_helper import to_presigned_url, upload_site_logo
 from app.utils.hash import verify_password, hash_password
 from app.utils.token import get_current_admin, get_current_user
@@ -257,49 +259,7 @@ def admin_search(
         "orders": orders
     }
 
-
-
-
-
-
-
-
-
-
-
 # -------- ADMIN NOTIFICATIONS --------
-ALLOWED_TRANSITIONS = {
-    "pending": ["processing", "cancelled"],
-    "paid":["processing","cancelled"],
-    "processing": ["shipped", "failed"],
-    "shipped": ["delivered", "failed"],
-    "delivered": [],
-    "failed": [],
-    "cancelled": []
-}
-
-def create_notification(
-    session: Session,
-    *,
-    recipient_role: RecipientRole,
-    user_id: int | None,
-    trigger_source: str,
-    related_id: int,
-    title: str,
-    content: str,
-    channel: NotificationChannel = NotificationChannel.email,
-):
-    notification = Notification(
-        recipient_role=recipient_role,
-        user_id=user_id,
-        trigger_source=trigger_source,
-        related_id=related_id,
-        title=title,
-        content=content,
-        channel=channel,
-        status=NotificationStatus.sent,
-    )
-    session.add(notification)
 
 
 @router.get("/orders/notifications")
@@ -308,14 +268,16 @@ def list_admin_notifications(
     session: Session = Depends(get_session),
     admin: User = Depends(get_current_admin),
 ):
-    notifications = session.exec(
-        select(Notification)
-        .where(Notification.recipient_role == "admin")
-        .order_by(Notification.created_at.desc())
-    ).all()
+    query = select(Notification).where(
+    Notification.recipient_role == RecipientRole.admin
+)
 
     if trigger_source:
-        query = query.where(Notification.trigger_source == trigger_source)
+      query = query.where(Notification.trigger_source == trigger_source)
+
+    notifications = session.exec(
+    query.order_by(Notification.created_at.desc())
+).all()
 
     return [
         {
@@ -361,60 +323,6 @@ def resend_notification(
         "message": "Notification resent",
         "notification_id": notification.id,
     }
-
-@router.patch("/orders/{order_id}/status")
-def update_order_status(
-    order_id: int,
-    new_status: str,
-    session: Session = Depends(get_session),
-    admin: User = Depends(get_current_admin),
-):
-    order = session.get(Order, order_id)
-    if not order:
-        raise HTTPException(404, "Order not found")
-
-    allowed = ALLOWED_TRANSITIONS.get(order.status, [])
-    if new_status not in allowed:
-        raise HTTPException(
-            400,
-            f"Invalid status change from {order.status} → {new_status}"
-        )
-
-    old_status = order.status
-    order.status = new_status
-    session.add(order)
-
-    # 🔔 CUSTOMER notification
-    create_notification(
-        session=session,
-        recipient_role=RecipientRole.customer,
-        user_id=order.user_id,
-        trigger_source="order",
-        related_id=order.id,
-        title=f"Order {new_status.title()}",
-        content=f"Your order #{order.id} has been {new_status}.",
-    )
-
-    # 🔔 ADMIN activity log
-    create_notification(
-        session=session,
-        recipient_role=RecipientRole.admin,
-        user_id=admin.id,
-        trigger_source="order",
-        related_id=order.id,
-        title="Order status updated",
-        content=f"Order #{order.id} changed from {old_status} → {new_status}",
-    )
-
-    session.commit()
-
-    return {
-        "message": "Order status updated",
-        "order_id": order.id,
-        "old_status": old_status,
-        "new_status": new_status,
-    }
-
 
 @router.post("/orders/{order_id}/notify")
 def notify_customer(

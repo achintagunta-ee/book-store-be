@@ -1,5 +1,6 @@
 # -------- ADMIN PAYMENTS --------
 from datetime import date, datetime ,timedelta
+import html
 import math
 from fastapi import APIRouter, Depends, Form, File, Query, UploadFile, HTTPException
 from typing import Optional
@@ -8,6 +9,7 @@ from requests import session
 from sqlmodel import Session, String, func, or_, select
 from app.database import get_session
 from app.models import order
+from app.models import user
 from app.models.notifications import Notification
 from app.models.order import Order
 from app.models.order_item import OrderItem
@@ -16,6 +18,7 @@ from app.models.user import User
 from app.models.book import Book
 from app.models.category import Category
 from app.routes.admin import require_admin
+from app.services.email_service import send_email
 from app.utils.hash import verify_password, hash_password
 from app.utils.token import get_current_admin, get_current_user
 import os
@@ -23,6 +26,7 @@ import uuid
 from reportlab.pdfgen import canvas
 from enum import Enum   
 from sqlalchemy import String, cast
+
 
 router = APIRouter()
 
@@ -176,3 +180,12 @@ def get_payment_receipt(
         "paid_at": payment.created_at
     }
 
+#@router.post("/payments/webhook")
+#def payment_webhook(payload: dict, session: Session = Depends(get_session)):
+    payment = get_payment(payload)
+
+    if payment.status != "success" and payload["status"] == "success":
+        payment.status = "success"
+        session.commit()
+
+        send_payment_success_email(payment.order)

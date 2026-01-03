@@ -2,27 +2,26 @@
 from datetime import date, datetime ,timedelta
 import math
 from fastapi import APIRouter, Depends, Form, File, Query, UploadFile, HTTPException
-from typing import Optional
 from fastapi.responses import FileResponse
 from requests import session
 from sqlmodel import Session, String, func, or_, select
 from app.database import get_session
-from app.models import order
 from app.models.notifications import Notification, RecipientRole
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.payment import Payment
 from app.models.user import User
-from app.models.book import Book
-from app.models.category import Category
-from app.routes.admin import ALLOWED_TRANSITIONS, create_notification
-from app.utils.hash import verify_password, hash_password
+from app.constants.order_status import ALLOWED_TRANSITIONS
+from app.services.notification_service import create_notification
 from app.utils.token import get_current_admin, get_current_user
 import os
 import uuid
 from reportlab.pdfgen import canvas
 from enum import Enum   
 from sqlalchemy import String, cast
+from app.config import settings
+from app.services.email_service import send_email
+from app.utils.template import render_template
 
 
 router = APIRouter()
@@ -40,6 +39,14 @@ class OrderStatus(str, Enum):
     delivered = "delivered"
     cancelled = "cancelled"
     failed = "failed"
+
+class TriggerSource(str, Enum):
+    order = "order"
+    payment = "payment"
+    shipping = "shipping"
+    status = "order_status"
+    manual = "manual"
+
     
 @router.get("")
 def list_orders(
@@ -51,7 +58,8 @@ def list_orders(
     end_date: date | None = Query(None),
     session: Session = Depends(get_session),
     _: User = Depends(get_current_admin)
-):
+): 
+    print("🔍 LIST ORDERS CALLED")
     query = (
         select(Order, User)
         .join(User, User.id == Order.user_id)
@@ -240,26 +248,29 @@ def update_order_status(
     if not order:
         raise HTTPException(404, "Order not found")
 
+    normalized_status = new_status.strip().lower()
     allowed = ALLOWED_TRANSITIONS.get(order.status, [])
-    if new_status not in allowed:
+
+    if normalized_status not in allowed:
         raise HTTPException(
             400,
-            f"Invalid status change from {order.status} → {new_status}"
+            f"Invalid status change from {order.status} → {normalized_status}"
         )
 
     old_status = order.status
-    order.status = new_status
+    order.status = normalized_status
     session.add(order)
+    session.commit()
 
-    # 🔔 CUSTOMER notification
+    # 🔔 CUSTOMER notification (DB)
     create_notification(
         session=session,
         recipient_role=RecipientRole.customer,
         user_id=order.user_id,
         trigger_source="order",
         related_id=order.id,
-        title=f"Order {new_status.title()}",
-        content=f"Your order #{order.id} has been {new_status}.",
+        title=f"Order {normalized_status.title()}",
+        content=f"Your order #{order.id} has been {normalized_status}.",
     )
 
     # 🔔 ADMIN activity log
@@ -270,18 +281,32 @@ def update_order_status(
         trigger_source="order",
         related_id=order.id,
         title="Order status updated",
-        content=f"Order #{order.id} changed from {old_status} → {new_status}",
+        content=f"Order #{order.id} changed from {old_status} → {normalized_status}",
     )
 
-    session.commit()
+    # 📧 DELIVERY EMAIL (ONLY ONCE)
+    if old_status != "delivered" and normalized_status == "delivered":
+        user = session.get(User, order.user_id)
+        if user:
+            html = render_template(
+                "user_emails/user_order_delivered.html",
+                first_name=user.first_name,
+                order_id=order.id,
+                store_name="Hithabodha Bookstore",
+            )
+
+            send_email(
+                to=user.email,
+                subject=f"Your order #{order.id} has been delivered",
+                html=html,
+            )
 
     return {
         "message": "Order status updated",
         "order_id": order.id,
         "old_status": old_status,
-        "new_status": new_status,
+        "new_status": normalized_status,
     }
-
 
 @router.post("/{order_id}/notify")
 def notify_customer(
@@ -293,6 +318,8 @@ def notify_customer(
     if not order:
         raise HTTPException(404, "Order not found")
 
+    
+    session.commit()
     create_notification(
         session=session,
         recipient_role="customer",
@@ -303,7 +330,6 @@ def notify_customer(
         content=f"Admin sent an update for your order #{order.id}"
     )
 
-    session.commit()
     return {"message": "Customer notified"}
 
 
@@ -325,3 +351,73 @@ def view_order_status(
         "status": order.status,
         "updated_at": order.updated_at
     }
+
+def send_order_confirmation(order, user):
+    html = render_template(
+        "user_emails/user_order_confirmation.html",
+        order=order,
+        user=user
+    )
+
+    send_email(
+        to=user.email,
+        subject=f"Order Confirmed #{order.id}",
+        html=html
+    )
+    for admin_email in settings.ADMIN_EMAILS:
+        send_email(
+        admin_email,
+        "New Order Received",
+        html
+    )
+
+@router.patch("/{order_id}/tracking")
+def add_tracking(
+    order_id: int,
+    tracking_id: str,
+    tracking_url: str | None = None,
+    session: Session = Depends(get_session),
+    admin: User = Depends(get_current_admin)
+):
+    order = session.get(Order, order_id)
+    if not order:
+        raise HTTPException(404, "Order not found")
+
+    user = session.get(User, order.user_id)
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    order.tracking_id = tracking_id
+    order.tracking_url = tracking_url
+    order.status = "shipped"
+    order.shipped_at = datetime.utcnow()
+
+    session.commit()
+    session.refresh(order)
+
+    create_notification(
+    session=session,
+    recipient_role=RecipientRole.admin,
+    user_id=admin.id,
+    trigger_source="shipping",
+    related_id=order.id,
+    title="Order shipped",
+    content=f"Order #{order.id} shipped with tracking ID {tracking_id}",
+)
+
+    html = render_template(
+        "user_emails/user_order_shipped.html",
+        first_name=user.first_name,
+        order_id=order.id,
+        tracking_id=order.tracking_id,
+        tracking_url=order.tracking_url,
+        store_name="Hithabodha Bookstore"
+    )
+
+    send_email(
+        to=user.email,
+        subject=f"Your order #{order.id} has been shipped",
+        html=html
+    )
+
+    return {"message": "Tracking added and email sent"}
