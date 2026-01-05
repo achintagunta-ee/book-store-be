@@ -116,83 +116,8 @@ def admin_change_password(
 
     return {"message": "Password changed successfully"}
 
-@router.get("/settings/general")
-def get_general_settings(
-    session = Depends(get_session),
-    admin = Depends(require_admin)
-):
-    settings = session.get(GeneralSettings, 1)
-
-    if not settings:
-        settings = GeneralSettings(
-            id=1,
-            site_title="Hithabodha Book Store",
-            store_address="",
-            contact_email=""
-        )
-        session.add(settings)
-        session.commit()
-        session.refresh(settings)
-
-    return {
-        "site_title": settings.site_title,
-        "store_address": settings.store_address,
-        "contact_email": settings.contact_email,
-        "updated_at": settings.updated_at,
-        "site_logo_url": to_presigned_url(settings.site_logo),
-    }
 
 
-
-
-
-
-
-
-@router.put("/settings/general/update")
-def update_general_settings(
-    session = Depends(get_session),
-    admin = Depends(require_admin),
-
-    site_title: Optional[str] = Form(None),
-    store_address: Optional[str] = Form(None),
-    contact_email: Optional[str] = Form(None),
-    site_logo: Optional[UploadFile] = File(None),
-):
-    settings = session.get(GeneralSettings, 1)
-
-    if not settings:
-        settings = GeneralSettings(id=1)
-        session.add(settings)
-
-    if site_title is not None:
-        settings.site_title = site_title
-
-    if store_address is not None:
-        settings.store_address = store_address
-
-    if contact_email is not None:
-        settings.contact_email = contact_email
-
-    if site_logo:
-        # Upload to R2
-        key = upload_site_logo(site_logo)
-        settings.site_logo = key  # store ONLY key
-
-    settings.updated_at = datetime.utcnow()
-    session.commit()
-    session.refresh(settings)
-
-    return {
-        "message": "General settings updated successfully",
-        "data": {
-            "site_title": settings.site_title,
-            "store_address": settings.store_address,
-            "contact_email": settings.contact_email,
-            "updated_at": settings.updated_at,
-            "site_logo_url": to_presigned_url(settings.site_logo),
-        }
-    }
 
 
 # -------- ADMIN DASHBOARD --------
