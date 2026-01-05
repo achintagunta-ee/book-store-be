@@ -15,8 +15,25 @@ engine = create_engine(
   # from app.models import user, category, book , review ,cart , order
    #SQLModel.metadata.create_all(engine
 def create_db_and_tables():
-  from app.models import user, category, book , review ,cart , order
-  SQLModel.metadata.create_all(engine)
+    from app.models import (
+        address,
+        book,
+        cart,
+        category,
+        email,          # 👈 now safe
+        general_settings,
+        notifications,
+        order,
+        order_item,
+        payment,
+        review,
+        social_links,
+        summary,
+        user,
+        wishlist,
+    )
+    SQLModel.metadata.create_all(engine)
+
 
 
 def get_session():

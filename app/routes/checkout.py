@@ -8,6 +8,7 @@ from app.models.order_item import OrderItem
 from app.models.address import Address
 from app.routes.admin import create_notification
 from app.routes.admin_orders import send_order_confirmation
+from app.services import reduce_inventory
 from app.services.email_service import send_email
 from app.utils.template import render_template
 from app.utils.token import get_current_user
@@ -333,6 +334,9 @@ def complete_payment(
 
     session.add(payment)
     order.status = "paid"
+    session.commit()
+
+    reduce_inventory(session, order.id)
     session.commit()
 
     create_notification(
