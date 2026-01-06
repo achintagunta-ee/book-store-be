@@ -6,6 +6,8 @@ from fastapi.responses import FileResponse
 from requests import session
 from sqlmodel import Session, String, func, or_, select
 from app.database import get_session
+from app.models import user
+from app.models.book import Book
 from app.models.notifications import Notification, RecipientRole
 from app.models.order import Order
 from app.models.order_item import OrderItem
@@ -22,6 +24,10 @@ from sqlalchemy import String, cast
 from app.config import settings
 from app.services.email_service import send_email
 from app.utils.template import render_template
+from app.schemas.orders_schemas import (
+    OfflineOrderSchema,
+    OfflineOrderResponse
+)
 
 
 router = APIRouter()
@@ -111,6 +117,92 @@ def list_orders(
         ]
     }
 
+@router.post(
+    "/orders/offline",
+    response_model=OfflineOrderResponse
+)
+def create_offline_order(
+    data: OfflineOrderSchema,
+    session: Session = Depends(get_session),
+    admin: User = Depends(get_current_admin),
+):
+    total = 0
+
+    # 1️⃣ Calculate total & check stock
+    for item in data.items:
+        book = session.get(Book, item.book_id)
+
+        if not book or book.stock < item.quantity:
+            raise HTTPException(400, f"Insufficient stock for {book.title}")
+
+        total += book.price * item.quantity
+
+    # 2️⃣ Create order
+    order = Order(
+        user_id=data.user_id,
+        placed_by="admin",
+        payment_mode="offline",
+        payment_method=data.payment_method,
+        subtotal=total,
+        shipping=0,
+        tax=0,
+        total=total,
+        status="paid"
+    )
+
+    session.add(order)
+    session.commit()
+    session.refresh(order)
+
+    # 3️⃣ Create order items + reduce inventory
+    for item in data.items:
+        session.add(
+            OrderItem(
+                order_id=order.id,
+                book_id=item.book_id,
+                quantity=item.quantity
+            )
+        )
+
+        book = session.get(Book, item.book_id)
+        book.stock -= item.quantity
+        session.add(book)
+
+    # 4️⃣ Create payment record
+    payment = Payment(
+        order_id=order.id,
+        amount=total,
+        payment_mode="offline",
+        payment_method=data.payment_method,
+        payment_status="paid"
+    )
+
+    session.add(payment)
+
+    # 5️⃣ Admin notification
+    create_notification(
+        session=session,
+        recipient_role=RecipientRole.admin,
+        user_id=None,
+        trigger_source="order",
+        related_id=order.id,
+        title="Offline order placed",
+        content=f"Order #{order.id} placed offline via {data.payment_method}"
+    )
+
+    session.commit()
+
+    send_email(
+    to_email=user.email,
+    subject="Order placed (Offline Payment)",
+    html_content=f"Your order #{order.id} was placed via {data.payment_method}"
+)
+
+
+    return {
+        "message": "Offline order placed successfully",
+        "order_id": order.id
+    }
 
 @router.get("/{order_id}")
 def order_details(

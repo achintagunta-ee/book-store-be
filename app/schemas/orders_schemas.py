@@ -19,3 +19,24 @@ class PlaceOrderResponse(BaseModel):
     track_order_url: str
     continue_shopping_url: str
     invoice_url: str
+
+
+
+class OfflineOrderItem(BaseModel):
+    book_id: int
+    quantity: int
+
+class OfflineOrderSchema(BaseModel):
+    user_id: int
+    items: List[OfflineOrderItem]
+    payment_mode: str = "offline"   # cash | card | upi
+    notes: str | None = None
+
+class OfflineOrderResponse(BaseModel):
+    order_id: int
+    message: str
+    status: str
+    payment_mode: str
+    placed_by: str
+    total: float
+    invoice_url: str

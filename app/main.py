@@ -1,7 +1,7 @@
 from fastapi import FastAPI
-from app.database import create_db_and_tables
 from app.config import settings
 from app.middleware.r2_public_url import R2PublicURLMiddleware
+import app.models
 from app.routes import (
     admin,
     admin_notifications,
@@ -37,8 +37,6 @@ from fastapi.staticfiles import StaticFiles
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Run DB creation ONLY in local
-    if settings.ENV == "local":
-        create_db_and_tables()
     yield
 
 app = FastAPI(

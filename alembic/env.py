@@ -2,7 +2,7 @@ import sys
 import os
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import create_engine, engine_from_config, pool, text  # ADD text here
 from alembic import context
 
 # ================================
@@ -13,14 +13,7 @@ sys.path.append(BASE_DIR)
 
 from app.config import settings
 from sqlmodel import SQLModel
-from app.models.book import Book
-from app.models.category import Category
-from app.models.user import User
-from app.models.review import Review 
-from app.models.cart import CartItem
-from app.models.order import Order
-from app.models.address import Address
-from app.models.wishlist import Wishlist
+import app.models
 
 config = context.config
 
@@ -52,11 +45,25 @@ EXCLUDE_TABLES = {
     "customers_user_permissions",
     "token_blacklist_blacklistedtoken",
     "token_blacklist_outstandingtoken",
+    # Add faithlift tables to exclude
+    "faithlift_admins",
+    "faithlift_media_files",
 }
 
 def include_object(object, name, type_, reflected, compare_to):
-    if type_ == "table" and name in EXCLUDE_TABLES:
-        return False
+    """
+    Exclude Django tables and faithlift tables.
+    Only include bookstore tables.
+    """
+    if type_ == "table":
+        # Exclude tables in the exclude list
+        if name in EXCLUDE_TABLES:
+            return False
+        
+        # Only include tables from bookstore schema
+        if hasattr(object, 'schema'):
+            return object.schema == 'bookstore'
+    
     return True
 
 
@@ -72,6 +79,7 @@ def run_migrations_offline():
         compare_type=True,
         compare_server_default=True,
         include_object=include_object,
+        version_table_schema='bookstore',
     )
 
     with context.begin_transaction():
@@ -82,21 +90,24 @@ def run_migrations_offline():
 # ONLINE MODE (FIXED!)
 # ================================
 def run_migrations_online():
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
+    # Create engine with proper connect_args
+    engine = create_engine(
+        config.get_main_option("sqlalchemy.url"),
+        # connect_args={"options": "-c search_path=bookstore,public"}  # FIXED: Added space
     )
-
-    with connectable.connect() as connection:
+    
+    with engine.connect() as connection:
+        # Explicitly set search path
+        connection.execute(text("SET search_path TO bookstore, public"))
+        
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
             compare_type=True,
-            compare_server_default=True,
-            include_object=include_object,  # CRITICAL FIX 
+            include_object=include_object,
+            #version_table_schema='bookstore',
         )
-
+        
         with context.begin_transaction():
             context.run_migrations()
 
