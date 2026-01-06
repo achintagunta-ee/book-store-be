@@ -27,11 +27,3 @@ class Order(SQLModel, table=True):
     tracking_id: str | None
     tracking_url: str | None
     shipped_at: datetime | None = None
-    placed_by: str = Field(default="user")
-    # user | admin
-
-    payment_mode: str = Field(default="online")
-    # online | offline
-
-    payment_method: Optional[str] = None
-    # razorpay | cash | card | upi

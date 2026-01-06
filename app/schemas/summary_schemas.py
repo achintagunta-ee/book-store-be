@@ -1,7 +1,8 @@
+
 from pydantic import BaseModel
 from typing import List
 
-class SummaryItem(BaseModel):
+class CartItemSummary(BaseModel):
     book_title: str
     price: float
     quantity: int
@@ -10,7 +11,7 @@ class SummaryItem(BaseModel):
 class CheckoutSummaryResponse(BaseModel):
     address_id: int
     subtotal: float
-    shipping: float
+    shipping: float 
     tax: float
     total: float
-    items: List[SummaryItem]
+    items: List[CartItemSummary]

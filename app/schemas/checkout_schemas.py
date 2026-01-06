@@ -1,17 +1,17 @@
-# app/schemas/checkout_schemas.py
-from pydantic import BaseModel
-from typing import List
 
-class SummaryItem(BaseModel):
-    book_id: int
-    book_title: str
-    quantity: int
-    price: float          # final price per item (after discount/offer if any)
-    line_total: float     # quantity * price
+# Database Model (SQLModel)
+from sqlmodel import SQLModel, Field
+from typing import Optional
+from datetime import datetime
+from app.models.base import BookstoreBase
 
-class CartSummary(BaseModel):
-    items: List[SummaryItem]
-    subtotal: float       # sum of line_total
-    shipping: float       # e.g. 150 if subtotal < 500, else 0
-    discount: float       # total discount if you calculate it
-    total: float          # subtotal + shipping - discount
+class OrderSummary(BookstoreBase, table=True):  # Different name!
+    
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int
+    order_id: int
+    subtotal: float
+    shipping: float
+    tax: float
+    total: float
+    created_at: datetime = Field(default_factory=datetime.utcnow)
