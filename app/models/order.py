@@ -27,3 +27,5 @@ class Order(SQLModel, table=True):
     tracking_id: str | None
     tracking_url: str | None
     shipped_at: datetime | None = None
+    payment_mode: str = Field(default="online")     # cash | card | upi | online
+    placed_by: str = Field(default="user")

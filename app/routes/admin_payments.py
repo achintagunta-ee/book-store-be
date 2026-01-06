@@ -30,6 +30,18 @@ from sqlalchemy import String, cast
 
 router = APIRouter()
 
+
+class PaymentMode(str, Enum):
+    cash = "cash"
+    card = "card"
+    upi = "upi"
+    online = "online"
+
+class OrderPlacedBy(str, Enum):
+    user = "user"
+    admin = "admin"
+
+
 def require_admin(current_user: User = Depends(get_current_user)):
     if current_user.role != "admin":
         raise HTTPException(403, "Admin access required")
@@ -125,6 +137,27 @@ def list_payments(
             for p, u in results
         ]
     }
+@router.post("/offline")
+def create_offline_payment(
+    order_id: int,
+    amount: float,
+    method: str,
+    session: Session = Depends(get_session),
+    admin = Depends(require_admin)
+):
+    payment = Payment(
+        order_id=order_id,
+        user_id=admin.id,
+        txn_id=str(uuid.uuid4()),
+        amount=amount,
+        method=method,
+        status="completed"
+    )
+
+    session.add(payment)
+    session.commit()
+
+    return {"message": "Offline payment recorded"}
 
 @router.get("/{payment_id}", dependencies=[Depends(require_admin)])
 def get_payment_detail(
