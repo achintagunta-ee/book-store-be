@@ -151,6 +151,7 @@ def create_offline_payment(
         txn_id=str(uuid.uuid4()),
         amount=amount,
         method=method,
+        payment_mode="offline",
         status="completed"
     )
 
