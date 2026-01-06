@@ -14,3 +14,4 @@ class Payment(SQLModel, table=True):
     status: str  # pending | completed | failed
     method: str = Field(default="upi")   
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    payment_mode: str = Field(default="offline") 
