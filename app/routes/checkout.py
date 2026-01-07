@@ -8,7 +8,7 @@ from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.address import Address
 from app.routes.admin import create_notification
-from app.routes.admin_orders import send_order_confirmation
+from app.services.email_service import send_order_confirmation
 from app.services.reduce_inventory import reduce_inventory
 from app.services.email_service import send_email
 from app.utils.template import render_template
@@ -523,27 +523,60 @@ def get_invoice(
 
 
 @router.get("/orders/{order_id}/invoice/download")
-def download_invoice_pdf(
+def download_invoice_user(
     order_id: int,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
+    """
+    User download invoice as PDF
+    """
     order = session.get(Order, order_id)
-
-    if not order or order.user_id != current_user.id:
+    if not order:
         raise HTTPException(404, "Order not found")
-
-    file_path = f"invoices/user_invoice_{order.id}.pdf"
-
+    
+    # Check if user owns this order
+    if order.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(403, "Not authorized to download this invoice")
+    
+    # Create invoices directory if it doesn't exist
+    os.makedirs("invoices", exist_ok=True)
+    file_path = f"invoices/invoice_{order.id}.pdf"
+    
+    # Generate PDF if it doesn't exist
     if not os.path.exists(file_path):
-        generate_invoice_pdf(order, session, file_path)
-
+        # You can reuse the same generate_invoice_pdf function
+        # or create a simpler version for users
+        from reportlab.lib.pagesizes import letter
+        from reportlab.pdfgen import canvas
+        
+        c = canvas.Canvas(file_path, pagesize=letter)
+        width, height = letter
+        y_position = height - 50
+        
+        c.setFont("Helvetica-Bold", 20)
+        c.drawString(100, y_position, f"Invoice for Order #{order.id}")
+        y_position -= 30
+        
+        c.setFont("Helvetica", 12)
+        c.drawString(100, y_position, f"Total: ${order.total:.2f}")
+        y_position -= 20
+        c.drawString(100, y_position, f"Date: {order.created_at}")
+        y_position -= 20
+        c.drawString(100, y_position, f"Status: {order.status}")
+        
+        customer = session.get(User, order.user_id)
+        if customer:
+            y_position -= 30
+            c.drawString(100, y_position, f"Customer: {customer.first_name} {customer.last_name}")
+        
+        c.save()
+    
     return FileResponse(
         file_path,
-        media_type="application/pdf",
-        filename=f"invoice_{order.id}.pdf"
+        filename=f"invoice_{order.id}.pdf",
+        media_type="application/pdf"
     )
-
 
 def generate_invoice_pdf(order, session, file_path):
     os.makedirs(os.path.dirname(file_path), exist_ok=True)

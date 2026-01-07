@@ -42,3 +42,32 @@ def send_email(to: str, subject: str, html: str) -> bool:
     except Exception as e:
         logger.exception("Brevo email exception")
         return False
+from app.services.email_service import send_email
+from app.utils.template import render_template
+from app.models.user import User
+from app.models.order import Order
+from sqlmodel import Session
+
+def send_order_confirmation(order: Order, user: User, session: Session):
+    """Send order confirmation email to customer"""
+    html = render_template(
+        "user_emails/user_order_confirmation.html",
+        order=order,
+        user=user
+    )
+
+    send_email(
+        to=user.email,
+        subject=f"Order Confirmed #{order.id}",
+        html=html
+    )
+    
+    # Send to admin emails (if configured)
+    from app.config import settings
+    if hasattr(settings, 'ADMIN_EMAILS'):
+        for admin_email in settings.ADMIN_EMAILS:
+            send_email(
+                to=admin_email,
+                subject=f"New Order Received #{order.id}",
+                html=html
+            )
