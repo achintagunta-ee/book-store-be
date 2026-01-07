@@ -98,7 +98,8 @@ def update_social_links(
 ):
     from app.models.social_links import SocialLinks
     
-    settings = session.exec(select(SocialLinks)).first()
+    # Use SQLAlchemy's query instead of SQLModel's exec
+    settings = session.query(SocialLinks).first()
     
     if not settings:
         # Create new - convert HttpUrl to string
