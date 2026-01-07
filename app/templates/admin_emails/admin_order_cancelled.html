@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Order Cancelled by User - Order #{{ order_id }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .alert { background-color: #ffe6e6; padding: 15px; border-left: 4px solid #dc3545; margin: 15px 0; }
+        .info-box { background-color: #f8f9fa; padding: 15px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>📋 Order Cancelled by User</h2>
+        
+        <div class="alert">
+            <h3>Order #{{ order_id }} has been cancelled</h3>
+        </div>
+        
+        <div class="info-box">
+            <h4>Customer Details:</h4>
+            <p><strong>Name:</strong> {{ user_name }}</p>
+            <p><strong>Email:</strong> {{ user_email }}</p>
+            <p><strong>Order Total:</strong> ₹{{ order_total }}</p>
+        </div>
+        
+        {% if refund_required %}
+        <div class="info-box" style="background-color: #fff3cd; border-left: 4px solid #ffc107;">
+            <h4>⚠️ Refund Required</h4>
+            <p>Payment was made for this order. Refund needs to be processed.</p>
+            <p><strong>Refund Amount:</strong> ₹{{ order_total }}</p>
+        </div>
+        {% endif %}
+        
+        <p>Please review the order in the admin panel and process any necessary refunds.</p>
+        
+        <p><a href="{{ base_url }}/admin/orders/{{ order_id }}">View Order in Admin Panel</a></p>
+        
+        <hr>
+        <p><small>This is an automated notification from {{ store_name }}</small></p>
+    </div>
+</body>
+</html>

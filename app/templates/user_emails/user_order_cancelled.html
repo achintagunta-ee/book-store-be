@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Cancelled - Order #{{ order_id }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #f8f9fa; padding: 20px; text-align: center; }
+        .content { padding: 20px; background-color: #fff; }
+        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+        .status-box { padding: 15px; border-radius: 5px; margin: 15px 0; }
+        .cancelled { background-color: #ffe6e6; border-left: 4px solid #dc3545; }
+        .info-box { background-color: #e7f3ff; border-left: 4px solid #007bff; padding: 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Order Cancelled</h1>
+        </div>
+        
+        <div class="content">
+            <p>Dear {{ first_name }},</p>
+            
+            <div class="status-box cancelled">
+                <h3>Order #{{ order_id }} has been cancelled</h3>
+                <p>Your order cancellation request has been processed successfully.</p>
+            </div>
+            
+            <h3>Order Summary:</h3>
+            <ul>
+                <li><strong>Order ID:</strong> #{{ order_id }}</li>
+                <li><strong>Total Amount:</strong> ₹{{ total_amount }}</li>
+                <li><strong>Cancellation Date:</strong> {{ current_date }}</li>
+            </ul>
+            
+            {% if refund_required %}
+            <div class="info-box">
+                <h4>💰 Refund Information</h4>
+                <p>Since you had already paid for this order, a refund has been initiated.</p>
+                <p><strong>Refund Status:</strong> Processing</p>
+                <p><strong>Estimated Refund Time:</strong> 5-7 business days</p>
+                <p>The refund will be credited back to your original payment method.</p>
+            </div>
+            {% endif %}
+            
+            <h3>What happens next?</h3>
+            <ol>
+                <li>Stock has been restored for all items in your order</li>
+                {% if refund_required %}
+                <li>Refund has been initiated (if applicable)</li>
+                <li>You will receive a confirmation once refund is processed</li>
+                {% endif %}
+                <li>You can place a new order anytime</li>
+            </ol>
+            
+            <p>If you have any questions about your cancellation, please contact our customer support.</p>
+            
+            <p>Thank you,<br>
+            The {{ store_name }} Team</p>
+        </div>
+        
+        <div class="footer">
+            <p>This is an automated email. Please do not reply.</p>
+            <p>&copy; {{ current_year }} {{ store_name }}. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

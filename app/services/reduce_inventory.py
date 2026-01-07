@@ -1,22 +1,51 @@
-from fastapi import HTTPException
-from sqlalchemy import select
+# app/services/reduce_inventory.py - WORKING VERSION
 from sqlmodel import Session
-
 from app.models.book import Book
-from app.models.order_item import OrderItem
+from sqlalchemy import select, table, column
+import logging
 
+logger = logging.getLogger(__name__)
 
 def reduce_inventory(session: Session, order_id: int):
-    items = session.exec(
-        select(OrderItem).where(OrderItem.order_id == order_id)
-    ).all()
-
-    for item in items:
-        book = session.get(Book, item.book_id)
-        if book.stock < item.quantity:
-            raise HTTPException(
-                400, f"Insufficient stock for {book.title}"
-            )
-
-        book.stock -= item.quantity
-        session.add(book)
+    """Reduce inventory when order is placed - WORKING VERSION"""
+    try:
+        logger.info(f"Reducing inventory for order {order_id}")
+        
+        # Use SQLAlchemy Core directly
+        from sqlalchemy import text
+        
+        # Get order items with raw SQL to avoid mapping issues
+        items = session.execute(
+            text('SELECT id, book_id, quantity FROM orderitem WHERE order_id = :order_id'),
+            {"order_id": order_id}
+        ).fetchall()
+        
+        logger.info(f"Found {len(items)} items")
+        
+        for item in items:
+            item_id, book_id, quantity = item
+            
+            logger.info(f"Processing: Item {item_id}, Book {book_id}, Qty {quantity}")
+            
+            # Get the book
+            book = session.get(Book, book_id)
+            if not book:
+                raise Exception(f"Book with ID {book_id} not found")
+            
+            logger.info(f"  Book: {book.title}, Stock: {book.stock}")
+            
+            if book.stock < quantity:
+                raise Exception(f"Insufficient stock for {book.title}. Available: {book.stock}, Requested: {quantity}")
+            
+            # Update stock
+            book.stock -= quantity
+            session.add(book)
+            logger.info(f"  Updated stock: {book.stock}")
+        
+        session.commit()
+        logger.info(f"✅ Successfully reduced inventory for order {order_id}")
+        
+    except Exception as e:
+        logger.error(f"Error reducing inventory: {e}")
+        session.rollback()
+        raise

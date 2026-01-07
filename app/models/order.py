@@ -23,9 +23,8 @@ class Order(SQLModel, table=True):
     user: Optional["User"] = Relationship()
     items: List["OrderItem"] = Relationship(back_populates="order")
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-
     tracking_id: str | None
     tracking_url: str | None
-    shipped_at: datetime | None = None
+    shipped_at: Optional[datetime] = Field(default=None)
     payment_mode: str = Field(default="online")     # cash | card | upi | online
     placed_by: str = Field(default="user")

@@ -1,61 +1,24 @@
-# -------- ADMIN PAYMENTS --------
-from datetime import date, datetime ,timedelta
-import html
-import math
-from fastapi import APIRouter, Depends, Form, File, Query, UploadFile, HTTPException
+from datetime import date, datetime
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import String, cast
+from sqlmodel import Session, func, select
 from typing import Optional
-from fastapi.responses import FileResponse
-from requests import session
-from sqlmodel import Session, String, func, or_, select
+import uuid
 from app.database import get_session
-from app.models import order
-from app.models import user
-from app.models.notifications import Notification
-from app.models.order import Order
-from app.models.order_item import OrderItem
 from app.models.payment import Payment
 from app.models.user import User
-from app.models.book import Book
-from app.models.category import Category
-from app.routes.admin import require_admin
-from app.services.email_service import send_email
-from app.utils.hash import verify_password, hash_password
-from app.utils.token import get_current_admin, get_current_user
-import os
-import uuid
-from reportlab.pdfgen import canvas
-from enum import Enum   
-from sqlalchemy import String, cast
-
+from app.models.order import Order
+from app.utils.token import get_current_user
 
 router = APIRouter()
-
-
-class PaymentMode(str, Enum):
-    cash = "cash"
-    card = "card"
-    upi = "upi"
-    online = "online"
-
-class OrderPlacedBy(str, Enum):
-    user = "user"
-    admin = "admin"
-
 
 def require_admin(current_user: User = Depends(get_current_user)):
     if current_user.role != "admin":
         raise HTTPException(403, "Admin access required")
     return current_user
 
-
-def parse_date(date_str: str, end=False):
-    dt = datetime.strptime(date_str, "%Y-%m-%d")
-    if end:
-        return dt + timedelta(days=1) - timedelta(seconds=1)
-    return dt
-
-
-@router.get("", dependencies=[Depends(require_admin)])
+# In your admin_payments.py
+@router.get("")
 def list_payments(
     page: int = 1,
     limit: int = 10,
@@ -63,45 +26,32 @@ def list_payments(
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
     search: str | None = None,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    admin: User = Depends(require_admin)
 ):
     query = (
-        select(Payment, User)
+        select(Payment, User, Order)
         .join(User, User.id == Payment.user_id)
+        .join(Order, Order.id == Payment.order_id)
     )
 
-    # 🔍 Search (order_id or customer name)
     if search:
         query = query.where(
-        (cast(Payment.order_id, String).ilike(f"%{search}%")) |
-        (User.first_name.ilike(f"%{search}%")) |
-        (User.last_name.ilike(f"%{search}%"))
-    )
+            (cast(Payment.order_id, String).ilike(f"%{search}%")) |
+            (Payment.txn_id.ilike(f"%{search}%")) |
+            (User.first_name.ilike(f"%{search}%")) |
+            (User.last_name.ilike(f"%{search}%"))
+        )
 
-
-    # ✅ Status mapping
-    STATUS_MAPPING = {
-        "PENDING": ["pending"],
-        "COMPLETED": ["success", "paid"],
-        "FAILED": ["failed"],
-        "ALL": None
-    }
-
-    if status in STATUS_MAPPING and STATUS_MAPPING[status]:
-        query = query.where(Payment.status.in_(STATUS_MAPPING[status]))
-    
-    # 📅 Date filter
     if status:
         query = query.where(Payment.status == status)
 
-    # ✅ Date filters (FIXED)
     if start_date:
-        query = query.where(Payment.created_at >= start_date)
+        query = query.where(func.date(Payment.created_at) >= start_date)
 
     if end_date:
-        query = query.where(Payment.created_at <= end_date)
+        query = query.where(func.date(Payment.created_at) <= end_date)
 
-    # 📊 Count AFTER filters (this fixes your earlier bug)
     total = session.exec(
         select(func.count()).select_from(query.subquery())
     ).one()
@@ -119,107 +69,154 @@ def list_payments(
         "current_page": page,
         "results": [
             {
-                "payment_id": p.id,
-                "txn_id": p.txn_id,
-                "order_id": p.order_id,
-                "amount": p.amount,
-                "status": p.status,
-                "method": p.method,
-                "customer_name": f"{u.first_name} {u.last_name}",
-                "created_at": p.created_at,
-                "date": p.created_at.strftime("%Y-%m-%d"),
+                "payment_id": payment.id,  # ✅ Admin gets payment_id here
+                "txn_id": payment.txn_id,
+                "order_id": payment.order_id,
+                "amount": payment.amount,
+                "status": payment.status,
+                "method": payment.method,
+                "customer_name": f"{user.first_name} {user.last_name}",
+                "customer_email": user.email,
+                "order_status": order.status,
+                "order_total": order.total,
+                "created_at": payment.created_at,
                 "actions": {
-                "view_invoice": f"/admin/invoices/{p.order_id}",
-                "download_receipt": f"/admin/payments/{p.id}/receipt"
-}
+                    "view_details": f"/admin/payments/{payment.id}",
+                    "view_order": f"/admin/orders/{order.id}",
+                    "download_receipt": f"/admin/payments/{payment.id}/receipt"
+                }
             }
-
-            for p, u in results
+            for payment, user, order in results
         ]
     }
+
 @router.post("/offline")
 def create_offline_payment(
     order_id: int,
     amount: float,
     method: str,
     session: Session = Depends(get_session),
-    admin = Depends(require_admin)
+    admin: User = Depends(require_admin)
 ):
+    order = session.get(Order, order_id)
+    if not order:
+        raise HTTPException(404, "Order not found")
+
+    # Check if payment already exists
+    existing_payment = session.exec(
+        select(Payment).where(Payment.order_id == order_id)
+    ).first()
+
+    if existing_payment:
+        raise HTTPException(400, "Payment already exists for this order")
+
     payment = Payment(
         order_id=order_id,
-        user_id=admin.id,
-        txn_id=str(uuid.uuid4()),
+        user_id=order.user_id,
+        txn_id=f"OFFLINE-{uuid.uuid4().hex[:8].upper()}",
         amount=amount,
         method=method,
         payment_mode="offline",
         status="completed"
     )
 
+    # Update order status if needed
+    if order.status == "pending":
+        order.status = "paid"
+
     session.add(payment)
     session.commit()
 
-    return {"message": "Offline payment recorded"}
+    return {
+        "message": "Offline payment recorded successfully",
+        "payment_id": payment.id,
+        "txn_id": payment.txn_id,
+        "order_id": order_id,
+        "amount": amount,
+        "status": "completed"
+    }
 
-@router.get("/{payment_id}", dependencies=[Depends(require_admin)])
-def get_payment_detail(
+@router.get("/{payment_id}")
+def get_payment_details(
     payment_id: int,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    admin: User = Depends(require_admin)
 ):
     result = session.exec(
-        select(Payment, User)
+        select(Payment, User, Order)
         .join(User, User.id == Payment.user_id)
+        .join(Order, Order.id == Payment.order_id)
         .where(Payment.id == payment_id)
     ).first()
 
     if not result:
         raise HTTPException(404, "Payment not found")
 
-    payment, user = result
+    payment, user, order = result
 
     return {
-        "payment_id": payment.id,
-        "txn_id": payment.txn_id,
-        "order_id": payment.order_id,
-        "amount": payment.amount,
-        "status": payment.status,
-        "method": payment.method,
+        "payment": {
+            "id": payment.id,
+            "txn_id": payment.txn_id,
+            "order_id": payment.order_id,
+            "amount": payment.amount,
+            "method": payment.method,
+            "mode": payment.payment_mode,
+            "status": payment.status,
+            "created_at": payment.created_at
+        },
         "customer": {
             "id": user.id,
             "name": f"{user.first_name} {user.last_name}",
             "email": user.email
         },
-        "created_at": payment.created_at
+        "order": {
+            "id": order.id,
+            "status": order.status,
+            "total": order.total,
+            "subtotal": order.subtotal,
+            "tax": order.tax,
+            "shipping": order.shipping
+        }
     }
-
 
 @router.get("/{payment_id}/receipt")
 def get_payment_receipt(
     payment_id: int,
     session: Session = Depends(get_session),
-    _: User = Depends(get_current_user),
+    admin: User = Depends(require_admin)
 ):
-    payment = session.get(Payment, payment_id)
+    result = session.exec(
+        select(Payment, User, Order)
+        .join(User, User.id == Payment.user_id)
+        .join(Order, Order.id == Payment.order_id)
+        .where(Payment.id == payment_id)
+    ).first()
 
-    if not payment:
+    if not result:
         raise HTTPException(404, "Payment not found")
+
+    payment, user, order = result
 
     return {
         "receipt_id": f"RCT-{payment.id}",
-        "payment_id": payment.id,
-        "txn_id": payment.txn_id,
-        "order_id": payment.order_id,
-        "amount": payment.amount,
-        "method": payment.method,
-        "status": payment.status,
-        "paid_at": payment.created_at
+        "payment": {
+            "id": payment.id,
+            "txn_id": payment.txn_id,
+            "order_id": payment.order_id,
+            "amount": payment.amount,
+            "method": payment.method,
+            "status": payment.status,
+            "paid_at": payment.created_at
+        },
+        "customer": {
+            "name": f"{user.first_name} {user.last_name}",
+            "email": user.email
+        },
+        "order_summary": {
+            "total": order.total,
+            "subtotal": order.subtotal,
+            "tax": order.tax,
+            "shipping": order.shipping
+        }
     }
-
-#@router.post("/payments/webhook")
-#def payment_webhook(payload: dict, session: Session = Depends(get_session)):
-    payment = get_payment(payload)
-
-    if payment.status != "success" and payload["status"] == "success":
-        payment.status = "success"
-        session.commit()
-
-        send_payment_success_email(payment.order)

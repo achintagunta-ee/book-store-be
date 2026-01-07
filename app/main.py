@@ -9,8 +9,8 @@ from app.routes import (
     admin_payments,
     admin_settings,
     auth,
-    book_inventory,
     books_public,
+    cancel_refund,
     public_settings,
     test_email,
     users,
@@ -23,7 +23,7 @@ from app.routes import (
     checkout,
     wishlist,
     storage,
-    
+    book_inventory   
 )
 
 import os
@@ -87,6 +87,7 @@ app.include_router(book_inventory.router,prefix="/admin/book",tags= ["Book Inven
 app.include_router(test_email.router,prefix="/email",tags=["Emails"])
 app.include_router(admin_settings.router,prefix="/admin/settings",tags= ["Admin Settings"])
 app.include_router(public_settings.router,prefix="/settings",tags= ["Public Settings"])
+app.include_router(cancel_refund.router,prefix="/orders",tags= ["Cancel and Refund"])
 
 # Use system temp directory instead of local uploads folder
 UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "hithabodha_uploads")
