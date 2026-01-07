@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlmodel import Session
 
@@ -97,27 +97,31 @@ def update_social_links(
     admin = Depends(require_admin)
 ):
     from app.models.social_links import SocialLinks
+    from sqlmodel import select
     
-    # Use SQLAlchemy's query instead of SQLModel's exec
-    settings = session.query(SocialLinks).first()
+    # Get existing record
+    settings = session.exec(select(SocialLinks)).first()
     
     if not settings:
-        # Create new - convert HttpUrl to string
-        settings = SocialLinks(
-            facebook=str(payload.facebook) if payload.facebook else None,
-            twitter=str(payload.twitter) if payload.twitter else None,
-            youtube=str(payload.youtube) if payload.youtube else None,
-            whatsapp=str(payload.whatsapp) if payload.whatsapp else None
-        )
+        # Create new
+        settings = SocialLinks()
         session.add(settings)
-    else:
-        # Update existing - convert HttpUrl to string
+    
+    # Update fields one by one with explicit check
+    if hasattr(settings, 'facebook'):
         settings.facebook = str(payload.facebook) if payload.facebook else None
+    if hasattr(settings, 'twitter'):
         settings.twitter = str(payload.twitter) if payload.twitter else None
+    if hasattr(settings, 'youtube'):
         settings.youtube = str(payload.youtube) if payload.youtube else None
+    if hasattr(settings, 'whatsapp'):
         settings.whatsapp = str(payload.whatsapp) if payload.whatsapp else None
     
-    session.commit()
-    session.refresh(settings)
+    try:
+        session.commit()
+        session.refresh(settings)
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
     return settings
