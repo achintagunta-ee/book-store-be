@@ -17,7 +17,7 @@ from app.models.book import Book
 from app.models.category import Category
 from app.constants.order_status import ALLOWED_TRANSITIONS
 from app.services.notification_service import create_notification
-from app.services.r2_helper import to_presigned_url, upload_site_logo
+from app.services.r2_helper import delete_r2_file, to_presigned_url, upload_profile_image, upload_site_logo
 from app.utils.hash import verify_password, hash_password
 from app.utils.token import get_current_admin, get_current_user
 import os
@@ -80,16 +80,15 @@ def update_admin_profile(
     if last_name:
         current_admin.last_name = last_name
 
+    # ✅ Upload profile image to R2 (same as user endpoint)
     if profile_image:
-        os.makedirs("uploads/profiles", exist_ok=True)
-        ext = profile_image.filename.split(".")[-1]
-        filename = f"profile_{current_admin.id}.{ext}"
-        file_path = f"uploads/profiles/{filename}"
+        # Delete old image from R2
+        if current_admin.profile_image:
+            delete_r2_file(current_admin.profile_image)
 
-        with open(file_path, "wb") as f:
-            f.write(profile_image.file.read())
-
-        current_admin.profile_image = f"/{file_path}"
+        # Upload to R2
+        r2_key = upload_profile_image(profile_image, current_admin.id)
+        current_admin.profile_image = r2_key
 
     session.add(current_admin)
     session.commit()

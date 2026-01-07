@@ -26,19 +26,23 @@ def delete_r2_file(key: str):
 def to_presigned_url(key: str | None) -> str | None:
     if not key or not isinstance(key, str):
         return None
-
+    
+    # Remove leading slash if present (database stores with /, R2 needs without)
+    clean_key = key.lstrip("/")
+    
     return s3_client.generate_presigned_url(
         "get_object",
         Params={
             "Bucket": R2_BUCKET_NAME,
-            "Key": key,
+            "Key": clean_key,
         },
         ExpiresIn=3600,
     )
 
 def upload_profile_image(file: UploadFile, user_id: int):
     ext = file.filename.split(".")[-1]
-    key = f"profiles/user_{user_id}.{ext}"
+    # Store without leading slash in R2
+    key = f"uploads/profiles/profile_{user_id}.{ext}"
 
     s3_client.upload_fileobj(
         file.file,
@@ -46,7 +50,9 @@ def upload_profile_image(file: UploadFile, user_id: int):
         key,
         ExtraArgs={"ContentType": file.content_type}
     )
-    return key
+    
+    # Return with leading slash to match existing database format
+    return f"/{key}"
 
 def upload_site_logo(file: UploadFile):
     ext = file.filename.split(".")[-1].lower()
