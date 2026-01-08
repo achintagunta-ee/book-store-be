@@ -15,47 +15,51 @@ router = APIRouter()
 # Add to Cart 
 
 @router.post("/add")
-def add_to_cart(data: CartItem, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+def add_to_cart(
+    data: CartAddRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    added_items = []
 
-    # Fetch the book
-    book = session.get(Book, data.book_id)
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
+    for item in data.items:
+        book = session.get(Book, item.book_id)
+        if not book:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Book not found: {item.book_id}"
+            )
 
-    # Determine the correct price (offer > discount > regular)
-    final_price = book.offer_price or book.discount_price or book.price
+        final_price = book.offer_price or book.discount_price or book.price
 
-    # Check if the user already has this item
-    existing_item = session.exec(
-        select(CartItem).where(
-            CartItem.user_id == current_user.id,
-            CartItem.book_id == data.book_id
-        )
-    ).first()
+        existing_item = session.exec(
+            select(CartItem).where(
+                CartItem.user_id == current_user.id,
+                CartItem.book_id == item.book_id
+            )
+        ).first()
 
-    if existing_item:
-        # Increase quantity
-        existing_item.quantity += data.quantity
-        session.add(existing_item)
-        session.commit()
-        session.refresh(existing_item)
-        return {"message": "Cart updated", "item": existing_item}
+        if existing_item:
+            existing_item.quantity += item.quantity
+            session.add(existing_item)
+            added_items.append(existing_item)
+        else:
+            new_item = CartItem(
+                user_id=current_user.id,
+                book_id=book.id,
+                quantity=item.quantity,
+                book_title=book.title,
+                price=final_price,
+                created_at=datetime.utcnow()
+            )
+            session.add(new_item)
+            added_items.append(new_item)
 
-    # Create a NEW cart item
-    new_item = CartItem(
-        user_id=current_user.id,
-        book_id=book.id,
-        quantity=data.quantity,
-        book_title=book.title,   # REQUIRED
-        price=final_price,       # REQUIRED
-        created_at=datetime.now()
-    )
-
-    session.add(new_item)
     session.commit()
-    session.refresh(new_item)
+    return {
+        "message": "Books added to cart",
+    }
 
-    return {"message": "Added to cart", "item": new_item}
 
 
 # View Cart 
