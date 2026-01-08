@@ -7,8 +7,8 @@ from decimal import Decimal
 import uuid
 
 from app.database import get_session
-from app.models.order import Order, OrderStatus
-from app.models.cancellation import CancellationRequest
+from app.models.order import Order
+from app.models.cancellation import CancellationRequest 
 from app.models.user import User
 from app.utils.token import get_current_admin
 from app.schemas.cancellation_schemas import (
@@ -19,6 +19,17 @@ from app.schemas.cancellation_schemas import (
 )
 router = APIRouter()
 
+class OrderStatus:
+    PENDING = "pending"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+    REFUNDED = "refunded"
+    PARTIALLY_REFUNDED = "partially_refunded"
+
+class CancellationStatus:
+    PENDING = "pending"
+    REFUNDED = "refunded"
+    REJECTED = "rejected"
 
 @router.get("/cancellation-requests")
 def get_cancellation_requests(
@@ -34,9 +45,10 @@ def get_cancellation_requests(
         CancellationRequest.requested_at.desc()
     )
     
-    if status:
-        query = query.where(CancellationRequest.status == status)
-    
+    if status:query = query.where(
+        CancellationRequest.status == status.lower()
+    )
+
     # Pagination
     offset = (page - 1) * limit
     cancellations = session.exec(query.offset(offset).limit(limit)).all()
@@ -63,7 +75,8 @@ def get_cancellation_requests(
     # Get total count
     count_query = select(func.count()).select_from(CancellationRequest)
     if status:
-        count_query = count_query.where(CancellationRequest.status == status)
+        count_query = count_query.where(CancellationRequest.status == status.lower())
+
     total = session.exec(count_query).one()
     
     return {
@@ -93,7 +106,8 @@ def process_refund(
     cancellation = session.exec(
         select(CancellationRequest)
         .where(CancellationRequest.order_id == order_id)
-        .where(CancellationRequest.status == "PENDING")
+        .where(CancellationRequest.status == CancellationStatus.PENDING
+)
     ).first()
     
     if not cancellation:
@@ -118,7 +132,7 @@ def process_refund(
         refund_reference = f"REF-{order_id}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
     
     # Update cancellation request
-    cancellation.status = "REFUNDED"
+    cancellation.status = CancellationStatus.REFUNDED
     cancellation.refund_amount = refund_amount
     cancellation.refund_method = request.refund_method
     cancellation.refund_reference = refund_reference
@@ -160,11 +174,11 @@ def reject_cancellation(
     if not cancellation:
         raise HTTPException(404, "Cancellation request not found")
     
-    if cancellation.status != "PENDING":
+    if cancellation.status != CancellationStatus.PENDING:
         raise HTTPException(400, f"Cannot reject request with status: {cancellation.status}")
     
     # Update request
-    cancellation.status = "rejected"
+    cancellation.status = CancellationStatus.REJECTED
     cancellation.admin_notes = request.reason
     cancellation.processed_at = datetime.utcnow()
     cancellation.processed_by = admin.id
@@ -190,7 +204,8 @@ def get_cancellation_stats(
     pending_count = session.exec(
         select(func.count())
         .select_from(CancellationRequest)
-        .where(CancellationRequest.status == "PENDING")
+        .where(CancellationRequest.status == CancellationStatus.PENDING
+)
     ).one()
     
     # Processed today
@@ -199,7 +214,11 @@ def get_cancellation_stats(
         select(func.count())
         .select_from(CancellationRequest)
         .where(CancellationRequest.processed_at >= today_start)
-        .where(CancellationRequest.status.in_(["REFUNDED", "REJECTED"]))
+        .where(CancellationRequest.status.in_([
+    CancellationStatus.REFUNDED,
+    CancellationStatus.REJECTED
+]))
+
     ).one()
     
     # This month stats
