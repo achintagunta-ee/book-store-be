@@ -1,3 +1,4 @@
+from logging import config
 import os
 from typing import List, Optional
 from pydantic_settings import BaseSettings
@@ -99,3 +100,5 @@ class Settings(BaseSettings):
         extra = "allow"
 
 settings = Settings()
+
+

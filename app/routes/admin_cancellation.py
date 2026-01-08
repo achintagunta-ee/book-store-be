@@ -7,7 +7,7 @@ from decimal import Decimal
 import uuid
 
 from app.database import get_session
-from app.models.order import Order
+from app.models.order import Order, OrderStatus
 from app.models.cancellation import CancellationRequest
 from app.models.user import User
 from app.utils.token import get_current_admin
@@ -93,7 +93,7 @@ def process_refund(
     cancellation = session.exec(
         select(CancellationRequest)
         .where(CancellationRequest.order_id == order_id)
-        .where(CancellationRequest.status == "pending")
+        .where(CancellationRequest.status == "PENDING")
     ).first()
     
     if not cancellation:
@@ -118,7 +118,7 @@ def process_refund(
         refund_reference = f"REF-{order_id}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
     
     # Update cancellation request
-    cancellation.status = "refunded"
+    cancellation.status = "REFUNDED"
     cancellation.refund_amount = refund_amount
     cancellation.refund_method = request.refund_method
     cancellation.refund_reference = refund_reference
@@ -128,9 +128,9 @@ def process_refund(
     
     # Update order status
     if request.refund_amount == "full":
-        order.status = "refunded"
+     order.status = OrderStatus.REFUNDED
     else:
-        order.status = "partially_refunded"
+        order.status = OrderStatus.PARTIALLY_REFUNDED
     
     session.add(cancellation)
     session.add(order)
@@ -160,7 +160,7 @@ def reject_cancellation(
     if not cancellation:
         raise HTTPException(404, "Cancellation request not found")
     
-    if cancellation.status != "pending":
+    if cancellation.status != "PENDING":
         raise HTTPException(400, f"Cannot reject request with status: {cancellation.status}")
     
     # Update request
@@ -179,7 +179,7 @@ def reject_cancellation(
     }
 
 
-@router.get("/cancellation-stats")
+@router.get("/list")
 def get_cancellation_stats(
     session: Session = Depends(get_session),
     admin: User = Depends(get_current_admin)
@@ -190,7 +190,7 @@ def get_cancellation_stats(
     pending_count = session.exec(
         select(func.count())
         .select_from(CancellationRequest)
-        .where(CancellationRequest.status == "pending")
+        .where(CancellationRequest.status == "PENDING")
     ).one()
     
     # Processed today
@@ -199,7 +199,7 @@ def get_cancellation_stats(
         select(func.count())
         .select_from(CancellationRequest)
         .where(CancellationRequest.processed_at >= today_start)
-        .where(CancellationRequest.status.in_(["refunded", "rejected"]))
+        .where(CancellationRequest.status.in_(["REFUNDED", "REJECTED"]))
     ).one()
     
     # This month stats
@@ -207,14 +207,14 @@ def get_cancellation_stats(
     
     total_refunds = session.exec(
         select(func.sum(CancellationRequest.refund_amount))
-        .where(CancellationRequest.status == "refunded")
+        .where(CancellationRequest.status == "REFUNDED")
         .where(CancellationRequest.processed_at >= month_start)
     ).one() or Decimal(0)
     
     refunded_orders_count = session.exec(
         select(func.count())
         .select_from(CancellationRequest)
-        .where(CancellationRequest.status == "refunded")
+        .where(CancellationRequest.status == "REFUNDED")
         .where(CancellationRequest.processed_at >= month_start)
     ).one()
     

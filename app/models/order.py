@@ -1,9 +1,22 @@
-from sqlmodel import SQLModel, Field, Relationship
+from sqlmodel import Enum, SQLModel, Field, Relationship
 from typing import List, Optional
 from datetime import datetime
 
 from app.models.order_item import OrderItem
 from app.models.user import User
+
+class OrderStatus:
+    PENDING = "pending"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+    REFUNDED = "refunded"
+    PARTIALLY_REFUNDED = "partially_refunded"
+
+class CancellationStatus:
+    PENDING = "pending"
+    REFUNDED = "refunded"
+    REJECTED = "rejected"
+
 
 class Order(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

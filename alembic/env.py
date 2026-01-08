@@ -59,10 +59,6 @@ def include_object(object, name, type_, reflected, compare_to):
         # Exclude tables in the exclude list
         if name in EXCLUDE_TABLES:
             return False
-        
-        # Only include tables from bookstore schema
-        if hasattr(object, 'schema'):
-            return object.schema == 'bookstore'
     
     return True
 
@@ -79,7 +75,6 @@ def run_migrations_offline():
         compare_type=True,
         compare_server_default=True,
         include_object=include_object,
-        version_table_schema='bookstore',
     )
 
     with context.begin_transaction():
@@ -93,19 +88,17 @@ def run_migrations_online():
     # Create engine with proper connect_args
     engine = create_engine(
         config.get_main_option("sqlalchemy.url"),
-        # connect_args={"options": "-c search_path=bookstore,public"}  # FIXED: Added space
+
     )
     
     with engine.connect() as connection:
-        # Explicitly set search path
-        connection.execute(text("SET search_path TO bookstore, public"))
         
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
             compare_type=True,
             include_object=include_object,
-            #version_table_schema='bookstore',
+           
         )
         
         with context.begin_transaction():
@@ -119,3 +112,6 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
+
+
+
