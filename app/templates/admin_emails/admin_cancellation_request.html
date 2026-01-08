@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cancellation Request - Order #{{ order.id }}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        .content {
+            padding: 30px;
+        }
+        .alert-box {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        .info-box {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px dashed #dee2e6;
+        }
+        .info-label {
+            font-weight: 600;
+            color: #495057;
+        }
+        .info-value {
+            color: #212529;
+        }
+        .reason-box {
+            background-color: #e9ecef;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 15px 0;
+            font-style: italic;
+        }
+        .action-buttons {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            margin: 0 10px;
+        }
+        .btn:hover {
+            opacity: 0.9;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            border-top: 1px solid #e9ecef;
+            color: #6c757d;
+            font-size: 14px;
+        }
+        .store-name {
+            color: #667eea;
+            font-weight: bold;
+        }
+        .order-id {
+            background-color: #e9ecef;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <h1>📋 New Cancellation Request</h1>
+            <p>Order #<span class="order-id">{{ order.id }}</span></p>
+        </div>
+        
+        <div class="content">
+            <div class="alert-box">
+                <strong>Attention Required:</strong> A customer has requested to cancel their order. Please review and take appropriate action.
+            </div>
+            
+            <div class="info-box">
+                <div class="info-row">
+                    <span class="info-label">Customer Name:</span>
+                    <span class="info-value">{{ user.first_name }} {{ user.last_name }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Customer Email:</span>
+                    <span class="info-value">{{ user.email }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Order Date:</span>
+                    <span class="info-value">{{ order.created_at.strftime('%d %b %Y') }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Order Total:</span>
+                    <span class="info-value">₹{{ "%.2f"|format(order.total) }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Current Status:</span>
+                    <span class="info-value" style="color: #e74c3c; font-weight: bold;">{{ order.status|upper }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Request Date:</span>
+                    <span class="info-value">{{ request_date }}</span>
+                </div>
+            </div>
+            
+            <h3 style="color: #495057; margin-top: 25px;">Cancellation Reason</h3>
+            <div class="reason-box">
+                "{{ reason }}"
+            </div>
+            
+            {% if additional_notes %}
+            <h3 style="color: #495057; margin-top: 25px;">Additional Notes</h3>
+            <div class="reason-box">
+                {{ additional_notes }}
+            </div>
+            {% endif %}
+            
+            <div class="action-buttons">
+                <a href="{{ admin_url }}/cancellations" class="btn">Review in Admin Panel</a>
+                <a href="{{ admin_url }}/orders/{{ order.id }}" class="btn" style="background: #6c757d;">View Order Details</a>
+            </div>
+            
+            <p style="text-align: center; color: #6c757d; font-size: 14px;">
+                This is an automated notification from <span class="store-name">{{ store_name }}</span>
+            </p>
+        </div>
+        
+        <div class="footer">
+            <p>&copy; {{ current_year }} {{ store_name }}. All rights reserved.</p>
+            <p>This email was sent to {{ admin_email }}</p>
+        </div>
+    </div>
+</body>
+</html>

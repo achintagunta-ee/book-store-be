@@ -9,7 +9,7 @@ from app.models.order_item import OrderItem
 from app.models.address import Address
 from app.routes.admin import create_notification
 from app.services.email_service import send_order_confirmation
-from app.services.reduce_inventory import reduce_inventory
+from app.services.inventory_service import reduce_inventory
 from app.services.email_service import send_email
 from app.utils.template import render_template
 from app.utils.token import get_current_user

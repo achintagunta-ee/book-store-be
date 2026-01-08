@@ -49,3 +49,23 @@ def reduce_inventory(session: Session, order_id: int):
         logger.error(f"Error reducing inventory: {e}")
         session.rollback()
         raise
+
+    from sqlmodel import Session, select
+from app.models import OrderItem, Book
+
+async def restock_order_items(db: Session, order_id: int):
+    """Restock items when order is cancelled/refunded"""
+    statement = select(OrderItem).where(OrderItem.order_id == order_id)
+    order_items = db.exec(statement).all()
+    
+    for item in order_items:
+        # Get the book
+        book_statement = select(Book).where(Book.id == item.book_id)
+        book = db.exec(book_statement).first()
+        
+        if book:
+            book.stock_quantity += item.quantity
+            db.add(book)
+    
+    db.commit()
+    return len(order_items)

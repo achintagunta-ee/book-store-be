@@ -4,13 +4,14 @@ from app.middleware.r2_public_url import R2PublicURLMiddleware
 import app.models
 from app.routes import (
     admin,
+    admin_cancellation,
     admin_notifications,
     admin_orders,
     admin_payments,
     admin_settings,
     auth,
     books_public,
-    cancel_refund,
+    order_cancellation,
     public_settings,
     test_email,
     users,
@@ -87,7 +88,8 @@ app.include_router(book_inventory.router,prefix="/admin/book",tags= ["Book Inven
 app.include_router(test_email.router,prefix="/email",tags=["Emails"])
 app.include_router(admin_settings.router,prefix="/admin/settings",tags= ["Admin Settings"])
 app.include_router(public_settings.router,prefix="/settings",tags= ["Public Settings"])
-app.include_router(cancel_refund.router,prefix="/orders",tags= ["Cancel and Refund"])
+app.include_router(order_cancellation.router,prefix="/orders/cancellations",tags= ["User Order Cancellation"])
+app.include_router(admin_cancellation.router,prefix="/admin/cancellations",tags= ["Admin Order Cancellation"])
 
 # Use system temp directory instead of local uploads folder
 UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "hithabodha_uploads")
