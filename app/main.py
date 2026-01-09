@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from app.config import settings
+from app.jobs.order_expiry import expire_unpaid_orders
 from app.middleware.r2_public_url import R2PublicURLMiddleware
 import app.models
+from apscheduler.schedulers.background import BackgroundScheduler
 from app.routes import (
     admin,
     admin_cancellation,
@@ -37,8 +39,20 @@ from fastapi.staticfiles import StaticFiles
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Run DB creation ONLY in local
-    yield
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(
+        expire_unpaid_orders,
+        trigger="interval",
+        minutes=5,  # run every 5 minutes
+        id="expire_unpaid_orders",
+        replace_existing=True,
+    )
+    scheduler.start()
+
+    try:
+        yield
+    finally:
+        scheduler.shutdown()
 
 app = FastAPI(
     title="Hithabodha Bookstore API",

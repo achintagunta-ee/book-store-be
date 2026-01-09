@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from sqlmodel import Session, func, select
 from app.database import get_session
+from app.models import user
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.payment import Payment
@@ -11,6 +12,7 @@ from app.models.user import User
 from app.models.book import Book
 from app.models.notifications import Notification, RecipientRole
 from app.constants.order_status import ALLOWED_TRANSITIONS
+from app.notifications import OrderEvent, dispatch_order_event
 from app.schemas.offline_order_schemas import OfflineOrderCreate
 from app.services.notification_service import create_notification
 from app.utils.token import get_current_user
@@ -303,13 +305,10 @@ def notify_customer(
 @router.patch("/{order_id}/status")
 def update_order_status(
     order_id: int,
-    new_status: str = Query(..., description="New status: processing, shipped, delivered, etc."),
+    new_status: str = Query(..., description="New status"),
     session: Session = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
-    """
-    Update order status
-    """
     order = session.get(Order, order_id)
     if not order:
         raise HTTPException(404, "Order not found")
@@ -325,46 +324,65 @@ def update_order_status(
 
     old_status = order.status
     order.status = normalized_status
-    
-    # Update timestamps
+
+    # timestamps
     if normalized_status == "shipped":
         order.shipped_at = datetime.utcnow()
+
     elif normalized_status == "delivered":
         order.delivered_at = datetime.utcnow()
-    
+
     order.updated_at = datetime.utcnow()
-    
     session.add(order)
-    session.commit()
+    session.commit()  # ✅ COMMIT FIRST
 
-    # Create notification for customer
-    create_notification(
-        session=session,
-        recipient_role=RecipientRole.customer,
-        user_id=order.user_id,
-        trigger_source="order_status",
-        related_id=order.id,
-        title=f"Order {normalized_status.title()}",
-        content=f"Your order #{order.id} has been {normalized_status}.",
-    )
-    session.commit()
+    # 🔥 Load user AFTER commit
+    user = session.get(User, order.user_id)
 
-    # Send email for delivered status
-    if normalized_status == "delivered":
-        user = session.get(User, order.user_id)
-        if user:
-            html = render_template(
-                "user_emails/user_order_delivered.html",
-                first_name=user.first_name,
-                order_id=order.id,
-                store_name="Hithabodha Bookstore",
-            )
+    # -------------------------------
+    # 🚚 ORDER SHIPPED EVENT
+    # -------------------------------
+    if normalized_status == "shipped":
+        dispatch_order_event(
+            event=OrderEvent.SHIPPED,
+            order=order,
+            user=user,
+            session=session,
+            notify_user=True,
+            notify_admin=True,
+            extra={
+                "user_template": "user_emails/user_order_shipped.html",
+                "user_subject": "Your order has been shipped",
+                #"admin_template": "admin_emails/admin_order_shipped.html",
+                #"admin_subject": "Order shipped",
+                "first_name": user.first_name,
+                "order_id": order.id,
+                "tracking_id": order.tracking_id,
+                "tracking_url": order.tracking_url,
+            }
+        )
 
-            send_email(
-                to=user.email,
-                subject=f"Your order #{order.id} has been delivered",
-                html=html,
-            )
+    # -------------------------------
+    # 📦 ORDER DELIVERED EVENT
+    # -------------------------------
+    elif normalized_status == "delivered":
+        dispatch_order_event(
+            event=OrderEvent.DELIVERED,
+            order=order,
+            user=user,
+            session=session,
+            notify_user=True,
+            notify_admin=True,
+            extra={
+                "user_template": "user_emails/user_order_delivered.html",
+                "user_subject": "Your order has been delivered",
+                "admin_template": "admin_emails/admin_order_delivered.html",
+                "admin_subject": "Order delivered",
+                "first_name": user.first_name,
+                "order_id": order.id,
+                "customer_email": user.email,
+            }
+        )
 
     return {
         "message": "Order status updated",
@@ -372,6 +390,7 @@ def update_order_status(
         "old_status": old_status,
         "new_status": normalized_status,
     }
+
 
 # Add tracking information
 @router.patch("/{order_id}/tracking")
@@ -401,34 +420,24 @@ def add_tracking_info(
 
     session.commit()
 
-    # Create notification
-    create_notification(
-        session=session,
-        recipient_role=RecipientRole.customer,
-        user_id=order.user_id,
-        trigger_source="shipping",
-        related_id=order.id,
-        title="Order Shipped",
-        content=f"Your order #{order.id} has been shipped. Tracking ID: {tracking_id}",
-    )
+
+    dispatch_order_event(
+    event=OrderEvent.SHIPPED,
+    order=order,
+    user=user,
+    session=session,
+    extra={
+        "user_template": "user_emails/user_order_shipped.html",
+        "user_subject": f"Your order #{order.id} has been shipped",
+        "first_name": user.first_name,
+        "order_id": order.id,
+        "tracking_id": order.tracking_id,
+        "tracking_url": order.tracking_url,
+    }
+)
+
+
     session.commit()
-
-    # Send email
-    html = render_template(
-        "user_emails/user_order_shipped.html",
-        first_name=user.first_name,
-        order_id=order.id,
-        tracking_id=order.tracking_id,
-        tracking_url=order.tracking_url,
-        store_name="Hithabodha Bookstore"
-    )
-
-    send_email(
-        to=user.email,
-        subject=f"Your order #{order.id} has been shipped",
-        html=html
-    )
-
     return {"message": "Tracking added and email sent"}
 
 # Create offline order

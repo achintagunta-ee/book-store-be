@@ -1,0 +1,81 @@
+Subject: Cancellation Rejected – Order #{{ order_id }}
+
+<!DOCTYPE html>
+
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Cancellation Rejected</title>
+</head>
+<body style="margin:0; padding:0; font-family: Arial, Helvetica, sans-serif; background-color:#f7f7f7;">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center" style="padding:30px 0;">
+        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:6px;">
+
+```
+      <!-- Header -->
+      <tr>
+        <td style="background:#e67e22; padding:20px; text-align:center;">
+          <h1 style="color:#ffffff; margin:0; font-size:22px;">
+            Cancellation Request Rejected
+          </h1>
+        </td>
+      </tr>
+
+      <!-- Body -->
+      <tr>
+        <td style="padding:30px;">
+          <p style="font-size:16px;">
+            Hi <strong>{{ first_name }}</strong>,
+          </p>
+
+          <p style="font-size:14px;">
+            We reviewed your cancellation request for the following order:
+          </p>
+
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0; border-collapse:collapse;">
+            <tr>
+              <td style="padding:10px; background:#f2f2f2;">
+                <strong>Order ID</strong>
+              </td>
+              <td style="padding:10px; background:#f2f2f2;">
+                #{{ order_id }}
+              </td>
+            </tr>
+          </table>
+
+          <p style="font-size:14px;">
+            Unfortunately, your cancellation request was rejected for the following reason:
+          </p>
+
+          <p style="background:#fff3cd; padding:12px; border-radius:4px; font-size:14px;">
+            {{ reason }}
+          </p>
+
+          <p style="font-size:14px;">
+            If the order has already been delivered, you may still be eligible for a return as per our return policy.
+          </p>
+
+          <p style="margin-top:20px; font-size:14px;">
+            Regards,<br/>
+            <strong>{{ store_name or "Hithabodha Bookstore" }} Team</strong>
+          </p>
+        </td>
+      </tr>
+
+      <!-- Footer -->
+      <tr>
+        <td style="background:#f2f2f2; padding:12px; text-align:center; font-size:12px; color:#777;">
+          © {{ store_name or "Hithabodha Bookstore" }}. All rights reserved.
+        </td>
+      </tr>
+
+    </table>
+  </td>
+</tr>
+```
+
+  </table>
+</body>
+</html>

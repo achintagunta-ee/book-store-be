@@ -27,6 +27,9 @@ from uuid import uuid4
 from app.models.payment import Payment
 from fastapi.responses import FileResponse
 import os
+from app.notifications import dispatch_order_event
+from app.notifications import OrderEvent
+
 
 router = APIRouter()
 
@@ -223,7 +226,6 @@ def place_order(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-
     address = session.get(Address, address_id)
     if not address:
         raise HTTPException(404, "Address not found")
@@ -248,12 +250,15 @@ def place_order(
     tax = 0
     total = subtotal + shipping
 
+    # -------------------------
+    # CREATE ORDER
+    # -------------------------
     order = Order(
         user_id=current_user.id,
         address_id=address_id,
         subtotal=subtotal,
         shipping=shipping,
-        tax=0,
+        tax=tax,
         total=total,
         status="pending"
     )
@@ -261,40 +266,64 @@ def place_order(
     session.commit()
     session.refresh(order)
 
-    # Save order items
-    for book, c, line_total in items:
-        oi = OrderItem(
-            order_id=order.id,
-            book_id=book.id,
-            book_title=book.title,
-            price=book.price,
-            quantity=c.quantity
+    # -------------------------
+    # SAVE ORDER ITEMS
+    # -------------------------
+    for book, c, _ in items:
+        session.add(
+            OrderItem(
+                order_id=order.id,
+                book_id=book.id,
+                book_title=book.title,
+                price=book.price,
+                quantity=c.quantity
+            )
         )
-        session.add(oi)
 
     session.commit()
 
-    # DO NOT clear cart now → clear after payment success
-    # clear_cart(session, current_user.id)
-
-    # delivery date
+    # -------------------------
+    # DELIVERY WINDOW
+    # -------------------------
     start = (datetime.utcnow() + timedelta(days=3)).strftime("%b %d")
     end = (datetime.utcnow() + timedelta(days=5)).strftime("%b %d")
 
-    
-    # ✅ ADMIN notification – Order placed
-    create_notification(
-    session=session,
-    recipient_role=RecipientRole.admin,
-    user_id=None,  # global admin
-    trigger_source="order",
-    related_id=order.id,
-    title="New Order Placed",
-    content=f"New order #{order.id} placed by {current_user.email}",
-)
-    session.commit()
+    # -------------------------
+    # 🔥 DISPATCH ORDER PLACED EVENT
+    # -------------------------
+    popup_data = dispatch_order_event(
+        event=OrderEvent.ORDER_PLACED,
+        order=order,
+        user=current_user,
+        session=session,
+        notify_user=True,     # popup + email
+        notify_admin=True,    # in-app + email
+        extra={
+            # USER POPUP
+            "popup_message": "Order placed successfully. Please complete the payment.",
+
+            # USER EMAIL
+            "user_template": "user_emails/user_order_placed.html",
+            "user_subject": f"Order #{order.id} placed successfully",
+
+            # ADMIN EMAIL
+            "admin_template": "admin_emails/admin_new_order.html",
+            "admin_subject": f"New order placed – #{order.id}",
+
+            # ADMIN IN-APP
+            "admin_title": "New Order Placed",
+            "admin_content": f"Order #{order.id} placed by {current_user.email}",
+
+            # TEMPLATE DATA
+            "first_name": current_user.first_name,
+            "order_id": order.id,
+            "total": order.total,
+            "customer_email": current_user.email,
+        }
+    )
 
     return {
+        **(popup_data or {}),
         "order_id": f"#{order.id}",
         "status": "pending",
         "estimated_delivery": f"{start} - {end}",
@@ -304,7 +333,7 @@ def place_order(
         "total": order.total,
         "address": address,
     }
-    
+
 
 
 @router.post("/orders/{order_id}/payment-complete")
@@ -317,7 +346,8 @@ def complete_payment(
 
     if not order or order.user_id != current_user.id:
         raise HTTPException(404, "Order not found")
-
+    if order.status == "expired":
+        raise HTTPException(400, "Order expired. Please place a new order.")
     if order.status == "paid":
         raise HTTPException(400, "Order already paid")
 
@@ -338,8 +368,6 @@ def complete_payment(
 
     reduce_inventory(session, order.id)
     session.commit()
-
-    # ... rest of your notifications and emails ...
 
     clear_cart(session, current_user.id)
 
@@ -362,6 +390,27 @@ def complete_payment(
         for item in order_items
     ]
 
+    dispatch_order_event(
+    event=OrderEvent.PAYMENT_SUCCESS,
+    order=order,
+    user=current_user,
+    session=session,
+    extra={
+        "popup_message": "Payment successful",
+        "admin_title": "Payment Received",
+        "admin_content": f"Payment for order #{order.id}",
+        "user_template": "user_emails/user_payment_success.html",
+        "user_subject": f"Payment success #{order.id}",
+        "admin_template": "admin_emails/admin_payment_received.html",
+        "admin_subject": f"Payment received #{order.id}",
+        "order_id": order.id,
+        "amount": payment.amount,
+        "txn_id": payment.txn_id,
+        "first_name": current_user.first_name,
+    }
+)
+    session.commit()
+    
     return {
         "message": "Thank you for your order! A confirmation email has been sent.",
         "order_id": order.id,

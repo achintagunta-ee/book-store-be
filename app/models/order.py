@@ -31,5 +31,20 @@ class Order(SQLModel, table=True):
     tracking_id: str | None
     tracking_url: str | None
     shipped_at: Optional[datetime] = Field(default=None)
+    delivered_at: Optional[datetime] = Field(default=None)
     payment_mode: str = Field(default="online")     # cash | card | upi | online
     placed_by: str = Field(default="user")
+
+
+class OrderStatus:
+    PENDING = "pending"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+    REFUNDED = "refunded"
+    PARTIALLY_REFUNDED = "partially_refunded"
+    EXPIRED = "expired"
+
+class CancellationStatus:
+    PENDING = "pending"
+    REFUNDED = "refunded"
+    REJECTED = "rejected"

@@ -7,9 +7,10 @@ from decimal import Decimal
 import uuid
 
 from app.database import get_session
-from app.models.order import Order
+from app.models.order import CancellationStatus, Order, OrderStatus
 from app.models.cancellation import CancellationRequest 
 from app.models.user import User
+from app.notifications import OrderEvent, dispatch_order_event
 from app.utils.token import get_current_admin
 from app.schemas.cancellation_schemas import (
     RefundProcessRequest,
@@ -19,17 +20,7 @@ from app.schemas.cancellation_schemas import (
 )
 router = APIRouter()
 
-class OrderStatus:
-    PENDING = "pending"
-    COMPLETED = "completed"
-    CANCELLED = "cancelled"
-    REFUNDED = "refunded"
-    PARTIALLY_REFUNDED = "partially_refunded"
 
-class CancellationStatus:
-    PENDING = "pending"
-    REFUNDED = "refunded"
-    REJECTED = "rejected"
 
 @router.get("/cancellation-requests")
 def get_cancellation_requests(
@@ -185,15 +176,36 @@ def reject_cancellation(
     
     session.add(cancellation)
     session.commit()
+    order = session.get(Order, cancellation.order_id)
+    user = session.get(User, cancellation.user_id)
+
+    dispatch_order_event(
+    event=OrderEvent.CANCEL_REJECTED,
+    order=order,
+    user=user,
+    session=session,
+    extra={
+        "admin_title": "Cancellation Rejected",
+        "admin_content": f"Cancellation rejected for order #{order.id}",
+        "user_template": "user_emails/user_cancel_rejected.html",
+        "user_subject": f"Cancellation rejected by Hithabodha Store – Order #{order.id}",
+        "admin_template": "admin_emails/admin_cancel_rejected.html",
+        "admin_subject": f"Rejected the user order cancellation #{order.id}",
+        "first_name": user.first_name,
+        "order_id": order.id,
+        "reason": cancellation.admin_notes,
+    }
+)
+    session.commit()
     
     return {
-        "message": "Cancellation request rejected",
+        "message": "Cancellation request rejected,please try return instead",
         "request_id": request_id,
         "status": "rejected"
     }
 
 
-@router.get("/list")
+@router.get("/stats")
 def get_cancellation_stats(
     session: Session = Depends(get_session),
     admin: User = Depends(get_current_admin)

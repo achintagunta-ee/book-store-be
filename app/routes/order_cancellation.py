@@ -8,6 +8,7 @@ from app.database import get_session
 from app.models.order import Order
 from app.models.cancellation import CancellationRequest
 from app.models.user import User
+from app.notifications import OrderEvent, dispatch_order_event
 from app.utils.token import get_current_user
 from app.schemas.cancellation_schemas import (
     CancellationRequestCreate,
@@ -64,6 +65,25 @@ def request_order_cancellation(
     session.add(cancellation)
     session.commit()
     session.refresh(cancellation)
+
+    dispatch_order_event(
+    event=OrderEvent.CANCEL_REQUESTED,
+    order=order,
+    user=current_user,
+    session=session,
+    extra={
+        "admin_title": "Cancellation Requested",
+        "admin_content": f"Order #{order.id} cancellation requested",
+        "user_template": "user_emails/user_order_cancel_request.html",
+        "user_subject": f"Cancellation request received – Order #{order.id}",
+        "admin_template": "admin_emails/admin_order_cancelled.html",
+        "admin_subject": f"Cancellation requested – Order #{order.id}",
+        "first_name": current_user.first_name,
+        "order_id": order.id,
+        "reason": request.reason,
+    }
+)
+    session.commit()
     
     return {
         "message": "Cancellation request submitted",

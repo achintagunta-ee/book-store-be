@@ -13,5 +13,3 @@ engine = create_engine(
 def get_session():
     with Session(engine) as session:
         yield session
-import os
-print("DATABASE_URL =", os.getenv("DATABASE_URL"))

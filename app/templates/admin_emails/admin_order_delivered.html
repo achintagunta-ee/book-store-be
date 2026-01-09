@@ -1,24 +1,24 @@
-Subject: New Order Placed – Order #{{ order_id }}
+Subject: Order Delivered – Order #{{ order_id }}
 
 <!DOCTYPE html>
 
 <html>
 <head>
   <meta charset="UTF-8" />
-  <title>New Order Placed</title>
+  <title>Order Delivered</title>
 </head>
 <body style="margin:0; padding:0; font-family: Arial, Helvetica, sans-serif; background-color:#f5f5f5;">
   <table width="100%" cellpadding="0" cellspacing="0">
     <tr>
-      <td align="center" style="padding:30px 0;">
-        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:6px; overflow:hidden;">
+      <td align="center" style="padding: 30px 0;">
+        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:6px;">
 
 ```
       <!-- Header -->
       <tr>
-        <td style="background:#2c3e50; padding:18px; text-align:center;">
+        <td style="background:#34495e; padding:18px; text-align:center;">
           <h2 style="color:#ffffff; margin:0; font-size:20px;">
-            New Order Received
+            Order Delivered
           </h2>
         </td>
       </tr>
@@ -27,7 +27,7 @@ Subject: New Order Placed – Order #{{ order_id }}
       <tr>
         <td style="padding:30px;">
           <p style="font-size:14px; margin:0 0 15px;">
-            A new order has been placed on the store.
+            The following order has been successfully delivered.
           </p>
 
           <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin:20px 0;">
@@ -41,36 +41,21 @@ Subject: New Order Placed – Order #{{ order_id }}
             </tr>
             <tr>
               <td style="padding:10px; border-top:1px solid #ddd; font-size:14px;">
-                <strong>Customer Email</strong>
+                <strong>Customer</strong>
               </td>
               <td style="padding:10px; border-top:1px solid #ddd; font-size:14px;">
                 {{ customer_email }}
               </td>
             </tr>
-            <tr>
-              <td style="padding:10px; border-top:1px solid #ddd; font-size:14px;">
-                <strong>Total Amount</strong>
-              </td>
-              <td style="padding:10px; border-top:1px solid #ddd; font-size:14px;">
-                ₹{{ total }}
-              </td>
-            </tr>
           </table>
 
           <p style="font-size:13px; color:#555;">
-            Please log in to the admin dashboard to review and process this order.
+            No further action is required for this order.
           </p>
 
           <p style="font-size:13px; margin-top:20px;">
             — {{ store_name }} System
           </p>
-        </td>
-      </tr>
-
-      <!-- Footer -->
-      <tr>
-        <td style="background:#f2f2f2; padding:12px; text-align:center; font-size:12px; color:#777;">
-          This is an automated system notification.
         </td>
       </tr>
 
