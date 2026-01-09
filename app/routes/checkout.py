@@ -346,10 +346,20 @@ def complete_payment(
 
     if not order or order.user_id != current_user.id:
         raise HTTPException(404, "Order not found")
-    if order.status == "expired":
-        raise HTTPException(400, "Order expired. Please place a new order.")
+    
     if order.status == "paid":
         raise HTTPException(400, "Order already paid")
+    
+    if datetime.utcnow() > order.created_at + timedelta(minutes=15):
+        order.status = "expired"
+        session.commit()
+        raise HTTPException(
+        status_code=400,
+        detail="Payment session expired. Please place a new order."
+    )
+    
+    if order.status == "expired":
+        raise HTTPException(400, "Order expired. Please place a new order.")
 
     # Generate a payment
     payment = Payment(
