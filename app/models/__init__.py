@@ -13,4 +13,7 @@ from app.models.social_links import SocialLinks
 from app.models.wishlist import Wishlist
 from app.models.address import Address
 from app.models.general_settings import GeneralSettings
+from app.models.ebook_purchase import EbookPurchase
+from app.models.ebook_payment import EbookPayment
+
 # add ALL models here

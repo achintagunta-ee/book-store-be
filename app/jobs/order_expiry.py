@@ -1,12 +1,12 @@
 from datetime import datetime, timedelta
-from sqlmodel import select
-from app.database import get_session
+from sqlmodel import Session, select
+from app.database import engine
 from app.models.order import Order
 
 EXPIRY_MINUTES = 15
 
 def expire_unpaid_orders():
-    with get_session() as session:
+    with Session(engine) as session:
         cutoff = datetime.utcnow() - timedelta(minutes=EXPIRY_MINUTES)
 
         orders = session.exec(

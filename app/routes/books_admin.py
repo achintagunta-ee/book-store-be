@@ -4,7 +4,7 @@ from app.database import get_session
 from app.models.book import Book
 from app.models.category import Category
 from app.models.user import User
-from app.utils.token import get_current_user
+from app.utils.token import get_current_admin, get_current_user
 import os
 import tempfile
 from datetime import datetime
@@ -274,6 +274,53 @@ def delete_book(
     session.delete(book)
     session.commit()
     return {"message": "Book deleted"}
+
+@router.post("/{book_id}/upload-ebook")
+def upload_ebook_pdf(
+    book_id: int,
+    ebook_price: float = Form(...),
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session),
+    admin=Depends(get_current_admin)
+):
+    if not file.filename.endswith(".pdf"):
+        raise HTTPException(400, "Only PDF files allowed")
+
+    book = session.get(Book, book_id)
+    if not book:
+        raise HTTPException(404, "Book not found")
+
+    if ebook_price <= 0:
+        raise HTTPException(400, "Invalid ebook price")
+
+    # ✅ Generate R2 key
+    pdf_key = f"ebooks/pdfs/{book.slug or book.id}.pdf"
+
+    # ✅ Upload to R2
+    s3_client.upload_fileobj(
+        file.file,
+        R2_BUCKET_NAME,
+        pdf_key,
+        ExtraArgs={"ContentType": "application/pdf"}
+    )
+
+    # ✅ THIS IS WHERE YOUR CODE GOES
+    book.pdf_key = pdf_key
+    book.ebook_price = ebook_price
+    book.is_ebook = True
+    book.updated_at = datetime.utcnow()
+
+    session.add(book)
+    session.commit()
+    session.refresh(book)
+
+    return {
+        "message": "eBook uploaded successfully",
+        "book_id": book.id,
+        "ebook_price": book.ebook_price,
+        "pdf_key": book.pdf_key,
+        "is_ebook": book.is_ebook
+    }
 
 
 @router.get("/fix-book-placeholder")

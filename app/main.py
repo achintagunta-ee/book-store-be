@@ -13,9 +13,11 @@ from app.routes import (
     admin_settings,
     auth,
     books_public,
+    ebooks,
     order_cancellation,
     public_settings,
     test_email,
+    user_library,
     users,
     books_admin,
     categories_admin,
@@ -104,7 +106,8 @@ app.include_router(admin_settings.router,prefix="/admin/settings",tags= ["Admin 
 app.include_router(public_settings.router,prefix="/settings",tags= ["Public Settings"])
 app.include_router(order_cancellation.router,prefix="/orders/cancellations",tags= ["User Order Cancellation"])
 app.include_router(admin_cancellation.router,prefix="/admin/cancellations",tags= ["Admin Order Cancellation"])
-
+app.include_router(ebooks.router,prefix="/ebooks",tags= ["Ebook Purchase"])
+app.include_router(user_library.router,prefix="/users",tags= ["Users Library"])
 # Use system temp directory instead of local uploads folder
 UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "hithabodha_uploads")
 BOOK_COVER_DIR = os.path.join(UPLOAD_DIR, "book_covers")
