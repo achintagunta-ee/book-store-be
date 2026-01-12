@@ -158,45 +158,48 @@ def create_offline_payment(
     admin: User = Depends(require_admin)
 ):
     """
-    Create offline payment
+    Record offline payment for an order (admin)
     """
-    # Check if order exists
+
     order = session.get(Order, order_id)
     if not order:
         raise HTTPException(404, "Order not found")
-    
-    # Check if payment already exists
+
     existing_payment = session.exec(
         select(Payment).where(Payment.order_id == order_id)
     ).first()
-    
+
     if existing_payment:
         raise HTTPException(400, "Payment already exists for this order")
-    
-    # Create payment
+
+    if amount != order.total:
+        raise HTTPException(
+            400,
+            f"Payment amount must be exactly {order.total}"
+        )
+
     import uuid
     payment = Payment(
-        order_id=order_id,
+        order_id=order.id,
         user_id=order.user_id,
         txn_id=f"OFFLINE-{uuid.uuid4().hex[:8].upper()}",
         amount=amount,
         method=method,
         payment_mode="offline",
-        status="completed"
+        status="paid"
     )
-    
-    # Update order status if needed
-    if order.status == "pending":
-        order.status = "paid"
-    
+
+    order.status = "paid"
+
     session.add(payment)
     session.commit()
-    
+    session.refresh(payment)
+
     return {
-        "message": "Offline payment recorded",
+        "message": "Offline payment recorded successfully",
         "payment_id": payment.id,
         "txn_id": payment.txn_id,
-        "order_id": order_id,
-        "amount": amount,
-        "status": "completed"
+        "order_id": order.id,
+        "amount": payment.amount,
+        "status": payment.status
     }

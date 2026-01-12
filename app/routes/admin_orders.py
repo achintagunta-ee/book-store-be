@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse
 from sqlmodel import Session, func, select
 from app.database import get_session
 from app.models import user
+from app.models.address import Address
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.payment import Payment
@@ -454,23 +455,37 @@ def create_offline_order(
     """
     Create offline order (admin creates order for customer)
     """
+
+    # Validate user
+    customer = session.get(User, data.user_id)
+    if not customer:
+        raise HTTPException(404, "User not found")
+
+    # Validate address
+    address = session.get(Address, data.address_id)
+    if not address:
+        raise HTTPException(404, "Address not found")
+
     subtotal = 0
     order_items = []
 
     for item in data.items:
         book = session.get(Book, item.book_id)
-
         if not book:
             raise HTTPException(404, f"Book {item.book_id} not found")
 
         if book.stock < item.quantity:
-            raise HTTPException(400, f"Insufficient stock for {book.title}")
+            raise HTTPException(
+                400,
+                f"Insufficient stock for {book.title}"
+            )
 
-        # Update book stock
+        # Reduce stock
         book.stock -= item.quantity
-        subtotal += book.price * item.quantity
 
-        # Create OrderItem
+        line_total = book.price * item.quantity
+        subtotal += line_total
+
         order_items.append(
             OrderItem(
                 book_id=book.id,
@@ -481,7 +496,7 @@ def create_offline_order(
         )
 
     shipping = 0
-    tax = subtotal * 0.05
+    tax = round(subtotal * 0.05, 2)
     total = subtotal + tax + shipping
 
     order = Order(
@@ -491,7 +506,7 @@ def create_offline_order(
         shipping=shipping,
         tax=tax,
         total=total,
-        status="paid",
+        status="pending",
         placed_by="admin",
         payment_mode=data.payment_mode,
         items=order_items
@@ -502,8 +517,28 @@ def create_offline_order(
     session.refresh(order)
 
     return {
+        "message": "Offline order created successfully",
         "order_id": order.id,
         "status": order.status,
         "payment_mode": order.payment_mode,
-        "placed_by": order.placed_by
+        "placed_by": order.placed_by,
+        "customer": {
+            "id": customer.id,
+            "name": f"{customer.first_name} {customer.last_name}",
+            "email": customer.email
+        },
+        "address": {
+            "id": address.id,
+            "name": f"{address.first_name} {address.last_name}",
+            "address": address.address,
+            "city": address.city,
+            "state": address.state,
+            "zip_code": address.zip_code
+        },
+        "summary": {
+            "subtotal": subtotal,
+            "tax": tax,
+            "shipping": shipping,
+            "total": total
+        }
     }
