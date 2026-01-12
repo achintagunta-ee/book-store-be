@@ -149,7 +149,7 @@ def get_order_details(
     }
 
 # c) View Invoice
-@router.get("/{order_id}/invoice")
+@router.get("/{order_id}/view-invoice")
 def view_invoice(
     order_id: int,
     session: Session = Depends(get_session),
