@@ -74,7 +74,7 @@ def view_notification(
         "notification_id": notification.id,
         "title": notification.title,
         "content": notification.content,
-        "trigger_source": notification.trigger_source,  # ✅ added
+        "trigger_source": notification.trigger_source,  # added
         "related_id": notification.related_id,
         "status": notification.status,
         "channel": notification.channel,

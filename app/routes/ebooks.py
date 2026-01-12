@@ -63,7 +63,7 @@ def complete_ebook_payment(
     if purchase.status == "paid":
         raise HTTPException(400, "Already paid")
 
-    # 🔒 Payment expiry check
+    # Payment expiry check
     if datetime.utcnow() > purchase.created_at + timedelta(minutes=PAYMENT_EXPIRY_MINUTES):
         purchase.status = "expired"
         session.commit()

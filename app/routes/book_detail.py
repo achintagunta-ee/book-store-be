@@ -65,7 +65,7 @@ def get_book_detail(slug: str, session: Session = Depends(get_session)):
 
 
 # ---------------------------------------------------------
-# 2️⃣ GET BOOK DETAIL BY CATEGORY + SLUG
+# GET BOOK DETAIL BY CATEGORY + SLUG
 # URL Example:
 # /category/fiction/books/detail/the-great-gatsby
 # ---------------------------------------------------------
