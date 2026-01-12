@@ -429,10 +429,14 @@ def add_tracking_info(
     extra={
         "user_template": "user_emails/user_order_shipped.html",
         "user_subject": f"Your order #{order.id} has been shipped",
+         "admin_template": "admin_emails/admin_order_shipped.html",
+        "admin_subject": f"Order shipped – Order #{order.id}",
         "first_name": user.first_name,
         "order_id": order.id,
         "tracking_id": order.tracking_id,
         "tracking_url": order.tracking_url,
+        "customer_email": user.email,
+        "shipped_at": order.shipped_at.strftime("%d %b %Y, %I:%M %p"),
     }
 )
 
