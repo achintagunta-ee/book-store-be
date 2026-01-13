@@ -103,6 +103,7 @@ dependencies = [
     { name = "python-jose" },
     { name = "python-multipart" },
     { name = "python-slugify" },
+    { name = "razorpay" },
     { name = "reportlab" },
     { name = "requests" },
     { name = "sqlmodel" },
@@ -126,6 +127,7 @@ requires-dist = [
     { name = "python-jose", specifier = ">=3.5.0" },
     { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "python-slugify", specifier = "==8.0.1" },
+    { name = "razorpay", specifier = ">=2.0.0" },
     { name = "reportlab", specifier = ">=4.4.5" },
     { name = "requests", specifier = ">=2.32.5" },
     { name = "sqlmodel", specifier = ">=0.0.27" },
@@ -869,6 +871,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/de/63/0f60208d0d3dde1a87d30a82906fa9b00e902b57f1ae9565d780de4b41d1/python-slugify-8.0.1.tar.gz", hash = "sha256:ce0d46ddb668b3be82f4ed5e503dbc33dd815d83e2eb6824211310d3fb172a27", size = 11297, upload-time = "2023-02-24T16:21:49.775Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b4/85/6aa722a11307ec572682023b76cad4c52cda708dfc25fcb4b4a6051da7ab/python_slugify-8.0.1-py2.py3-none-any.whl", hash = "sha256:70ca6ea68fe63ecc8fa4fcf00ae651fc8a5d02d93dcd12ae6d4fc7ca46c4d395", size = 9710, upload-time = "2023-02-24T16:21:48.404Z" },
+]
+
+[[package]]
+name = "razorpay"
+version = "2.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/65/d6/2b8d750c4c7c1b9fdcc997ac5b0b5c4a165948931f82b3ce3fcab049f775/razorpay-2.0.0.tar.gz", hash = "sha256:929aef2f4aec8190dfe12b79ba09e83c39086f6ea0bffa0586b719c5b9054450", size = 197062, upload-time = "2025-09-22T08:23:22.07Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4b/f6/d16cd89374c16cfdce2e30b80e98afd095713ae5fe33fd813b0a89ee1e67/razorpay-2.0.0-py3-none-any.whl", hash = "sha256:524cf1726f673fc72d448f83fd2ea479526d2dd48641ca75ee9a58e25300784a", size = 176858, upload-time = "2025-09-22T08:23:20.689Z" },
 ]
 
 [[package]]
