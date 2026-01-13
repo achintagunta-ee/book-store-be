@@ -6,10 +6,8 @@ class Payment(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
     order_id: int = Field(index=True)
-    user_id: int = Field(index=True)
-
+    user_id: Optional[int] = Field(default=None,foreign_key="user.id", nullable=True)
     txn_id: str = Field(index=True, unique=True)  
-
     amount: float
     status: str  # pending | completed | failed
     method: str = Field(default="upi")   

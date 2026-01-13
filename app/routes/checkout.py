@@ -9,6 +9,7 @@ from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.address import Address
 from app.routes.admin import create_notification
+from app.schemas.guest_checkout import GuestCheckoutSchema
 from app.services.email_service import send_order_confirmation
 from app.services.inventory_service import reduce_inventory
 from app.services.email_service import send_email
@@ -523,7 +524,141 @@ def verify_razorpay_payment(
         "continue_shopping_url": "/books"
     }
 
-# @router.post("/orders/{order_id}/payment-complete")
+@router.post("/guest")
+def  guest_checkout(
+    payload: GuestCheckoutSchema,
+    session: Session = Depends(get_session)
+):
+    guest = payload.guest
+    items = payload.items
+    address = payload.address
+
+    total = 0
+    items_data = []
+
+    # ✅ Only VALIDATE stock, don't reduce it yet
+    for item in items:
+        book = session.get(Book, item.book_id)
+        if not book or book.stock < item.quantity:
+            raise HTTPException(400, f"{book.title} out of stock")
+        
+        # ❌ REMOVE THIS LINE:
+        # book.stock -= item.quantity
+        
+        line_total = book.price * item.quantity
+        total += line_total
+        items_data.append((book, item.quantity))
+
+    # Calculate totals
+    shipping = 0 if total >= 500 else 150
+    final_total = total + shipping
+
+    # Save order with guest address
+    order = Order(
+        user_id=None,
+        guest_name=guest.name,
+        guest_email=guest.email,
+        guest_phone=guest.phone,
+        guest_address_line1=address.line1,
+        guest_address_line2=address.line2,
+        guest_city=address.city,
+        guest_state=address.state,
+        guest_pincode=address.pincode,
+        guest_country="India",
+        subtotal=total,
+        shipping=shipping,
+        total=final_total,
+        status="pending",  # ✅ Stays pending until payment
+        payment_mode="online",
+        placed_by="guest"
+    )
+
+    session.add(order)
+    session.commit()
+    session.refresh(order)
+
+    # Save order items
+    for book, qty in items_data:
+        session.add(OrderItem(
+            order_id=order.id,
+            book_id=book.id,
+            book_title=book.title,
+            price=book.price,
+            quantity=qty
+        ))
+
+    session.commit()
+
+    # ✅ Create Razorpay order
+    razorpay_order = razorpay_client.order.create({
+        "amount": int(final_total * 100),  # Amount in paise
+        "currency": "INR",
+        "receipt": f"order_{order.id}"
+    })
+
+    return {
+        "order_id": order.id,
+        "amount": final_total,
+        "guest_email": guest.email,
+        "razorpay_order_id": razorpay_order["id"],  # ✅ Return this for frontend
+        "razorpay_key": settings.razorpay_key_id  # ✅ Return this for frontend
+    }
+@router.post("/guest/verify-payment")
+def verify_guest_payment(
+    order_id: int,
+    razorpay_payment_id: str,
+    razorpay_order_id: str,
+    razorpay_signature: str,
+    session: Session = Depends(get_session)
+):
+    order = session.get(Order, order_id)
+
+    if not order or order.placed_by != "guest":
+        raise HTTPException(404, "Order not found")
+    
+    # ✅ Prevent duplicate verification
+    if order.status == "paid":
+        raise HTTPException(400, "Order already paid")
+
+    # 1. Verify Razorpay signature
+    try:
+        razorpay_client.utility.verify_payment_signature({
+            "razorpay_order_id": razorpay_order_id,
+            "razorpay_payment_id": razorpay_payment_id,
+            "razorpay_signature": razorpay_signature
+        })
+    except razorpay.errors.SignatureVerificationError:
+        raise HTTPException(400, "Payment verification failed")
+
+    # 2. Save payment
+    payment = Payment(
+        order_id=order.id,
+        user_id=None,
+        txn_id=razorpay_payment_id,
+        amount=order.total,
+        method="razorpay",
+        payment_mode="online",
+        status="success"
+    )
+    session.add(payment)
+
+    # 3. Update order
+    order.status = "paid"
+    
+    # 4. ✅ NOW reduce inventory (only after payment verified)
+    reduce_inventory(session, order.id)
+    
+    session.commit()
+
+    # 5. ✅ Optional: Send confirmation email to guest
+    # send_order_confirmation_email(order.guest_email, order.id)
+
+    return {
+        "message": "Payment successful",
+        "order_id": order.id,
+        "amount": order.total
+    }
+@router.post("/orders/{order_id}/payment-complete")
 def complete_payment(
     order_id: int,
     session: Session = Depends(get_session),

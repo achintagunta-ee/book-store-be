@@ -1,6 +1,8 @@
-from sqlmodel import SQLModel, Field
-from typing import Optional
+from sqlmodel import Relationship, SQLModel, Field
+from typing import List, Optional
 from datetime import datetime
+
+from app.models.order import Order
 
 
 class User(SQLModel, table=True):
@@ -17,3 +19,5 @@ class User(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     reset_code: Optional[str] = None
     reset_code_expires: Optional[datetime] = None
+
+    orders: List["Order"] = Relationship(back_populates="user")

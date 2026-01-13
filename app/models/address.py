@@ -1,6 +1,8 @@
-from sqlmodel import SQLModel, Field
+from sqlmodel import Relationship, SQLModel, Field
 from typing import Optional
 from datetime import datetime
+
+from app.models.order import Order
 
 class Address(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -12,3 +14,5 @@ class Address(SQLModel, table=True):
     state: str
     zip_code: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    orders: list["Order"] = Relationship(back_populates="address")
