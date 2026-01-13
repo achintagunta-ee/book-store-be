@@ -1,6 +1,6 @@
 from logging import config
 import os
-from typing import List, Optional
+from typing import ClassVar, List, Optional
 from pydantic_settings import BaseSettings
 from pydantic import field_validator, Field
 from urllib.parse import quote_plus
@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     
     # Change the type annotation to accept str or list
     ADMIN_EMAILS: str | List[str] = Field(default_factory=list)
+
+    RAZORPAY_KEY_ID : ClassVar[str] = os.getenv("RAZORPAY_KEY_ID")
+    RAZORPAY_KEY_SECRET : ClassVar[str] = os.getenv("RAZORPAY_KEY_SECRET")
     
     @field_validator('ADMIN_EMAILS', mode='before')
     @classmethod

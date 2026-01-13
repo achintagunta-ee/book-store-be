@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+import razorpay
 from sqlalchemy import func
 from sqlmodel import Session, select 
 from app.database import get_session
@@ -29,7 +30,10 @@ from fastapi.responses import FileResponse
 import os
 from app.notifications import dispatch_order_event
 from app.notifications import OrderEvent
-
+# Initialize Razorpay client
+razorpay_client = razorpay.Client(
+    auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
+)
 
 router = APIRouter()
 
@@ -334,9 +338,192 @@ def place_order(
         "address": address,
     }
 
+@router.post("/create-razorpay-order")
+def create_razorpay_order(
+    address_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """Create a Razorpay order before payment"""
+    
+    address = session.get(Address, address_id)
+    if not address or address.user_id != current_user.id:
+        raise HTTPException(404, "Address not found")
+
+    cart_items = session.exec(
+        select(CartItem).where(CartItem.user_id == current_user.id)
+    ).all()
+
+    if not cart_items:
+        raise HTTPException(400, "Cart is empty")
+
+    # Calculate totals
+    subtotal = sum(session.get(Book, c.book_id).price * c.quantity for c in cart_items)
+    shipping = 0 if subtotal >= 500 else 150
+    total = subtotal + shipping
+
+    # Create Order in database first
+    order = Order(
+        user_id=current_user.id,
+        address_id=address_id,
+        subtotal=subtotal,
+        shipping=shipping,
+        tax=0,
+        total=total,
+        status="pending"
+    )
+    session.add(order)
+    session.commit()
+    session.refresh(order)
+
+    # Save order items
+    for c in cart_items:
+        book = session.get(Book, c.book_id)
+        session.add(
+            OrderItem(
+                order_id=order.id,
+                book_id=book.id,
+                book_title=book.title,
+                price=book.price,
+                quantity=c.quantity
+            )
+        )
+    session.commit()
+
+     # Create Razorpay order (amount in paise)
+    razorpay_order = razorpay_client.order.create(
+        {
+            "amount": int(total * 100),  # Convert to paise
+            "currency": "INR",
+            "receipt": f"order_{order.id}",
+            "notes": {
+                "order_id": order.id,
+                "user_id": current_user.id,
+                "user_email": current_user.email,
+            }
+        }
+    )
+
+    return {
+        "order_id": order.id,
+        "razorpay_order_id": razorpay_order["id"],
+        "amount": total,
+        "amount_paise": int(total * 100),
+        "key_id": settings.RAZORPAY_KEY_ID,
+        "user_email": current_user.email,
+        "user_name": f"{current_user.first_name} {current_user.last_name}",
+        "address": address
+    }
+
+@router.post("/verify-razorpay-payment")
+def verify_razorpay_payment(
+    order_id: int,
+    razorpay_payment_id: str,
+    razorpay_order_id: str,
+    razorpay_signature: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """Verify Razorpay payment signature"""
+    
+    order = session.get(Order, order_id)
+    if not order or order.user_id != current_user.id:
+        raise HTTPException(404, "Order not found")
+
+    # Verify signature
+    try:
+        razorpay_client.utility.verify_payment_signature({
+            "razorpay_order_id": razorpay_order_id,
+            "razorpay_payment_id": razorpay_payment_id,
+            "razorpay_signature": razorpay_signature
+        })
+    except razorpay.errors.SignatureVerificationError:
+        raise HTTPException(400, "Payment verification failed")
+
+    # Fetch payment details from Razorpay
+    payment_details = razorpay_client.payment.fetch(razorpay_payment_id)
 
 
-@router.post("/orders/{order_id}/payment-complete")
+# Create payment record
+    payment = Payment(
+        order_id=order.id,
+        user_id=current_user.id,
+        txn_id=razorpay_payment_id,
+        amount=order.total,
+        method="razorpay",
+        payment_mode="online",
+        status="success"
+    )
+    session.add(payment)
+    order.status = "paid"
+    session.commit()
+
+    # Reduce inventory
+    reduce_inventory(session, order.id)
+    session.commit()
+
+    # Clear cart
+    clear_cart(session, current_user.id)
+
+    # Dispatch order event
+    start = (datetime.utcnow() + timedelta(days=3)).strftime("%B %d, %Y")
+    end = (datetime.utcnow() + timedelta(days=5)).strftime("%B %d, %Y")
+
+    order_items = session.exec(
+        select(OrderItem).where(OrderItem.order_id == order.id)
+    ).all()
+
+    items = [
+        {
+            "book_title": item.book_title,
+            "price": item.price,
+            "quantity": item.quantity,
+            "total": item.price * item.quantity
+        }
+        for item in order_items
+    ]
+
+    dispatch_order_event(
+        event=OrderEvent.PAYMENT_SUCCESS,
+        order=order,
+        user=current_user,
+        session=session,
+        extra={
+            "popup_message": "Payment successful",
+            "admin_title": "Payment Received",
+            "admin_content": f"Payment for order #{order.id}",
+            "user_template": "user_emails/user_payment_success.html",
+            "user_subject": f"Payment success #{order.id}",
+            "admin_template": "admin_emails/admin_payment_received.html",
+            "admin_subject": f"Payment received #{order.id}",
+            "order_id": order.id,
+            "amount": payment.amount,
+            "txn_id": payment.txn_id,
+            "first_name": current_user.first_name,
+        }
+    )
+
+    return {
+        "message": "Payment successful!",
+        "order_id": order.id,
+        "payment_id": payment.id,
+        "txn_id": payment.txn_id,
+        "estimated_delivery": f"{start} - {end}",
+        "items": items,
+        "payment_details": {
+            "id": payment.id,
+            "txn_id": payment.txn_id,
+            "amount": payment.amount,
+            "status": payment.status,
+            "method": payment.method,
+            "created_at": payment.created_at
+        },
+        "track_order_url": f"/orders/{order.id}/track",
+        "invoice_url": f"/orders/{order.id}/invoice/download",
+        "continue_shopping_url": "/books"
+    }
+
+# @router.post("/orders/{order_id}/payment-complete")
 def complete_payment(
     order_id: int,
     session: Session = Depends(get_session),
