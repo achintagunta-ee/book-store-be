@@ -27,3 +27,10 @@ class CancellationRequest(SQLModel, table=True):
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class CancellationStatus:
+        PENDING = "pending"
+        REFUNDED = "refunded"
+        REJECTED = "rejected"
+        REFUNDED = "refunded"

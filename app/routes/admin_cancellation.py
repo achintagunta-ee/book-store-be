@@ -7,8 +7,8 @@ from decimal import Decimal
 import uuid
 
 from app.database import get_session
-from app.models.order import CancellationStatus, Order, OrderStatus
-from app.models.cancellation import CancellationRequest 
+from app.models.order import Order, OrderStatus
+from app.models.cancellation import CancellationRequest, CancellationStatus 
 from app.models.user import User
 from app.notifications import OrderEvent, dispatch_order_event
 from app.utils.token import get_current_admin
@@ -18,6 +18,17 @@ from app.schemas.cancellation_schemas import (
     CancellationRejectRequest,
     CancellationStatsResponse
 )
+from sqlmodel import select
+from datetime import datetime
+from fastapi import HTTPException, Depends
+
+from app.services.refund_service import refund_payment
+from app.models.payment import Payment
+from app.models.cancellation import CancellationRequest
+from app.models.order import Order, OrderStatus
+from app.database import get_session
+from app.utils.token import get_current_admin
+
 router = APIRouter()
 
 
@@ -79,78 +90,92 @@ def get_cancellation_requests(
     }
 
 
+
+
+
 @router.post("/{order_id}/process-refund")
-def process_refund(
+async def process_refund(
     order_id: int,
     request: RefundProcessRequest,
     session: Session = Depends(get_session),
-    admin: User = Depends(get_current_admin)
+    admin: User = Depends(get_current_admin),
 ):
     """Admin processes refund for order"""
-    
-    # Get order
+
+    # 1️⃣ Get order
     order = session.get(Order, order_id)
     if not order:
         raise HTTPException(404, "Order not found")
-    
-    # Get cancellation request
+
+    # 2️⃣ Get payment (REQUIRED)
+    payment = session.exec(
+        select(Payment).where(Payment.order_id == order_id)
+    ).first()
+
+    if not payment:
+        raise HTTPException(400, "No payment found for this order")
+
+    if payment.status == "refunded":
+        raise HTTPException(400, "Payment already refunded")
+
+    # 3️⃣ Get pending cancellation request
     cancellation = session.exec(
         select(CancellationRequest)
         .where(CancellationRequest.order_id == order_id)
-        .where(CancellationRequest.status == CancellationStatus.PENDING
-)
+        .where(CancellationRequest.status == CancellationStatus.PENDING)
     ).first()
-    
+
     if not cancellation:
         raise HTTPException(404, "No pending cancellation request found")
-    
-    # Calculate refund amount
+
+    # 4️⃣ Calculate refund amount
     if request.refund_amount == "full":
         refund_amount = order.total
+        new_order_status = OrderStatus.REFUNDED
+
     elif request.refund_amount == "partial":
         if not request.partial_amount:
             raise HTTPException(400, "Partial amount required")
-        refund_amount = request.partial_amount
-        if refund_amount > order.total:
+
+        if request.partial_amount > order.total:
             raise HTTPException(400, "Refund amount exceeds order total")
+
+        refund_amount = request.partial_amount
+        new_order_status = OrderStatus.PARTIALLY_REFUNDED
+
     else:
         raise HTTPException(400, "Invalid refund_amount value")
-    
-    # Generate refund reference
-    if request.refund_method == "store_credit":
-        refund_reference = f"STORE-CREDIT-{order_id}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
-    else:
-        refund_reference = f"REF-{order_id}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
-    
-    # Update cancellation request
+
+    # 5️⃣ Process refund via unified service
+    refund_result = await refund_payment(
+        session=session,
+        payment=payment,
+        order=order,
+        amount=refund_amount,
+    )
+
+    # 6️⃣ Update cancellation request
     cancellation.status = CancellationStatus.REFUNDED
     cancellation.refund_amount = refund_amount
     cancellation.refund_method = request.refund_method
-    cancellation.refund_reference = refund_reference
+    cancellation.refund_reference = refund_result["reference_id"]
     cancellation.admin_notes = request.admin_notes
     cancellation.processed_at = datetime.utcnow()
     cancellation.processed_by = admin.id
-    
-    # Update order status
-    if request.refund_amount == "full":
-     order.status = OrderStatus.REFUNDED
-    else:
-        order.status = OrderStatus.PARTIALLY_REFUNDED
-    
+
+    # 7️⃣ Update order status
+    order.status = new_order_status
+
     session.add(cancellation)
     session.add(order)
     session.commit()
-    
-    # TODO: Integrate with payment gateway to process actual refund
-    # Example: process_payment_refund(order, refund_amount, request.refund_method)
-    
+
     return {
         "message": "Refund processed successfully",
         "refund_amount": refund_amount,
-        "refund_reference": refund_reference,
-        "order_status": order.status
+        "refund_reference": refund_result["reference_id"],
+        "order_status": order.status,
     }
-
 
 @router.post("/cancellation-requests/{request_id}/reject")
 def reject_cancellation(

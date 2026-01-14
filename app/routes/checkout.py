@@ -3,7 +3,7 @@ import razorpay
 from sqlalchemy import func
 from sqlmodel import Session, select 
 from app.database import get_session
-from app.models.notifications import RecipientRole
+from app.models.notifications import NotificationChannel, RecipientRole
 from app.models.user import User 
 from app.models.order import Order 
 from app.models.order_item import OrderItem
@@ -13,6 +13,8 @@ from app.schemas.guest_checkout import GuestCheckoutSchema
 from app.services.email_service import send_order_confirmation
 from app.services.inventory_service import reduce_inventory
 from app.services.email_service import send_email
+from app.services.order_email_service import send_payment_success_email
+from app.services.payment_service import finalize_payment
 from app.utils.template import render_template
 from app.utils.token import get_current_user
 from app.schemas.address_schemas import AddressCreate
@@ -446,14 +448,16 @@ def verify_razorpay_payment(
 
 
 # Create payment record
-    payment = Payment(
-        order_id=order.id,
-        user_id=current_user.id,
+    payment = finalize_payment(
+        session=session,
+        order=order,
         txn_id=razorpay_payment_id,
         amount=order.total,
         method="razorpay",
         payment_mode="online",
-        status="success"
+        user=current_user,
+        gateway_order_id=razorpay_order_id,
+        gateway_signature=razorpay_signature,
     )
     session.add(payment)
     order.status = "paid"
@@ -465,6 +469,31 @@ def verify_razorpay_payment(
 
     # Clear cart
     clear_cart(session, current_user.id)
+    # 🔔 USER NOTIFICATION
+    create_notification(
+        session=session,
+        recipient_role=RecipientRole.customer,
+        user_id=current_user.id,
+        trigger_source="payment",
+        related_id=order.id,
+        title="Payment Successful",
+        content=f"Payment received for Order #{order.id}",
+        channel=NotificationChannel.email,
+    )
+
+    # 🔔 ADMIN NOTIFICATION
+    create_notification(
+        session=session,
+        recipient_role=RecipientRole.admin,
+        user_id=None,
+        trigger_source="payment",
+        related_id=order.id,
+        title="Payment Received",
+        content=f"Order #{order.id} payment completed by {current_user.email}",
+    )
+
+    session.commit()
+
 
     # Dispatch order event
     start = (datetime.utcnow() + timedelta(days=3)).strftime("%B %d, %Y")
@@ -603,6 +632,7 @@ def  guest_checkout(
         "razorpay_order_id": razorpay_order["id"],  # ✅ Return this for frontend
         "razorpay_key": settings.razorpay_key_id  # ✅ Return this for frontend
     }
+
 @router.post("/guest/verify-payment")
 def verify_guest_payment(
     order_id: int,
@@ -615,12 +645,12 @@ def verify_guest_payment(
 
     if not order or order.placed_by != "guest":
         raise HTTPException(404, "Order not found")
-    
+
     # ✅ Prevent duplicate verification
     if order.status == "paid":
         raise HTTPException(400, "Order already paid")
 
-    # 1. Verify Razorpay signature
+    # 1️⃣ Verify Razorpay signature
     try:
         razorpay_client.utility.verify_payment_signature({
             "razorpay_order_id": razorpay_order_id,
@@ -630,34 +660,43 @@ def verify_guest_payment(
     except razorpay.errors.SignatureVerificationError:
         raise HTTPException(400, "Payment verification failed")
 
-    # 2. Save payment
-    payment = Payment(
-        order_id=order.id,
-        user_id=None,
+    # 2️⃣ Finalize payment (single source of truth)
+    payment = finalize_payment(
+        session=session,
+        order=order,
         txn_id=razorpay_payment_id,
         amount=order.total,
         method="razorpay",
         payment_mode="online",
-        status="success"
+        user=None,
+        gateway_order_id=razorpay_order_id,
+        gateway_signature=razorpay_signature,
     )
-    session.add(payment)
 
-    # 3. Update order
-    order.status = "paid"
-    
-    # 4. ✅ NOW reduce inventory (only after payment verified)
-    reduce_inventory(session, order.id)
-    
+    # 3️⃣ ✅ Guest confirmation email
+    # (uses existing email infrastructure)
+    send_payment_success_email(order)
+
+    # 4️⃣ 🔔 Admin notification
+    create_notification(
+        session=session,
+        recipient_role=RecipientRole.admin,
+        user_id=None,
+        trigger_source="guest_payment",
+        related_id=order.id,
+        title="Guest Payment Received",
+        content=f"Guest order #{order.id} paid by {order.guest_email}",
+    )
+
     session.commit()
-
-    # 5. ✅ Optional: Send confirmation email to guest
-    # send_order_confirmation_email(order.guest_email, order.id)
 
     return {
         "message": "Payment successful",
         "order_id": order.id,
-        "amount": order.total
+        "payment_id": payment.id,
+        "amount": payment.amount,
     }
+
 @router.post("/orders/{order_id}/payment-complete")
 def complete_payment(
     order_id: int,

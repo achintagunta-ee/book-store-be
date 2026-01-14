@@ -86,10 +86,7 @@ class OrderStatus:
     PARTIALLY_REFUNDED = "partially_refunded"
     EXPIRED = "expired"
 
-class CancellationStatus:
-    PENDING = "pending"
-    REFUNDED = "refunded"
-    REJECTED = "rejected"
+
 
 
     user: Optional["User"] = Relationship(back_populates="orders")
