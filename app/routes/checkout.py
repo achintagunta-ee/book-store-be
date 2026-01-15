@@ -630,7 +630,7 @@ def  guest_checkout(
         "amount": final_total,
         "guest_email": guest.email,
         "razorpay_order_id": razorpay_order["id"],  # ✅ Return this for frontend
-        "razorpay_key": settings.razorpay_key_id  # ✅ Return this for frontend
+        "razorpay_key": settings.RAZORPAY_KEY_ID  # ✅ Return this for frontend
     }
 
 @router.post("/guest/verify-payment")
