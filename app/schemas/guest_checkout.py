@@ -25,3 +25,9 @@ class GuestCheckoutSchema(BaseModel):
     guest: GuestInfo
     address: GuestAddress
     items: List[GuestCartItem]
+
+class GuestPaymentVerifySchema(BaseModel):
+    order_id: int
+    razorpay_payment_id: str
+    razorpay_order_id: str
+    razorpay_signature: str

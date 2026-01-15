@@ -13,11 +13,14 @@ from app.routes import (
     admin_settings,
     auth,
     books_public,
+    checkout_guest,
+    checkout_user,
     ebooks,
     order_cancellation,
     public_settings,
     test_email,
     user_library,
+    user_orders,
     users,
     books_admin,
     categories_admin,
@@ -25,7 +28,6 @@ from app.routes import (
     book_detail,
     review,
     cart,
-    checkout,
     wishlist,
     storage,
     book_inventory   
@@ -93,7 +95,9 @@ app.include_router(categories_public.router, prefix="/categories", tags=["Public
 app.include_router(book_detail.router, prefix="/book", tags=["Book Details"])
 app.include_router(review.router, prefix="/reviews", tags=["Reviews"])
 app.include_router(cart.router, prefix="/cart", tags=["Cart"])
-app.include_router(checkout.router , prefix="/checkout", tags=["Checkout"])
+app.include_router(checkout_user.router , prefix="/checkout", tags=["Checkout User"])
+app.include_router(checkout_guest.router , prefix="/checkout/guest", tags=["Checkout Guest"])
+app.include_router(user_orders.router , prefix="/checkout/orders", tags=["User Orders"])
 app.include_router(wishlist.router, prefix="/wishlist" , tags=["Wishlist"])
 app.include_router(storage.router, prefix="/storage",tags=["Files Storage"])
 app.include_router(admin.router,prefix="/admin",tags= ["Admin Endpoints"])

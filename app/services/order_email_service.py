@@ -12,28 +12,43 @@ def send_payment_success_email(
     user: Optional[User] = None,
 ):
     """
-    Send payment success email with invoice attachment
-    Supports both guest and logged-in users
+    Send payment success email.
+    - Supports guest + logged-in users
+    - Attaches invoice if available
+    - NEVER crashes payment flow
     """
 
     # -----------------------------
-    # Load invoice PDF (shared)
+    # Load invoice (optional)
     # -----------------------------
     pdf_bytes = load_invoice_pdf(order.id)
 
+    attachments = []
+    if pdf_bytes:
+        attachments.append(
+            (
+                f"Invoice_{order.id}.pdf",
+                pdf_bytes,
+                "application/pdf",
+            )
+        )
+
     # -----------------------------
-    # Decide recipient + template
+    # Guest order
     # -----------------------------
     if order.placed_by == "guest":
         to_email = order.guest_email
-        template = "emails/guest_payment_success.html"
         subject = f"Payment Successful – Order #{order.id}"
+        template = "user_emails/guest_user_payment_success.html"
 
         context = {
             "order": order,
             "guest_name": order.guest_name,
         }
 
+    # -----------------------------
+    # Logged-in user order
+    # -----------------------------
     else:
         if not user:
             raise ValueError(
@@ -41,8 +56,8 @@ def send_payment_success_email(
             )
 
         to_email = user.email
-        template = "emails/user_payment_success.html"
         subject = f"Payment Successful – Order #{order.id}"
+        template = "user_emails/user_payment_success.html"
 
         context = {
             "order": order,
@@ -50,17 +65,11 @@ def send_payment_success_email(
         }
 
     # -----------------------------
-    # Send email with attachment
+    # Send email (with retry)
     # -----------------------------
     send_email_with_retry(
         to_email=to_email,
         subject=subject,
         html=render_template(template, **context),
-        attachments=[
-            (
-                f"Invoice_{order.id}.pdf",
-                pdf_bytes,
-                "application/pdf",
-            )
-        ],
+        attachments=attachments if attachments else None,
     )

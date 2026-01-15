@@ -2,8 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Guest Checkout - Razorpay Test</title>
+    <title>Guest Checkout – Razorpay Test</title>
+
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -18,7 +20,7 @@
         pre {
             background: #f4f4f4;
             padding: 12px;
-            overflow-x: auto;
+            margin-top: 20px;
         }
     </style>
 </head>
@@ -26,96 +28,87 @@
 
 <h2>📚 Guest Checkout (Razorpay Test)</h2>
 
-<button onclick="startCheckout()">Pay Now</button>
+<button onclick="startCheckout()">💳 Pay Now</button>
 
-<h3>Response</h3>
-<pre id="output"></pre>
+<pre id="output">Click "Pay Now" to start checkout</pre>
 
 <script>
 const API_BASE = "http://localhost:8000/checkout";
 
 async function startCheckout() {
-    document.getElementById("output").innerText = "Creating order...";
+    const output = document.getElementById("output");
+    output.innerText = "🛒 Creating guest order...";
 
-    // 1️⃣ Create guest order
-    const res = await fetch(`${API_BASE}/guest`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            guest: {
-                name: "Guest User",
-                email: "guest@test.com",
-                phone: "9999999999"
+    try {
+        const res = await fetch(`${API_BASE}/guest`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                guest: {
+                    name: "Guest User",
+                    email: "guest@test.com",
+                    phone: "9999999999"
+                },
+                address: {
+                    line1: "Street 1",
+                    line2: "",
+                    city: "Hyderabad",
+                    state: "Telangana",
+                    pincode: "500001"
+                },
+                items: [{ book_id: 1, quantity: 1 }]
+            })
+        });
+
+        const data = await res.json();
+        output.innerText = "✅ Order Created:\n" + JSON.stringify(data, null, 2);
+
+        const options = {
+            key: data.razorpay_key,
+            amount: Math.round(data.amount * 100),
+            currency: "INR",
+            name: "Hithabodha Bookstore",
+            description: "Guest Checkout",
+            order_id: data.razorpay_order_id,
+
+            handler: function (response) {
+                output.innerText =
+                    "🎉 Razorpay Payment Success:\n" +
+                    JSON.stringify(response, null, 2);
+
+                verifyPayment(data.order_id, response);
             },
-            address: {
-                line1: "Street 1",
-                line2: "",
-                city: "Hyderabad",
-                state: "Telangana",
-                pincode: "500001"
-            },
-            items: [
-                { book_id: 1, quantity: 1 }
-            ]
-        })
-    });
 
-    const data = await res.json();
-    document.getElementById("output").innerText =
-        "Order Created:\n" + JSON.stringify(data, null, 2);
+            prefill: {
+                name: data.guest_name,
+                email: data.guest_email,
+                contact: "9999999999"
+            }
+        };
 
-    // 2️⃣ Razorpay options
-    const options = {
-        key: data.razorpay_key,
-        amount: data.amount * 100,
-        currency: "INR",
-        name: "Hithabodha Bookstore",
-        description: "Guest Checkout",
-        order_id: data.razorpay_order_id,
+        new Razorpay(options).open();
 
-        handler: function (response) {
-            // ✅ EXTRACT VALUES YOU WANT
-            const razorpayValues = {
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_signature: response.razorpay_signature
-            };
-
-            document.getElementById("output").innerText =
-                "🎉 Razorpay Returned Values:\n" +
-                JSON.stringify(razorpayValues, null, 2);
-
-            // 3️⃣ Verify payment with backend
-            verifyPayment(data.order_id, razorpayValues);
-        },
-
-        prefill: {
-            name: "Guest User",
-            email: data.guest_email,
-            contact: "9999999999"
-        },
-        theme: { color: "#3399cc" }
-    };
-
-    const rzp = new Razorpay(options);
-    rzp.open();
+    } catch (err) {
+        output.innerText = "❌ Error: " + err.message;
+    }
 }
 
-// 4️⃣ Verify payment
-async function verifyPayment(orderId, razorpayValues) {
+async function verifyPayment(orderId, response) {
+    const output = document.getElementById("output");
+
     const res = await fetch(`${API_BASE}/guest/verify-payment`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             order_id: orderId,
-            ...razorpayValues
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_signature: response.razorpay_signature
         })
     });
 
     const result = await res.json();
-
-    document.getElementById("output").innerText +=
-        "\n\n✅ Backend Verification Response:\n" +
+    output.innerText += "\n\n✅ Backend Verification:\n" +
         JSON.stringify(result, null, 2);
 }
 </script>

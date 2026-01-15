@@ -1,12 +1,28 @@
-import requests
+import base64
 import logging
+import requests
+from typing import List, Optional, Tuple
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 
-def send_email(to: str, subject: str, html: str) -> bool:
+
+def send_email(
+    to: str,
+    subject: str,
+    html: str,
+    attachments: Optional[List[Tuple[str, bytes, str]]] = None,
+) -> bool:
+    """
+    Send email via Brevo.
+
+    attachments: List of tuples
+        (filename, file_bytes, mime_type)
+    """
+
     payload = {
         "sender": {
             "email": settings.MAIL_FROM,
@@ -16,6 +32,16 @@ def send_email(to: str, subject: str, html: str) -> bool:
         "subject": subject,
         "htmlContent": html,
     }
+
+    # ✅ Attach files if provided
+    if attachments:
+        payload["attachment"] = [
+            {
+                "name": filename,
+                "content": base64.b64encode(file_bytes).decode("utf-8"),
+            }
+            for filename, file_bytes, mime_type in attachments
+        ]
 
     headers = {
         "api-key": settings.BREVO_API_KEY,
@@ -39,7 +65,7 @@ def send_email(to: str, subject: str, html: str) -> bool:
         logger.info(f"Brevo email sent to {to}")
         return True
 
-    except Exception as e:
+    except Exception:
         logger.exception("Brevo email exception")
         return False
 from app.services.email_service import send_email
