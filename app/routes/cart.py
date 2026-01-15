@@ -190,10 +190,13 @@ def clear_cart_endpoint(
 
 
 
-
-def get_cart_details(session: Session, user_id: int):
+@router.get("/details", response_model=None)
+def get_my_cart(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     items = session.exec(
-        select(CartItem).where(CartItem.user_id == user_id)
+        select(CartItem).where(CartItem.user_id == current_user.id)
     ).all()
 
     if not items:
