@@ -380,3 +380,23 @@ def get_cancellation_stats(
         "refunded_orders_this_month": refunded_orders_count
     }
 
+@router.get("/status/{request_id}")
+def get_cancellation_status_admin(
+    request_id: int,
+    session: Session = Depends(get_session),
+    admin: User = Depends(get_current_admin),
+):
+    cancellation = session.get(CancellationRequest, request_id)
+    if not cancellation:
+        raise HTTPException(404, "Cancellation request not found")
+
+    return {
+        "request_id": cancellation.id,
+        "order_id": cancellation.order_id,
+        "status": cancellation.status,
+        "reason": cancellation.reason,
+        "requested_at": cancellation.requested_at,
+        "refund_amount": cancellation.refund_amount,
+        "refund_reference": cancellation.refund_reference,
+        "admin_notes": cancellation.admin_notes,
+    }
