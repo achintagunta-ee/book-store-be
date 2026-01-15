@@ -31,3 +31,11 @@ class UserLogin(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+
+
+class RazorpayPaymentVerifySchema(BaseModel):
+    order_id: int
+    razorpay_payment_id: str
+    razorpay_order_id: str
+    razorpay_signature: str

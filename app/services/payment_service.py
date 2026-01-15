@@ -34,7 +34,7 @@ payment_gateway = PaymentGateway()
 
 from typing import Optional, Dict, Any
 from datetime import datetime
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.models.payment import Payment
 from app.models.order import Order
@@ -60,8 +60,25 @@ def finalize_payment(
     Single source of truth for completing payments
     """
 
+    # ✅ CHECK IF PAYMENT ALREADY EXISTS (duplicate verification)
+    existing_payment = session.exec(
+        select(Payment).where(Payment.txn_id == txn_id)
+    ).first()
+    
+    if existing_payment:
+        # Payment already processed - return existing payment
+        return existing_payment
+
+    # ✅ CHECK IF ORDER ALREADY PAID
     if order.status == "paid":
-        raise ValueError("Order already paid")
+        # If order is paid but no payment record found with this txn_id,
+        # it means a different payment succeeded. Still return success.
+        existing_order_payment = session.exec(
+            select(Payment).where(Payment.order_id == order.id)
+        ).first()
+        if existing_order_payment:
+            return existing_order_payment
+        # If somehow order is paid but no payment exists, continue...
 
     payment = Payment(
         order_id=order.id,
@@ -89,6 +106,6 @@ def finalize_payment(
     session.refresh(payment)
 
     # 📧 Email (guest OR user)
-    send_payment_success_email(order,user)
+    send_payment_success_email(order, user)
 
     return payment

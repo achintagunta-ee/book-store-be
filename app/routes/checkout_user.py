@@ -1,15 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException
 import razorpay
+from requests import session
 from sqlalchemy import func
 from sqlmodel import Session, select 
 from app.database import get_session
 from app.models.notifications import NotificationChannel, RecipientRole
 from app.models.user import User 
-from app.models.order import Order 
+from app.models.order import Order, OrderStatus 
 from app.models.order_item import OrderItem
 from app.models.address import Address
 from app.routes.admin import create_notification
 from app.schemas.guest_checkout import GuestCheckoutSchema, GuestPaymentVerifySchema
+from app.schemas.user_schemas import RazorpayPaymentVerifySchema
 from app.services.email_service import send_order_confirmation
 from app.services.inventory_service import reduce_inventory
 from app.services.email_service import send_email
@@ -408,56 +410,57 @@ def create_razorpay_order(
     )
 
     return {
-        "order_id": order.id,
-        "razorpay_order_id": razorpay_order["id"],
-        "amount": total,
-        "amount_paise": int(total * 100),
-        "key_id": settings.RAZORPAY_KEY_ID,
-        "user_email": current_user.email,
-        "user_name": f"{current_user.first_name} {current_user.last_name}",
-        "address": address
-    }
+    "order_id": order.id,
+    "razorpay_order_id": razorpay_order["id"],
+    "razorpay_key": settings.RAZORPAY_KEY_ID,  # ✅ Change to razorpay_key
+    "amount": total,  # ✅ Keep only amount (in rupees)
+    "user_email": current_user.email,
+    "user_name": f"{current_user.first_name} {current_user.last_name}",
+}
 
 @router.post("/verify-razorpay-payment")
 def verify_razorpay_payment(
-    order_id: int,
-    razorpay_payment_id: str,
-    razorpay_order_id: str,
-    razorpay_signature: str,
+    payload: RazorpayPaymentVerifySchema,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    """Verify Razorpay payment signature"""
-    
-    order = session.get(Order, order_id)
-    if not order or order.user_id != current_user.id:
-        raise HTTPException(404, "Order not found")
+    """
+    Verify Razorpay payment for logged-in user
+    """
 
-    # Verify signature
-    try:
-        razorpay_client.utility.verify_payment_signature({
-            "razorpay_order_id": razorpay_order_id,
-            "razorpay_payment_id": razorpay_payment_id,
-            "razorpay_signature": razorpay_signature
+    # 1️⃣ Fetch order
+    order = session.get(Order, payload.order_id)
+    if not order or order.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    # 2️⃣ 🔒 Idempotency guard
+    if order.status == "paid":
+
+    # 3️⃣ Verify Razorpay signature
+        try:
+             razorpay_client.utility.verify_payment_signature({
+            "razorpay_order_id": payload.razorpay_order_id,
+            "razorpay_payment_id": payload.razorpay_payment_id,
+            "razorpay_signature": payload.razorpay_signature,
         })
-    except razorpay.errors.SignatureVerificationError:
-        raise HTTPException(400, "Payment verification failed")
+        except razorpay.errors.SignatureVerificationError:
+            raise HTTPException(status_code=400, detail="Payment verification failed")
 
     # Fetch payment details from Razorpay
-    payment_details = razorpay_client.payment.fetch(razorpay_payment_id)
+    
 
 
 # Create payment record
     payment = finalize_payment(
         session=session,
         order=order,
-        txn_id=razorpay_payment_id,
+        txn_id=payload.razorpay_payment_id,
         amount=order.total,
         method="razorpay",
         payment_mode="online",
         user=current_user,
-        gateway_order_id=razorpay_order_id,
-        gateway_signature=razorpay_signature,
+        gateway_order_id=payload.razorpay_order_id,
+        gateway_signature=payload.razorpay_signature,
     )
     session.add(payment)
     order.status = "paid"
@@ -465,10 +468,11 @@ def verify_razorpay_payment(
 
     # Reduce inventory
     reduce_inventory(session, order.id)
-    session.commit()
+    
 
     # Clear cart
     clear_cart(session, current_user.id)
+    session.commit()
     # 🔔 USER NOTIFICATION
     create_notification(
         session=session,
