@@ -34,3 +34,4 @@ class CancellationStatus:
         REFUNDED = "refunded"
         REJECTED = "rejected"
         REFUNDED = "refunded"
+        APPROVED = "approved"

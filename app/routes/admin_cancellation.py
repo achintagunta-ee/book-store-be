@@ -7,8 +7,10 @@ from decimal import Decimal
 import uuid
 
 from app.database import get_session
-from app.models.order import Order, OrderStatus
-from app.models.cancellation import CancellationRequest, CancellationStatus 
+from app.models import order
+from app.models import payment
+from app.models.order import Order , OrderStatus
+from app.models.cancellation import CancellationRequest, CancellationStatus
 from app.models.user import User
 from app.notifications import OrderEvent, dispatch_order_event
 from app.utils.token import get_current_admin
@@ -89,8 +91,59 @@ def get_cancellation_requests(
         "total_pages": (total + limit - 1) // limit
     }
 
+@router.post("/{request_id}/approve")
+def approve_cancellation(
+    request_id: int,
+    session: Session = Depends(get_session),
+    admin: User = Depends(get_current_admin),
+):
+    cancellation = session.get(CancellationRequest, request_id)
+    if not cancellation:
+        raise HTTPException(404, "Cancellation request not found")
 
+    if cancellation.status != CancellationStatus.PENDING:
+        raise HTTPException(
+            400,
+            f"Cannot approve request with status: {cancellation.status}",
+        )
 
+    order = session.get(Order, cancellation.order_id)
+    if not order:
+        raise HTTPException(404, "Order not found")
+
+    # Mark as approved (NO refund yet)
+    cancellation.status = CancellationStatus.APPROVED
+    cancellation.processed_at = datetime.utcnow()
+    cancellation.processed_by = admin.id
+
+    session.add(cancellation)
+    session.commit()
+
+    # 🔔 Notify user + admin
+    user = session.get(User, cancellation.user_id)
+
+    dispatch_order_event(
+        event=OrderEvent.CANCEL_APPROVED,
+        order=order,
+        user=user,
+        session=session,
+        extra={
+            "admin_title": "Cancellation Approved",
+            "admin_content": f"Cancellation approved for order #{order.id}",
+            "user_template": "user_emails/user_cancel_approved.html",
+            "user_subject": f"Cancellation approved – Order #{order.id}",
+            "admin_template": "admin_emails/admin_cancel_approved.html",
+            "admin_subject": f"Cancellation approved – Order #{order.id}",
+            "first_name": user.first_name,
+            "order_id": order.id,
+        },
+    )
+
+    return {
+        "message": "Cancellation approved",
+        "request_id": request_id,
+        "status": "approved",
+    }
 
 
 @router.post("/{order_id}/process-refund")
@@ -100,33 +153,53 @@ async def process_refund(
     session: Session = Depends(get_session),
     admin: User = Depends(get_current_admin),
 ):
-    """Admin processes refund for order"""
+    """
+    Admin processes refund for an APPROVED cancellation
+    """
 
     # 1️⃣ Get order
     order = session.get(Order, order_id)
     if not order:
         raise HTTPException(404, "Order not found")
 
-    # 2️⃣ Get payment (REQUIRED)
+    # 2️⃣ Get payment
     payment = session.exec(
-        select(Payment).where(Payment.order_id == order_id)
-    ).first()
+    select(Payment).where(Payment.order_id == order_id)
+).first()
 
+# 🔴 Offline payment → manual refund
+    if order.payment_mode == "offline":
+        raise HTTPException(
+            400,
+            "This order was paid offline. Please process the refund manually."
+        )
+#  COD → no refund needed
+    if order.payment_mode == "cod":
+        raise HTTPException(
+            400,
+            "Cash on Delivery order. No refund required."
+        )
+# Online but no payment record (incomplete payment)
     if not payment:
-        raise HTTPException(400, "No payment found for this order")
+        raise HTTPException(
+            400,
+            "Refund not possible: no successful online payment found."
+        )
 
     if payment.status == "refunded":
         raise HTTPException(400, "Payment already refunded")
 
-    # 3️⃣ Get pending cancellation request
+    # 3️⃣ Get APPROVED cancellation request (IMPORTANT FIX)
     cancellation = session.exec(
         select(CancellationRequest)
         .where(CancellationRequest.order_id == order_id)
-        .where(CancellationRequest.status == CancellationStatus.PENDING)
+        .where(CancellationRequest.status == CancellationStatus.APPROVED)
     ).first()
 
     if not cancellation:
-        raise HTTPException(404, "No pending cancellation request found")
+        raise HTTPException(
+            404, "No approved cancellation request found"
+        )
 
     # 4️⃣ Calculate refund amount
     if request.refund_amount == "full":
@@ -146,7 +219,7 @@ async def process_refund(
     else:
         raise HTTPException(400, "Invalid refund_amount value")
 
-    # 5️⃣ Process refund via unified service
+    # 5️⃣ Process refund (single source of truth)
     refund_result = await refund_payment(
         session=session,
         payment=payment,
@@ -170,12 +243,38 @@ async def process_refund(
     session.add(order)
     session.commit()
 
+    # 8️⃣ 🔔 Notify user + admin (NEW EVENT)
+    user = session.get(User, cancellation.user_id)
+
+    dispatch_order_event(
+        event=OrderEvent.REFUND_PROCESSED,
+        order=order,
+        user=user,
+        session=session,
+        extra={
+            "admin_title": "Refund Processed",
+            "admin_content": (
+                f"Refund of ₹{refund_amount} processed for order #{order.id}"
+            ),
+            "user_template": "user_emails/user_refund_processed.html",
+            "user_subject": f"Refund processed – Order #{order.id}",
+            "admin_template": "admin_emails/admin_refund_processed.html",
+            "admin_subject": f"Refund completed – Order #{order.id}",
+            "first_name": user.first_name,
+            "order_id": order.id,
+            "refund_amount": refund_amount,
+            "refund_reference": refund_result["reference_id"],
+        },
+    )
+
     return {
         "message": "Refund processed successfully",
+        "order_id": order.id,
         "refund_amount": refund_amount,
         "refund_reference": refund_result["reference_id"],
         "order_status": order.status,
     }
+
 
 @router.post("/cancellation-requests/{request_id}/reject")
 def reject_cancellation(

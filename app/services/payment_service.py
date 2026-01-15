@@ -1,3 +1,4 @@
+
 from app.services.order_email_service import send_payment_success_email
 
 def mark_payment_success(payment, order, user, session):
@@ -33,7 +34,7 @@ payment_gateway = PaymentGateway()
 
 from typing import Optional, Dict, Any
 from datetime import datetime
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from app.models.payment import Payment
 from app.models.order import Order
@@ -43,26 +44,25 @@ from app.services.order_email_service import send_payment_success_email
 
 
 def finalize_payment(
-    session,
-    order,
-    txn_id,
-    amount,
-    method,
-    payment_mode,
-    user=None,
-    gateway_order_id=None,
-    gateway_signature=None,
-):
-    # 🔒 IDEMPOTENCY CHECK
-    existing_payment = session.exec(
-        select(Payment).where(Payment.txn_id == txn_id)
-    ).first()
+    *,
+    session: Session,
+    order: Order,
+    txn_id: str,
+    amount: float,
+    method: str,
+    payment_mode: str,
+    user: Optional[User] = None,
+    gateway_order_id: Optional[str] = None,
+    gateway_signature: Optional[str] = None,
+    gateway_response: Optional[Dict[str, Any]] = None,
+) -> Payment:
+    """
+    Single source of truth for completing payments
+    """
 
-    if existing_payment:
-        # ✅ Payment already processed → return safely
-        return existing_payment
+    if order.status == "paid":
+        raise ValueError("Order already paid")
 
-    # ✅ Create new payment
     payment = Payment(
         order_id=order.id,
         user_id=user.id if user else None,
@@ -71,17 +71,24 @@ def finalize_payment(
         status="success",
         method=method,
         payment_mode=payment_mode,
+        gateway_order_id=gateway_order_id,
+        gateway_signature=gateway_signature,
+        gateway_response=gateway_response,
+        created_at=datetime.utcnow(),
     )
 
     session.add(payment)
 
-    # ✅ Update order ONCE
+    # 🔒 Atomic state change
     order.status = "paid"
-    order.gateway_order_id = gateway_order_id
-    order.gateway_payment_id = txn_id
-    order.gateway_signature = gateway_signature
+
+    # 📦 Reduce inventory ONCE
+    reduce_inventory(session, order.id)
 
     session.commit()
     session.refresh(payment)
+
+    # 📧 Email (guest OR user)
+    send_payment_success_email(order,user)
 
     return payment

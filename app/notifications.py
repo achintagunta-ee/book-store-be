@@ -8,6 +8,8 @@ class OrderEvent(str, Enum):
     DELIVERED = "delivered"
     CANCEL_REQUESTED = "cancel_requested"
     CANCEL_REJECTED = "cancel_rejected"
+    CANCEL_APPROVED = "cancel_approved"
+    REFUND_PROCESSED = "refund_processed"
 # app/notifications/channels.py
 from enum import Enum
 
@@ -51,6 +53,17 @@ NOTIFICATION_RULES = {
         Channel.EMAIL_USER: True,
         Channel.INAPP_ADMIN: True,
     },
+    OrderEvent.CANCEL_APPROVED: {
+        Channel.EMAIL_USER: True,
+        Channel.EMAIL_ADMIN: True,
+        Channel.INAPP_ADMIN: True,
+    },
+    OrderEvent.REFUND_PROCESSED: {
+    Channel.EMAIL_USER: True,
+    Channel.EMAIL_ADMIN: True,
+    Channel.INAPP_ADMIN: True,
+},
+
 }
 # app/notifications/popup.py
 def popup(message: str, type: str = "success"):

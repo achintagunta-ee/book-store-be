@@ -91,3 +91,6 @@ class OrderStatus:
     REFUNDED = "refunded"
     PARTIALLY_REFUNDED = "partially_refunded"
     EXPIRED = "expired"
+    APPROVED = "approved"
+    SHIPPED = "shipped"
+    DELIVERED = "delivered"
