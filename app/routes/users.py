@@ -130,6 +130,7 @@ def get_user_addresses(
             "id": addr.id,
             "full_name": f"{addr.first_name} {addr.last_name}",
             "address": addr.address,
+            "phone_number": addr.phone_number,
             "city": addr.city,
             "state": addr.state,
             "zip_code": addr.zip_code

@@ -43,7 +43,7 @@ razorpay_client = razorpay.Client(
 router = APIRouter()
 
 @router.post("/address")
-def save_address(
+def add_address(
     data: AddressCreate,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
@@ -55,6 +55,55 @@ def save_address(
     session.refresh(address)
 
     return {"message": "Address saved", "address_id": address.id}
+
+@router.put("/address/{address_id}")
+def update_address(
+    address_id: int,
+    data: AddressCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    address = session.get(Address, address_id)
+
+    if not address or address.user_id != current_user.id:
+        raise HTTPException(404, "Address not found")
+
+    # Update fields
+    address.first_name = data.first_name
+    address.last_name = data.last_name
+    address.phone = data.phone
+    address.address = data.address
+    address.city = data.city
+    address.state = data.state
+    address.zip_code = data.zip_code
+
+    session.add(address)
+    session.commit()
+    session.refresh(address)
+
+    return {
+        "message": "Address updated successfully",
+        "address": address
+    }
+
+@router.delete("/address/{address_id}")
+def delete_address(
+    address_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    address = session.get(Address, address_id)
+
+    if not address or address.user_id != current_user.id:
+        raise HTTPException(404, "Address not found")
+
+    session.delete(address)
+    session.commit()
+
+    return {
+        "message": "Address deleted successfully"
+    }
+
 
 @router.get("/get-address")
 def get_address_and_cart(

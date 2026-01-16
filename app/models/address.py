@@ -14,5 +14,5 @@ class Address(SQLModel, table=True):
     state: str
     zip_code: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
-
+    phone_number: str
     orders: list["Order"] = Relationship(back_populates="address")
