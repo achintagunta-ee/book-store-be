@@ -1,4 +1,4 @@
-
+from datetime import datetime, timedelta
 import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -156,6 +156,7 @@ def buy_now_create_razorpay_order(
     session.add(order)
     session.commit()
     session.refresh(order)
+    
 
     # Order item
     session.add(
@@ -180,8 +181,8 @@ def buy_now_create_razorpay_order(
             "type": "buy_now"
         }
     })
-    start = (datetime.utcnow() + datetime.timedelta(days=3)).strftime("%B %d, %Y")
-    end = (datetime.utcnow() + datetime.timedelta(days=5)).strftime("%B %d, %Y")
+    
+
 
     order.gateway_order_id = razorpay_order["id"]
     session.commit()
