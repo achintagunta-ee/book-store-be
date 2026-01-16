@@ -182,6 +182,8 @@ def verify_guest_payment(
 
     # 5️⃣ Guest confirmation email
     send_payment_success_email(order)
+    
+    reduce_inventory(session, order.id)
 
     # 6️⃣ Admin notification
     create_notification(

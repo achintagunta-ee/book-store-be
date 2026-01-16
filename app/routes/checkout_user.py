@@ -435,15 +435,19 @@ def verify_razorpay_payment(
 
     # 2️⃣ 🔒 Idempotency guard
     if order.status == "paid":
+        return {
+            "message": "Payment already processed",
+            "order_id": order.id,
+        }
 
     # 3️⃣ Verify Razorpay signature
-        try:
+    try:
              razorpay_client.utility.verify_payment_signature({
             "razorpay_order_id": payload.razorpay_order_id,
             "razorpay_payment_id": payload.razorpay_payment_id,
             "razorpay_signature": payload.razorpay_signature,
         })
-        except razorpay.errors.SignatureVerificationError:
+    except razorpay.errors.SignatureVerificationError:
             raise HTTPException(status_code=400, detail="Payment verification failed")
 
     # Fetch payment details from Razorpay
@@ -538,7 +542,7 @@ def verify_razorpay_payment(
     )
 
     return {
-        "message": "Payment successful!",
+        "message": "Thank you for your order! A confirmation email has been sent.",
         "order_id": order.id,
         "payment_id": payment.id,
         "txn_id": payment.txn_id,

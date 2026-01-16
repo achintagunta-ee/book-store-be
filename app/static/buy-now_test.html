@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>User Checkout – Razorpay Test</title>
+
+    <!-- ✅ Razorpay Checkout SDK -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 40px auto;
+        }
+        button {
+            padding: 12px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 12px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+
+<h2>📚 User Checkout (Razorpay Test)</h2>
+
+<button onclick="startCheckout()">💳 Pay Now</button>
+
+<pre id="output">Click "Pay Now" to start checkout</pre>
+
+<script>
+const API_BASE = "http://localhost:8000/checkout";
+
+/**
+ * 🔐 PUT YOUR USER JWT TOKEN HERE
+ */
+const USER_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NzExMjAzNDV9.wHvmIQKY0Cx6Oz_rabibv7e36BjTuKUjgrDa6Lpqkz0";
+
+async function startCheckout() {
+    const output = document.getElementById("output");
+    output.innerText = "🛒 Creating Razorpay order...";
+
+    try {
+        const res = await fetch(
+            `${API_BASE}/create-razorpay-order?address_id=3`,
+            {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${USER_TOKEN}`,
+                    "Content-Type": "application/json"
+                }
+            }
+        );
+
+        if (!res.ok) {
+            throw new Error("Failed to create Razorpay order");
+        }
+
+        const data = await res.json();
+        console.log("Order created:", data);
+
+        output.innerText =
+            "✅ Order Created\n\n" +
+            JSON.stringify(data, null, 2);
+
+        // ✅ Razorpay Checkout options
+        const options = {
+            key: data.key_id || data.razorpay_key, // support both
+            amount: data.amount_paise || data.amount * 100,
+            currency: "INR",
+            name: "Hithabodha Bookstore",
+            description: "User Checkout",
+            order_id: data.razorpay_order_id,
+
+            handler: function (response) {
+                output.innerText =
+                    "🎉 Payment Success\n\n" +
+                    JSON.stringify(response, null, 2);
+
+                verifyPayment(data.order_id, response);
+            },
+
+            prefill: {
+                name: data.user_name,
+                email: data.user_email,
+            },
+
+            theme: {
+                color: "#3399cc"
+            }
+        };
+
+        const rzp = new Razorpay(options);
+        rzp.open();
+
+    } catch (err) {
+        console.error(err);
+        output.innerText = "❌ Error: " + err.message;
+    }
+}
+
+async function verifyPayment(orderId, response) {
+    const output = document.getElementById("output");
+
+    try {
+        const res = await fetch(
+            `${API_BASE}/verify-razorpay-payment`,
+            {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${USER_TOKEN}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    order_id: orderId,
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_order_id: response.razorpay_order_id,
+                    razorpay_signature: response.razorpay_signature
+                })
+            }
+        );
+
+        const result = await res.json();
+
+        output.innerText +=
+            "\n\n✅ Backend Verification\n\n" +
+            JSON.stringify(result, null, 2);
+
+    } catch (err) {
+        console.error(err);
+        output.innerText += "\n\n❌ Verification failed";
+    }
+}
+</script>
+
+</body>
+</html>
