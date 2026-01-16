@@ -27,8 +27,11 @@ def my_library(
         {
             "book_id": book.id,
             "title": book.title,
-            "cover_image_url": to_presigned_url(book.cover_image, expires=3600),
-            "purchased_at": purchase.created_at,   
+            "cover_image_url": (
+                to_presigned_url(book.cover_image)
+                if book.cover_image else None
+            ),
+            "purchased_at": purchase.created_at,
             "expires_at": purchase.access_expires_at
         }
         for book, purchase in books
