@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from app.database import get_session
+from app.models import book
 from app.models.cart import CartItem
 from app.models.book import Book
 from app.models.user import User
 from app.schemas.cart_schemas import CartAddRequest, CartUpdateRequest
+from app.services.r2_helper import to_presigned_url
 from app.utils.token import get_current_user  # JWT dependency
 from app.models.cart import CartItem 
 from datetime import datetime
@@ -95,7 +97,7 @@ def get_cart(
             "book_id": book.id,
             "book_name": book.title,
             "slug": book.slug,
-            "cover_image": book.cover_image,
+            "cover_image_url": to_presigned_url(book.cover_image, expires=3600)if book.cover_image else None,
             "price": book.price,
             "discount_price": book.discount_price,
             "offer_price": book.offer_price,
@@ -196,8 +198,11 @@ def get_my_cart(
     current_user: User = Depends(get_current_user),
 ):
     items = session.exec(
-        select(CartItem).where(CartItem.user_id == current_user.id)
-    ).all()
+    select(CartItem, Book)
+    .join(Book, CartItem.book_id == Book.id)
+    .where(CartItem.user_id == current_user.id)
+).all()
+
 
     if not items:
         return {
@@ -211,7 +216,7 @@ def get_my_cart(
     item_list = []
     subtotal = 0
 
-    for item in items:
+    for item ,book in items:
         line_total = item.price * item.quantity
         subtotal += line_total
 
@@ -219,6 +224,7 @@ def get_my_cart(
             "book_id": item.book_id,
             "book_title": item.book_title,
             "price": item.price,
+            "cover_image_url": to_presigned_url(book.cover_image, expires=3600)if book.cover_image else None,
             "quantity": item.quantity,
             "total": line_total
         })

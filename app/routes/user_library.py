@@ -4,6 +4,7 @@ from app.database import get_session
 from app.models.ebook_purchase import EbookPurchase
 from app.models.book import Book
 from app.models.user import User
+from app.services.r2_helper import to_presigned_url
 from app.utils.token import get_current_user
 from datetime import datetime
 from app.services.r2_client import s3_client, R2_BUCKET_NAME
@@ -26,6 +27,7 @@ def my_library(
         {
             "book_id": book.id,
             "title": book.title,
+            "cover_image_url": to_presigned_url(book.cover_image, expires=3600),
             "purchased_at": purchase.created_at,   
             "expires_at": purchase.access_expires_at
         }
