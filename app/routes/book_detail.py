@@ -180,8 +180,6 @@ def buy_now_create_razorpay_order(
             "type": "buy_now"
         }
     })
-    
-
 
     order.gateway_order_id = razorpay_order["id"]
     session.commit()
