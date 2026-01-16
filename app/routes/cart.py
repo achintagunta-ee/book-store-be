@@ -97,7 +97,7 @@ def get_cart(
             "book_id": book.id,
             "book_name": book.title,
             "slug": book.slug,
-            "cover_image_url": to_presigned_url(book.cover_image, expires=3600)if book.cover_image else None,
+            "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None,
             "price": book.price,
             "discount_price": book.discount_price,
             "offer_price": book.offer_price,
