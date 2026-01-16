@@ -27,6 +27,7 @@ def my_library(
         {
             "book_id": book.id,
             "title": book.title,
+            "cover_image": book.cover_image,
             "cover_image_url": (
                 to_presigned_url(book.cover_image)
                 if book.cover_image else None
