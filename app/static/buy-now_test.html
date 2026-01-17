@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Buy Now – Razorpay Test</title>
+    <title>Buy Now – Razorpay Test (Local)</title>
 
+    <!-- Razorpay SDK -->
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
     <style>
@@ -27,19 +28,23 @@
 </head>
 <body>
 
-<h2>⚡ Buy Now Checkout (Razorpay Test)</h2>
+<h2>⚡ Buy Now Checkout (Razorpay Test – Local)</h2>
 
 <button onclick="startBuyNow()">💳 Pay Now</button>
 
 <pre id="output">Click "Pay Now"</pre>
 
 <script>
-const API_BASE = "http://hbn-be.efficientengineering.com/book";
+/**
+ * ✅ LOCAL API BASE
+ */
+const API_BASE = "http://localhost:8000/book";
 
 /**
- * 🔐 USER JWT TOKEN
+ * 🔐 LOCAL USER JWT TOKEN
+ * Generate this from localhost login
  */
-const USER_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NzA4NzcwMTV9.hcrYYfY2qACGeVhfWKoiXFNZq6R6XAPpOfJbldwJdPU";
+const USER_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NzEyMzEzOTZ9.YU2b6sGv3Un_Zc04kKi8qiYtKVxgG_9vhgWDNakZ2tc";
 
 async function startBuyNow() {
     const output = document.getElementById("output");
@@ -53,13 +58,16 @@ async function startBuyNow() {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                book_id: 1,
+                book_id: 1,      // 🔁 change if needed
                 quantity: 1,
-                address_id: 3
+                address_id: 2    // 🔁 valid local address ID
             })
         });
 
-        if (!res.ok) throw new Error("Buy Now failed");
+        if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(errText);
+        }
 
         const data = await res.json();
         console.log("Buy Now response:", data);
@@ -70,15 +78,15 @@ async function startBuyNow() {
 
         const options = {
             key: data.razorpay_key,
-            amount: data.amount * 100,
+            amount: Math.round(data.amount * 100), // rupees → paise
             currency: "INR",
             name: "Hithabodha Bookstore",
-            description: "Buy Now",
+            description: "Buy Now Purchase",
             order_id: data.razorpay_order_id,
 
             handler: function (response) {
                 output.innerText =
-                    "🎉 Razorpay Success\n\n" +
+                    "🎉 Razorpay Payment Success\n\n" +
                     JSON.stringify(response, null, 2);
 
                 verifyBuyNowPayment(data.order_id, response);
@@ -89,7 +97,9 @@ async function startBuyNow() {
                 email: data.user_email
             },
 
-            theme: { color: "#3399cc" }
+            theme: {
+                color: "#3399cc"
+            }
         };
 
         new Razorpay(options).open();
@@ -118,15 +128,20 @@ async function verifyBuyNowPayment(orderId, response) {
             })
         });
 
+        if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(errText);
+        }
+
         const result = await res.json();
 
         output.innerText +=
-            "\n\n✅ Backend Verification\n\n" +
+            "\n\n✅ Backend Verification Success\n\n" +
             JSON.stringify(result, null, 2);
 
     } catch (err) {
         console.error(err);
-        output.innerText += "\n\n❌ Verification failed";
+        output.innerText += "\n\n❌ Verification failed: " + err.message;
     }
 }
 </script>

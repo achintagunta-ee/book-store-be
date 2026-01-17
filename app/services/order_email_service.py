@@ -1,5 +1,4 @@
 from typing import Optional
-
 from app.models.order import Order
 from app.models.user import User
 from app.services.email_retry import send_email_with_retry
@@ -51,11 +50,16 @@ def send_payment_success_email(
     # -----------------------------
     else:
         if not user:
-            raise ValueError(
-                "User must be provided for non-guest payment email"
-            )
-
+            print(f"⚠️ No user provided for order {order.id}, skipping email")
+            return  # Skip email silently
+            
         to_email = user.email
+        
+        # ✅ VALIDATE EMAIL
+        if not to_email or "@" not in to_email:
+            print(f"⚠️ Invalid email '{to_email}' for order {order.id}, skipping email")
+            return  # Skip email silently
+
         subject = f"Payment Successful – Order #{order.id}"
         template = "user_emails/user_payment_success.html"
 
@@ -67,9 +71,13 @@ def send_payment_success_email(
     # -----------------------------
     # Send email (with retry)
     # -----------------------------
-    send_email_with_retry(
-        to_email=to_email,
-        subject=subject,
-        html=render_template(template, **context),
-        attachments=attachments if attachments else None,
-    )
+    try:
+        send_email_with_retry(
+            to_email=to_email,
+            subject=subject,
+            html=render_template(template, **context),
+            attachments=attachments if attachments else None,
+        )
+    except Exception as e:
+        # Never let email errors crash payment
+        print(f"⚠️ Email failed for order {order.id}: {e}")

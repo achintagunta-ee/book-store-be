@@ -15,6 +15,7 @@ from app.models.review import Review
 from app.models.user import User
 from app.config import settings
 from app.notifications import OrderEvent, dispatch_order_event
+from app.routes.cart import clear_cart
 from app.schemas.buynow_schemas import BuyNowRequest, BuyNowVerifySchema
 from app.services.inventory_service import reduce_inventory
 from app.services.notification_service import create_notification
@@ -215,6 +216,7 @@ def buy_now_verify_payment(
 ):
     order = session.get(Order, payload.order_id)
 
+
     if not order or order.user_id != current_user.id:
         raise HTTPException(404, "Order not found")
 
@@ -224,7 +226,16 @@ def buy_now_verify_payment(
             "message": "Payment already processed",
             "order_id": order.id
         }
-
+    if not order.gateway_order_id:
+        raise HTTPException(
+        status_code=400,
+        detail="Razorpay order not initialized"
+    )
+    if order.gateway_order_id != payload.razorpay_order_id:
+        raise HTTPException(
+        status_code=400,
+        detail="Razorpay order mismatch"
+    )
     # Verify Razorpay signature
     try:
         razorpay_client.utility.verify_payment_signature({
@@ -247,12 +258,6 @@ def buy_now_verify_payment(
         gateway_order_id=payload.razorpay_order_id,
         gateway_signature=payload.razorpay_signature,
     )
-
-    # Reduce inventory
-    reduce_inventory(session, order.id)
-
-    order.status = "paid"
-    session.commit()
 
     # 🔔 USER NOTIFICATION
     create_notification(
@@ -277,6 +282,8 @@ def buy_now_verify_payment(
         content=f"Order #{order.id} payment completed by {current_user.email}",
     )
 
+     # Clear cart
+    clear_cart(session, current_user.id)
     session.commit()
 
     # 📦 Fetch order items
@@ -298,8 +305,8 @@ def buy_now_verify_payment(
     # 📧 Email (safe)
     send_payment_success_email(order, current_user)
 
-    start = (datetime.utcnow() + datetime.timedelta(days=3)).strftime("%B %d, %Y")
-    end = (datetime.utcnow() + datetime.timedelta(days=5)).strftime("%B %d, %Y")
+    start = (datetime.utcnow() + timedelta(days=3)).strftime("%B %d, %Y")
+    end = (datetime.utcnow() + timedelta(days=5)).strftime("%B %d, %Y")
 
     dispatch_order_event(
         event=OrderEvent.PAYMENT_SUCCESS,

@@ -15,7 +15,6 @@ from app.schemas.user_schemas import RazorpayPaymentVerifySchema
 from app.services.email_service import send_order_confirmation
 from app.services.inventory_service import reduce_inventory
 from app.services.email_service import send_email
-from app.services.order_email_service import send_payment_success_email
 from app.services.payment_service import finalize_payment
 from app.utils.template import render_template
 from app.utils.token import get_current_user
@@ -367,6 +366,9 @@ def verify_razorpay_payment(
 
     # 1️⃣ Fetch order
     order = session.get(Order, payload.order_id)
+
+  
+
     if not order or order.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Order not found")
 
@@ -390,6 +392,7 @@ def verify_razorpay_payment(
         status_code=400,
         detail="Razorpay order mismatch"
     )
+    
 
 
     # 3️⃣ Verify Razorpay signature
@@ -418,12 +421,6 @@ def verify_razorpay_payment(
         gateway_order_id=payload.razorpay_order_id,
         gateway_signature=payload.razorpay_signature,
     )
-    session.add(payment)
-    order.status = "paid"
-    session.commit()
-
-    # Reduce inventory
-    reduce_inventory(session, order.id)
     
 
     # Clear cart
