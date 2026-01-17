@@ -192,55 +192,73 @@ def clear_cart_endpoint(
     return {"message": "Cart cleared"}
 
 
-
-@router.get("/details", response_model=None)
-def get_my_cart(
+@router.get("/details")
+def get_cart_details(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    items = session.exec(
-    select(CartItem, Book)
-    .join(Book, CartItem.book_id == Book.id)
-    .where(CartItem.user_id == current_user.id)
-).all()
+    cart_items = session.exec(
+        select(CartItem, Book)
+        .join(Book, CartItem.book_id == Book.id)
+        .where(CartItem.user_id == current_user.id)
+    ).all()
 
-
-    if not items:
+    if not cart_items:
         return {
             "items": [],
-            "subtotal": 0,
-            "shipping": 0,
-            "tax": 0,
-            "total": 0
+            "summary": {
+                "subtotal": 0,
+                "shipping": 0,
+                "tax": 0,
+                "final_total": 0
+            }
         }
 
-    item_list = []
+    items_response = []
     subtotal = 0
 
-    for item ,book in items:
-        line_total = item.price * item.quantity
+    for cart_item, book in cart_items:
+        # ✅ Same effective price logic
+        effective_price = (
+            book.offer_price
+            if book.offer_price
+            else book.discount_price
+            if book.discount_price
+            else book.price
+        )
+
+        line_total = effective_price * cart_item.quantity
         subtotal += line_total
 
-        item_list.append({
-            "book_id": item.book_id,
-            "book_title": item.book_title,
-            "price": item.price,
+        items_response.append({
+            "item_id": cart_item.id,
+            "book_id": book.id,
+            "book_name": book.title,
+            "slug": book.slug,
             "cover_image": book.cover_image,
-            "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None,
-            "quantity": item.quantity,
+            "cover_image_url": to_presigned_url(book.cover_image) if book.cover_image else None,
+            "price": book.price,
+            "discount_price": book.discount_price,
+            "offer_price": book.offer_price,
+            "effective_price": effective_price,
+            "quantity": cart_item.quantity,
+            "stock": book.stock,
+            "in_stock": book.in_stock,
             "total": line_total
         })
 
-    # Example logic
-    shipping = 0 if subtotal > 500 else 150
-    tax = round(subtotal * 0.05, 2)   # 5% GST example
-    total = subtotal + shipping + tax
+    # Pricing rules (same as /cart)
+    shipping = 0 if subtotal >= 500 else 150
+    tax_rate = 0.08
+    tax = round(subtotal * tax_rate, 2)
+    final_total = subtotal + shipping + tax
 
     return {
-        "items": item_list,
-        "subtotal": subtotal,
-        "shipping": shipping,
-        "tax": tax,
-        "total": total
+        "items": items_response,
+        "summary": {
+            "subtotal": subtotal,
+            "shipping": shipping,
+            "tax": tax,
+            "final_total": final_total
+        }
     }
-
