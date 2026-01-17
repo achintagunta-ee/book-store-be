@@ -3,10 +3,21 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models.category import Category
 from app.models.user import User
+from app.routes.books_public import clear_books_cache
+from app.routes.categories_public import _cached_books_by_category, _cached_list_categories, _cached_search_category
 from app.utils.token import get_current_user
 from app.models.book import Book
+from functools import lru_cache
+import time
 
 router = APIRouter()
+CACHE_TTL = 60 * 60  # 60 minutes
+
+def _ttl_bucket() -> int:
+    """
+    Changes every 60 minutes → auto cache expiry
+    """
+    return int(time.time() // CACHE_TTL)
 
 @router.post("/")
 def create_category(
@@ -27,19 +38,40 @@ def create_category(
     session.add(category)
     session.commit()
     session.refresh(category)
+    _cached_list_categories.cache_clear()
+    _cached_search_category.cache_clear()
+    _cached_list_categories.cache_clear()
+    _cached_category_by_id.cache_clear()
+    
     return category
 
+@lru_cache(maxsize=128)
+def _cached_list_categories(bucket: int):
+    from app.database import get_session
+    from app.models.category import Category
+    from sqlmodel import select
+
+    with next(get_session()) as session:
+        return session.exec(select(Category)).all()
 
 
 @router.get("/list")
-def list_categories(session: Session = Depends(get_session)):
-    categories = session.exec(select(Category)).all()
-    return categories
+def list_categories():
+    return _cached_list_categories(_ttl_bucket())
+
+@lru_cache(maxsize=256)
+def _cached_category_by_id(category_id: int, bucket: int):
+    from app.database import get_session
+    from app.models.category import Category
+
+    with next(get_session()) as session:
+        return session.get(Category, category_id)
+
 
 
 @router.get("/{category_id}")
-def get_category(category_id: int, session: Session = Depends(get_session)):
-    category = session.get(Category, category_id)
+def get_category(category_id: int):
+    category = _cached_category_by_id(category_id, _ttl_bucket())
     if not category:
         raise HTTPException(404, "Category not found")
     return category
@@ -69,6 +101,14 @@ def update_category(
     session.add(category)
     session.commit()
     session.refresh(category)
+    _cached_list_categories.cache_clear()
+    _cached_search_category.cache_clear()
+    _cached_list_categories.cache_clear()
+    _cached_category_by_id.cache_clear()
+    clear_books_cache()
+
+
+
     return category
 
 
@@ -90,80 +130,123 @@ def delete_category(
 
     session.delete(category)
     session.commit()
+    _cached_list_categories.cache_clear()
+    _cached_search_category.cache_clear()
+    _cached_list_categories.cache_clear()
+    _cached_category_by_id.cache_clear()
+
+
     return {"message": "Category deleted"}
 
+@lru_cache(maxsize=256)
+def _cached_books_by_category_id(category_id: int, bucket: int):
+    from app.database import get_session
+    from app.models.category import Category
+    from app.models.book import Book
+    from sqlmodel import select
+
+    with next(get_session()) as session:
+        category = session.get(Category, category_id)
+        if not category:
+            return None
+
+        books = session.exec(
+            select(Book).where(Book.category_id == category_id)
+        ).all()
+
+        return {
+            "category_id": category_id,
+            "category_name": category.name,
+            "total_books": len(books),
+            "books": books
+        }
+
+
 @router.get("/{category_id}/list-of-books")
-def get_books_by_category(
-    category_id: int,
-    session: Session = Depends(get_session)
-):
-    
-    category = session.get(Category, category_id)
-    if not category:
-        raise HTTPException(status_code=404, detail="Category not found")
+def get_books_by_category(category_id: int):
+    data = _cached_books_by_category_id(category_id, _ttl_bucket())
+    if not data:
+        raise HTTPException(404, "Category not found")
+    return data
 
-    
-    books = session.exec(
-        select(Book).where(Book.category_id == category_id)
-    ).all()
+@lru_cache(maxsize=256)
+def _cached_books_by_category_name(category_name: str, bucket: int):
+    from app.database import get_session
+    from app.models.category import Category
+    from app.models.book import Book
+    from sqlmodel import select
 
-    return {
-        "category_id": category_id,
-        "category_name": category.name,
-        "total_books": len(books),
-        "books": books
-    }
+    with next(get_session()) as session:
+        category = session.exec(
+            select(Category).where(Category.name.ilike(category_name))
+        ).first()
+
+        if not category:
+            return None
+
+        books = session.exec(
+            select(Book).where(Book.category_id == category.id)
+        ).all()
+
+        return {
+            "category": category.name,
+            "category_id": category.id,
+            "total_books": len(books),
+            "books": books
+        }
+
+
 
 @router.get("/categories/{category_name}/list")
-def list_books_by_category_name(
-    category_name: str,
-    session: Session = Depends(get_session)
-):
-
-    # Convert input to lowercase for case-insensitive match
-    category = session.exec(
-        select(Category).where(Category.name.ilike(category_name))
-    ).first()
-
-    if not category:
+def list_books_by_category_name(category_name: str):
+    data = _cached_books_by_category_name(category_name, _ttl_bucket())
+    if not data:
         raise HTTPException(404, f"Category '{category_name}' not found")
+    return data
 
-    # Fetch books in this category
-    books = session.exec(
-        select(Book).where(Book.category_id == category.id)
-    ).all()
+@lru_cache(maxsize=512)
+def _cached_book_in_category(category_name: str, book_name: str, bucket: int):
+    from app.database import get_session
+    from app.models.category import Category
+    from app.models.book import Book
+    from sqlmodel import select
 
-    return {
-        "category": category.name,
-        "category_id": category.id,
-        "total_books": len(books),
-        "books": books
-    }
+    with next(get_session()) as session:
+        category = session.exec(
+            select(Category).where(Category.name.ilike(category_name))
+        ).first()
+
+        if not category:
+            return None
+
+        book = session.exec(
+            select(Book).where(
+                Book.category_id == category.id,
+                Book.title.ilike(book_name)
+            )
+        ).first()
+
+        return book
 
 @router.get("/categories/{category_name}/list-of-books/{book_name}")
-def get_book_in_category(
-    category_name: str,
-    book_name: str,
-    session: Session = Depends(get_session)
-):
-
-    # Check category
-    category = session.exec(
-        select(Category).where(Category.name.ilike(category_name))
-    ).first()
-
-    if not category:
-        raise HTTPException(404, f"Category '{category_name}' not found")
-
-    # Check book inside this category
-    book = session.exec(
-        select(Book).where(
-            Book.category_id == category.id,
-            Book.title.ilike(book_name)
-        )
-    ).first()
+def get_book_in_category(category_name: str, book_name: str):
+    book = _cached_book_in_category(
+        category_name,
+        book_name,
+        _ttl_bucket()
+    )
 
     if not book:
-        raise HTTPException(404, f"Book '{book_name}' not found in category '{category_name}'")
-
+        raise HTTPException(
+            404,
+            f"Book '{book_name}' not found in category '{category_name}'"
+        )
     return book
+
+
+
+#_cached_list_categories.cache_clear()
+#_cached_category_by_id.cache_clear()
+#_cached_books_by_category_id.cache_clear()
+#_cached_books_by_category_name.cache_clear()
+#_cached_book_in_category.cache_clear()

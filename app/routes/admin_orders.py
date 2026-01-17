@@ -14,16 +14,26 @@ from app.models.book import Book
 from app.models.notifications import Notification, RecipientRole
 from app.constants.order_status import ALLOWED_TRANSITIONS
 from app.notifications import OrderEvent, dispatch_order_event
+from app.routes.admin import clear_admin_cache
+from app.routes.order_cancellation import _cached_cancellation_status
 from app.schemas.offline_order_schemas import OfflineOrderCreate
 from app.services.notification_service import create_notification
+from app.utils.cache_helpers import clear_user_caches
 from app.utils.token import get_current_user
 from app.services.email_service import send_email
 from app.utils.template import render_template
 import os
 from reportlab.pdfgen import canvas
 from enum import Enum   
+from functools import lru_cache
+import time
 
 router = APIRouter()
+CACHE_TTL = 60 * 60  # 60 minutes
+
+def _ttl_bucket() -> int:
+    """Changes every 60 minutes → auto cache expiry"""
+    return int(time.time() // CACHE_TTL)
 
 def require_admin(current_user: User = Depends(get_current_user)):
     if current_user.role != "admin":
@@ -39,176 +49,211 @@ class OrderStatus(str, Enum):
     cancelled = "cancelled"
     failed = "failed"
 
+@lru_cache(maxsize=256)
+def _cached_list_orders(
+    page: int,
+    limit: int,
+    search: str | None,
+    status: str | None,
+    start_date: str | None,
+    end_date: str | None,
+    bucket: int
+):
+    from app.database import get_session
+    from app.models.order import Order
+    from app.models.user import User
+    from sqlmodel import select, func
+
+    with next(get_session()) as session:
+        query = select(Order, User).join(User, User.id == Order.user_id)
+
+        if search:
+            query = query.where(
+                (User.first_name.ilike(f"%{search}%")) |
+                (User.last_name.ilike(f"%{search}%")) |
+                (Order.id.cast(str).ilike(f"%{search}%"))
+            )
+
+        if status:
+            query = query.where(Order.status == status)
+
+        if start_date:
+            query = query.where(func.date(Order.created_at) >= start_date)
+        if end_date:
+            query = query.where(func.date(Order.created_at) <= end_date)
+
+        total = session.exec(
+            select(func.count()).select_from(query.subquery())
+        ).one()
+
+        orders = session.exec(
+            query.order_by(Order.created_at.desc())
+            .offset((page - 1) * limit)
+            .limit(limit)
+        ).all()
+
+        return {
+            "total_items": total,
+            "total_pages": (total + limit - 1) // limit,
+            "current_page": page,
+            "results": [
+                {
+                    "order_id": o.id,
+                    "customer_name": f"{u.first_name} {u.last_name}",
+                    "date": o.created_at.date(),
+                    "total_amount": o.total,
+                    "status": o.status,
+                }
+                for o, u in orders
+            ]
+        }
+
+
 # a) Get Orders with filters
 @router.get("")
 def list_orders(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
-    search: str = Query(None),
-    status: OrderStatus = Query(None),
-    start_date: date = Query(None),
-    end_date: date = Query(None),
-    session: Session = Depends(get_session),
-    admin: User = Depends(require_admin)
-): 
-    """
-    Get orders with pagination, search, date and status filters
-    """
-    query = select(Order, User).join(User, User.id == Order.user_id)
+    search: str | None = Query(None),
+    status: OrderStatus | None = Query(None),
+    start_date: date | None = Query(None),
+    end_date: date | None = Query(None),
+    admin: User = Depends(require_admin),
+):
+    return _cached_list_orders(
+        page,
+        limit,
+        search,
+        status.value if status else None,
+        str(start_date) if start_date else None,
+        str(end_date) if end_date else None,
+        _ttl_bucket(),
+    )
 
-    # Search filter
-    if search:
-        query = query.where(
-            (User.first_name.ilike(f"%{search}%")) |
-            (User.last_name.ilike(f"%{search}%")) |
-            (Order.id.cast(str).ilike(f"%{search}%"))
-        )
-    
-    # Status filter
-    if status:
-        query = query.where(Order.status == status.value)
 
-    # Date filter
-    if start_date:
-        query = query.where(func.date(Order.created_at) >= start_date)
-    if end_date:
-        query = query.where(func.date(Order.created_at) <= end_date)
+@lru_cache(maxsize=512)
+def _cached_order_details(order_id: int, bucket: int):
+    from app.database import get_session
+    from app.models.order import Order
+    from app.models.order_item import OrderItem
+    from app.models.user import User
+    from sqlmodel import select
 
-    # Get total count
-    total = session.exec(
-        select(func.count()).select_from(query.subquery())
-    ).one()
+    with next(get_session()) as session:
+        result = session.exec(
+            select(Order, User)
+            .join(User, User.id == Order.user_id)
+            .where(Order.id == order_id)
+        ).first()
 
-    # Get paginated results
-    orders = session.exec(
-        query
-        .order_by(Order.created_at.desc())
-        .offset((page - 1) * limit)
-        .limit(limit)
-    ).all()
+        if not result:
+            return None
 
-    return {
-        "total_items": total,
-        "total_pages": (total + limit - 1) // limit,
-        "current_page": page,
-        "results": [
-            {
-                "order_id": order.id,
-                "customer_name": f"{user.first_name} {user.last_name}",
-                "date": order.created_at.date(),
-                "total_amount": order.total,
-                "status": order.status
-            }
-            for order, user in orders
-        ]
-    }
+        order, user = result
+
+        items = session.exec(
+            select(OrderItem).where(OrderItem.order_id == order.id)
+        ).all()
+
+        return {
+            "order_id": order.id,
+            "customer": {
+                "name": f"{user.first_name} {user.last_name}",
+                "email": user.email,
+            },
+            "status": order.status,
+            "created_at": order.created_at,
+            "items": [
+                {
+                    "title": i.book_title,
+                    "price": i.price,
+                    "quantity": i.quantity,
+                    "total": i.price * i.quantity,
+                }
+                for i in items
+            ],
+            "invoice_url": f"/admin/orders/{order.id}/invoice",
+        }
 
 # b) Order Details
 @router.get("/{order_id}")
 def get_order_details(
     order_id: int,
-    session: Session = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
-    """
-    Get order details by ID
-    """
-    result = session.exec(
-        select(Order, User)
-        .join(User, User.id == Order.user_id)
-        .where(Order.id == order_id)
-    ).first()
-
-    if not result:
+    data = _cached_order_details(order_id, _ttl_bucket())
+    if not data:
         raise HTTPException(404, "Order not found")
+    return data
 
-    order, user = result
 
-    # Get order items
-    items = session.exec(
-        select(OrderItem).where(OrderItem.order_id == order.id)
-    ).all()
+@lru_cache(maxsize=512)
+def _cached_invoice_view(order_id: int, bucket: int):
+    from app.database import get_session
+    from app.models.order import Order
+    from app.models.order_item import OrderItem
+    from app.models.payment import Payment
+    from app.models.user import User
+    from sqlmodel import select
 
-    return {
-        "order_id": order.id,
-        "customer": {
-            "name": f"{user.first_name} {user.last_name}",
-            "email": user.email,
-        },
-        "status": order.status,
-        "created_at": order.created_at,
-        "items": [
-            {
-                "title": item.book_title,
-                "price": item.price,
-                "quantity": item.quantity,
-                "total": item.price * item.quantity,
-            }
-            for item in items
-        ],
-        "invoice_url": f"/admin/orders/{order.id}/invoice",  # Updated to match docs
-    }
+    with next(get_session()) as session:
+        order = session.get(Order, order_id)
+        if not order:
+            return None
+
+        customer = session.get(User, order.user_id)
+        payment = session.exec(
+            select(Payment).where(Payment.order_id == order_id)
+        ).first()
+
+        items = session.exec(
+            select(OrderItem).where(OrderItem.order_id == order_id)
+        ).all()
+
+        return {
+            "invoice_id": f"INV-{order.id}",
+            "order_id": order.id,
+            "customer": {
+                "id": customer.id,
+                "name": f"{customer.first_name} {customer.last_name}",
+                "email": customer.email,
+            },
+            "payment": {
+                "txn_id": payment.txn_id if payment else None,
+                "method": payment.method if payment else None,
+                "status": payment.status if payment else "unpaid",
+                "amount": payment.amount if payment else order.total,
+            },
+            "order_status": order.status,
+            "date": order.created_at,
+            "summary": {
+                "subtotal": order.subtotal,
+                "shipping": order.shipping,
+                "tax": order.tax,
+                "total": order.total,
+            },
+            "items": [
+                {
+                    "title": i.book_title,
+                    "price": i.price,
+                    "quantity": i.quantity,
+                    "total": i.price * i.quantity,
+                }
+                for i in items
+            ],
+        }
 
 # c) View Invoice
 @router.get("/{order_id}/view-invoice")
 def view_invoice(
     order_id: int,
-    session: Session = Depends(get_session),
-    admin: User = Depends(require_admin)
+    admin: User = Depends(require_admin),
 ):
-    """
-    View invoice details
-    """
-    order = session.get(Order, order_id)
-    if not order:
+    data = _cached_invoice_view(order_id, _ttl_bucket())
+    if not data:
         raise HTTPException(404, "Order not found")
+    return data
 
-    customer = session.get(User, order.user_id)
-    if not customer:
-        raise HTTPException(404, "Customer not found")
-
-    # Get payment info
-    payment = session.exec(
-        select(Payment).where(Payment.order_id == order_id)
-    ).first()
-
-    # Get order items
-    items = session.exec(
-        select(OrderItem).where(OrderItem.order_id == order_id)
-    ).all()
-
-    return {
-        "invoice_id": f"INV-{order.id}",
-        "order_id": order.id,
-        "customer": {
-            "id": customer.id,
-            "name": f"{customer.first_name} {customer.last_name}",
-            "email": customer.email
-        },
-        "payment": {
-            "txn_id": payment.txn_id if payment else None,
-            "method": payment.method if payment else None,
-            "status": payment.status if payment else "unpaid",
-            "amount": payment.amount if payment else order.total
-        },
-        "order_status": order.status,
-        "date": order.created_at,
-        "summary": {
-            "subtotal": order.subtotal,
-            "shipping": order.shipping,
-            "tax": order.tax,
-            "total": order.total
-        },
-        "items": [
-            {
-                "title": item.book_title,
-                "price": item.price,
-                "quantity": item.quantity,
-                "total": item.price * item.quantity
-            }
-            for item in items
-        ]
-    }
 
 # d) Invoice Download
 @router.get("/{order_id}/invoice/download")
@@ -299,6 +344,7 @@ def notify_customer(
         content=f"Admin sent an update for your order #{order.id}"
     )
     session.commit()
+    clear_user_caches()
 
     return {"message": "Customer notified successfully", "order_id": order.id}
 
@@ -384,6 +430,11 @@ def update_order_status(
                 "customer_email": user.email,
             }
         )
+    _cached_cancellation_status.cache_clear()
+    clear_admin_cache()
+    _cached_list_orders.cache_clear()
+    _cached_order_details.cache_clear()
+    _cached_invoice_view.cache_clear()
 
     return {
         "message": "Order status updated",
@@ -443,6 +494,10 @@ def add_tracking_info(
 
 
     session.commit()
+    _cached_list_orders.cache_clear()
+    _cached_order_details.cache_clear()
+    _cached_invoice_view.cache_clear()
+
     return {"message": "Tracking added and email sent"}
 
 # Create offline order
@@ -515,6 +570,10 @@ def create_offline_order(
     session.add(order)
     session.commit()
     session.refresh(order)
+    _cached_list_orders.cache_clear()
+    _cached_order_details.cache_clear()
+    _cached_invoice_view.cache_clear()
+
 
     return {
         "message": "Offline order created successfully",

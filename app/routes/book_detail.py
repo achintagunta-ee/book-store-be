@@ -21,13 +21,27 @@ from app.services.inventory_service import reduce_inventory
 from app.services.notification_service import create_notification
 from app.services.order_email_service import send_payment_success_email
 from app.services.payment_service import finalize_payment
+from app.utils.cache_helpers import clear_user_caches
 from app.utils.token import get_current_user  # If review model exists
+from functools import lru_cache
+import time
 
 razorpay_client = razorpay.Client(
     auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
 )
 
 router = APIRouter()
+CACHE_TTL = 60 * 60  # 60 minutes
+
+def _ttl_bucket() -> int:
+    """
+    Changes every 60 minutes → auto cache expiry
+    """
+    return int(time.time() // CACHE_TTL)
+
+def clear_book_detail_cache():
+    _cached_book_detail.cache_clear()
+
 
 # ---------------------------------------------------------
 # Helper Function: Build full book detail response
@@ -69,15 +83,63 @@ def build_book_detail(book: Book, session: Session):
 # ---------------------------------------------------------
 # 1️⃣ GET BOOK DETAIL BY SLUG
 # ---------------------------------------------------------
+@lru_cache(maxsize=512)
+def _cached_book_detail(book_id: int, bucket: int):
+    from app.database import get_session
+    from app.models.book import Book
+    from app.models.category import Category
+    from app.models.review import Review
+    from sqlmodel import select
+
+    with next(get_session()) as session:
+        book = session.get(Book, book_id)
+        if not book:
+            return None
+
+        category = session.get(Category, book.category_id)
+
+        related_books = session.exec(
+            select(Book)
+            .where(Book.category_id == book.category_id, Book.id != book.id)
+            .order_by(Book.is_featured.desc())
+            .limit(6)
+        ).all()
+
+        reviews = session.exec(
+            select(Review).where(Review.book_id == book.id)
+        ).all()
+
+        avg_rating = (
+            sum(r.rating for r in reviews) / len(reviews)
+            if reviews else None
+        )
+
+        return {
+            "book": book,
+            "category": category.name if category else None,
+            "category_id": category.id if category else None,
+            "related_books": related_books,
+            "average_rating": avg_rating,
+            "total_reviews": len(reviews),
+            "reviews": reviews,
+        }
+
 @router.get("/detail/{slug}")
-def get_book_detail(slug: str, session: Session = Depends(get_session)):
+def get_book_detail(slug: str):
+    from app.database import get_session
+    from app.models.book import Book
+    from sqlmodel import select
 
-    book = session.exec(select(Book).where(Book.slug == slug)).first()
+    with next(get_session()) as session:
+        book = session.exec(
+            select(Book).where(Book.slug == slug)
+        ).first()
 
-    if not book:
-        raise HTTPException(404, "Book not found")
+        if not book:
+            raise HTTPException(404, "Book not found")
 
-    return build_book_detail(book, session)
+        return _cached_book_detail(book.id, _ttl_bucket())
+
 
 
 # ---------------------------------------------------------
@@ -86,36 +148,34 @@ def get_book_detail(slug: str, session: Session = Depends(get_session)):
 # /category/fiction/books/detail/the-great-gatsby
 # ---------------------------------------------------------
 @router.get("/category/{category_name}/books/detail/{slug}")
-def get_book_detail_by_category(
-    category_name: str,
-    slug: str,
-    session: Session = Depends(get_session)
-):
+def get_book_detail_by_category(category_name: str, slug: str):
+    from app.database import get_session
+    from app.models.book import Book
+    from app.models.category import Category
+    from sqlmodel import select
 
-    # Check if category exists
-    category = session.exec(
-        select(Category).where(Category.name.ilike(f"%{category_name}%"))
-    ).first()
+    with next(get_session()) as session:
+        category = session.exec(
+            select(Category).where(Category.name.ilike(f"%{category_name}%"))
+        ).first()
 
-    if not category:
-        raise HTTPException(404, f"Category '{category_name}' not found")
+        if not category:
+            raise HTTPException(404, f"Category '{category_name}' not found")
 
-    # Find book with slug + category match
-    book = session.exec(
-        select(Book).where(
-            Book.slug == slug,
-            Book.category_id == category.id
-        )
-    ).first()
+        book = session.exec(
+            select(Book).where(
+                Book.slug == slug,
+                Book.category_id == category.id
+            )
+        ).first()
 
-    if not book:
-        raise HTTPException(
-            404,
-            f"Book '{slug}' not found under category '{category_name}'"
-        )
+        if not book:
+            raise HTTPException(
+                404,
+                f"Book '{slug}' not found under category '{category_name}'"
+            )
 
-    return build_book_detail(book, session)
-
+        return _cached_book_detail(book.id, _ttl_bucket())
 
 
 @router.post("/buy-now")
@@ -184,6 +244,8 @@ def buy_now_create_razorpay_order(
 
     order.gateway_order_id = razorpay_order["id"]
     session.commit()
+    clear_user_caches()
+    
 
     return {
         "order_id": order.id,
@@ -327,7 +389,8 @@ def buy_now_verify_payment(
             "first_name": current_user.first_name,
         }
     )
-    
+    clear_book_detail_cache()
+    clear_user_caches()
     return {
         "message": "Thank you for your order! Payment successful.",
         "order_id": order.id,

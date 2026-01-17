@@ -10,7 +10,9 @@ from app.models.order import Order, OrderStatus
 from app.models.order_item import OrderItem
 from app.models.address import Address
 from app.routes.admin import create_notification
-from app.schemas.guest_checkout import GuestCheckoutSchema, GuestPaymentVerifySchema
+from app.routes.user_orders import _cached_invoice, _cached_track_order, _cached_track_order
+from app.routes.users import _cached_addresses, _cached_my_profile, _cached_order_detail, _cached_order_history
+from app.routes.users import _cached_my_profile
 from app.schemas.user_schemas import RazorpayPaymentVerifySchema
 from app.services.email_service import send_order_confirmation
 from app.services.inventory_service import reduce_inventory
@@ -34,12 +36,32 @@ from fastapi.responses import FileResponse
 import os
 from app.notifications import dispatch_order_event
 from app.notifications import OrderEvent
+from functools import lru_cache
+import time
+from app.utils.cache_helpers import (
+    cached_addresses,
+    cached_address_and_cart,
+    cached_my_payments,
+    _ttl_bucket,
+    cached_payment_detail,
+    clear_user_caches,
+)
+
+
 # Initialize Razorpay client
 razorpay_client = razorpay.Client(
     auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
 )
 
 router = APIRouter()
+CACHE_TTL = 60 * 60  # 60 minutes
+
+def _ttl_bucket() -> int:
+    """
+    Time bucket that changes every 60 minutes.
+    Forces lru_cache expiry.
+    """
+    return int(time.time() // CACHE_TTL)
 
 @router.post("/address")
 def add_address(
@@ -52,6 +74,13 @@ def add_address(
     session.add(address)
     session.commit()
     session.refresh(address)
+    cached_address_and_cart()
+    cached_addresses()
+    _cached_payment_detail.cache_clear()
+    cached_my_payments()
+    cached_addresses.cache_clear()
+    cached_address_and_cart.cache_clear()
+
 
     return {"message": "Address saved", "address_id": address.id}
 
@@ -70,7 +99,7 @@ def update_address(
     # Update fields
     address.first_name = data.first_name
     address.last_name = data.last_name
-    address.phone = data.phone
+    address.phone_number = data.phone_number
     address.address = data.address
     address.city = data.city
     address.state = data.state
@@ -79,6 +108,11 @@ def update_address(
     session.add(address)
     session.commit()
     session.refresh(address)
+    _cached_addresses.cache_clear()
+    _cached_my_profile.cache_clear()
+    cached_addresses.cache_clear()
+    cached_address_and_cart.cache_clear()
+
 
     return {
         "message": "Address updated successfully",
@@ -98,66 +132,34 @@ def delete_address(
 
     session.delete(address)
     session.commit()
+    cached_addresses.cache_clear()
+    cached_address_and_cart.cache_clear()
 
     return {
         "message": "Address deleted successfully"
     }
 
-
 @router.get("/get-address")
 def get_address_and_cart(
-    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    # Get address
-    address = session.exec(
-        select(Address).where(Address.user_id == current_user.id)
-    ).all()
+    return cached_address_and_cart(
+        current_user.id,
+        _ttl_bucket()
+    )
 
-    # Get cart
-    cart_items = session.exec(
-        select(CartItem).where(CartItem.user_id == current_user.id)
-    ).all()
 
-    items = []
-    subtotal = 0
 
-    for item in cart_items:
-        book = session.get(Book, item.book_id)
-        subtotal += item.quantity * book.price
-        items.append({
-            "title": book.title,
-            "price": book.price,
-            "quantity": item.quantity,
-            "total": item.price
-        })
-
-    shipping = 0 if subtotal >= 500 else 150
-    tax = 0   
-
-    total = subtotal + shipping + tax
-
-    return {
-        "addresses": address,
-        "summary": {
-            "subtotal": subtotal,
-            "shipping": shipping,
-            "tax": tax,
-            "total": total
-        },
-        "items": items
-    }
 
 @router.get("/list-addresses")
 def list_addresses(
-    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    addresses = session.exec(
-        select(Address).where(Address.user_id == current_user.id)
-    ).all()
+    return _cached_addresses(
+        current_user.id,
+        _ttl_bucket()
+    )
 
-    return addresses
 
 
 @router.post("/address-summary")
@@ -210,6 +212,10 @@ def checkout_summary(
     shipping = 0 if subtotal >= 500 else 150
     tax = 0
     total = subtotal + shipping
+    cached_address_and_cart.cache_clear()
+    _cached_addresses.cache_clear()
+    _cached_order_history.cache_clear()
+    _cached_order_detail.cache_clear()
 
     return {
         "has_address": True,
@@ -344,6 +350,14 @@ def create_razorpay_order(
     )
     order.gateway_order_id = razorpay_order["id"]   # 🔥 REQUIRED
     session.commit()
+    _cached_order_history.cache_clear()
+    _cached_order_detail.cache_clear()
+    cached_payment_detail()
+    cached_address_and_cart()
+    cached_my_payments()
+    clear_user_caches()
+    
+
 
     return {
     "order_id": order.id,
@@ -450,6 +464,12 @@ def verify_razorpay_payment(
     )
 
     session.commit()
+    _cached_track_order.cache_clear()
+    _cached_invoice.cache_clear()
+    cached_payment_detail()
+    cached_address_and_cart()
+    cached_my_payments()
+    clear_user_caches()
 
 
     # Dispatch order event
@@ -490,7 +510,12 @@ def verify_razorpay_payment(
         }
     )
     
-
+    _cached_order_history.cache_clear()
+    _cached_order_detail.cache_clear()
+    cached_payment_detail()
+    cached_address_and_cart()
+    cached_my_payments()
+    clear_user_caches()
 
     return {
         "message": "Thank you for your order! A confirmation email has been sent.",
@@ -614,6 +639,12 @@ def place_order(
             "customer_email": current_user.email,
         }
     )
+    _cached_order_history.cache_clear()
+    _cached_order_detail.cache_clear()
+    cached_payment_detail()
+    cached_address_and_cart()
+    cached_my_payments()
+    clear_user_caches()
 
     return {
         **(popup_data or {}),
@@ -673,6 +704,13 @@ def complete_payment(
     session.commit()
 
     clear_cart(session, current_user.id)
+    _cached_track_order.cache_clear()
+    _cached_invoice.cache_clear()
+    cached_payment_detail()
+    cached_address_and_cart()
+    cached_my_payments()
+    clear_user_caches()
+
 
     # ✅ delivery dates
     start = (datetime.utcnow() + timedelta(days=3)).strftime("%B %d, %Y")
@@ -713,7 +751,10 @@ def complete_payment(
     }
 )
     session.commit()
-    
+
+    _cached_order_history.cache_clear()
+    _cached_order_detail.cache_clear()
+        
     return {
         "message": "Thank you for your order! A confirmation email has been sent.",
         "order_id": order.id,
@@ -734,100 +775,72 @@ def complete_payment(
         "continue_shopping_url": "/books"
     }
 
+@lru_cache(maxsize=512)
+def _cached_payment_detail(payment_id: int, user_id: int, bucket: int):
+    from app.database import get_session
+    from app.models.payment import Payment
+    from app.models.user import User
+    from sqlmodel import select
+
+    with next(get_session()) as session:
+        result = session.exec(
+            select(Payment, User)
+            .join(User, User.id == Payment.user_id)
+            .where(Payment.id == payment_id)
+        ).first()
+
+        if not result:
+            return None
+
+        payment, user = result
+
+        if user.id != user_id:
+            return None
+
+        return {
+            "payment_id": payment.id,
+            "txn_id": payment.txn_id,
+            "order_id": payment.order_id,
+            "amount": payment.amount,
+            "status": payment.status,
+            "method": payment.method,
+            "customer": {
+                "id": user.id,
+                "name": f"{user.first_name} {user.last_name}",
+                "email": user.email
+            },
+            "created_at": payment.created_at
+        }
+
 
 
 @router.get("/payment-details/{payment_id}")
 def user_payment_detail(
     payment_id: int,
-    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    result = session.exec(
-        select(Payment, User)
-        .join(User, User.id == Payment.user_id)
-        .where(Payment.id == payment_id)
-    ).first()
+    data = _cached_payment_detail(
+        payment_id,
+        current_user.id,
+        _ttl_bucket()
+    )
 
-    if not result:
+    if not data:
         raise HTTPException(404, "Payment not found")
 
-    payment, user = result
+    return data
 
-    return {
-        "payment_id": payment.id,
-        "txn_id": payment.txn_id,
-        "order_id": payment.order_id,
-        "amount": payment.amount,
-        "status": payment.status,
-        "method": payment.method,
-        "customer": {
-            "id": user.id,
-            "name": f"{user.first_name} {user.last_name}",
-            "email": user.email
-        },
-        "created_at": payment.created_at
-    }
-
-
-
-def generate_invoice_pdf(order, session, file_path):
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-
-    c = canvas.Canvas(file_path)
-    c.drawString(100, 750, f"Invoice for Order #{order.id}")
-    c.drawString(100, 720, f"Total: {order.total}")
-    c.drawString(100, 700, f"Date: {order.created_at}")
-
-    c.save()
 
 
 @router.get("/my-payments")
 def list_my_payments(
     page: int = 1,
     limit: int = 10,
-    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    """List all payments for the current user"""
-    
-    query = (
-        select(Payment, Order)
-        .join(Order, Order.id == Payment.order_id)
-        .where(Payment.user_id == current_user.id)
+    return cached_my_payments(
+        current_user.id,
+        page,
+        limit,
+        _ttl_bucket()
     )
-
-    total = session.exec(
-        select(func.count()).select_from(query.subquery())
-    ).one()
-
-    results = session.exec(
-        query
-        .order_by(Payment.created_at.desc())
-        .offset((page - 1) * limit)
-        .limit(limit)
-    ).all()
-
-    return {
-        "total_items": total,
-        "total_pages": (total + limit - 1) // limit,
-        "current_page": page,
-        "results": [
-            {
-                "payment_id": payment.id,
-                "txn_id": payment.txn_id,
-                "order_id": payment.order_id,
-                "amount": payment.amount,
-                "status": payment.status,
-                "method": payment.method,
-                "order_status": order.status,
-                "created_at": payment.created_at,
-                "actions": {
-                    "view_payment": f"/checkout/payment-details/{payment.id}",
-                    "view_order": f"/orders/{order.id}/track",
-                    "download_invoice": f"/orders/{order.id}/invoice/download"
-                }
-            }
-            for payment, order in results
-        ]
-    }
-

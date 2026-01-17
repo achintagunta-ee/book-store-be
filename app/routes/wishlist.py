@@ -7,8 +7,21 @@ from app.models.user import User
 from app.utils.token import get_current_user
 from pydantic import BaseModel
 from sqlalchemy import func
+from functools import lru_cache
+import time
 
 router = APIRouter()
+CACHE_TTL = 60 * 60  # 60 minutes
+
+def _wishlist_cache_key(user_id: int) -> int:
+    """
+    Time-bucketed key.
+    Cache auto-expires every 60 minutes.
+    """
+    return int(time.time() // CACHE_TTL)
+
+def _ttl_bucket():
+    return int(time.time() // CACHE_TTL)
 
 class WishlistBookResponse(BaseModel):
     id: int
@@ -16,13 +29,47 @@ class WishlistBookResponse(BaseModel):
     price: float
     thumbnail: str
 
+@lru_cache(maxsize=512)
+def _cached_wishlist(user_id: int, bucket: int):
+    """
+    Cached wishlist data (TTL = 60 minutes)
+    """
+    from app.database import get_session
+    from app.models.wishlist import Wishlist
+    from app.models.book import Book
+    from sqlmodel import select
+
+    with next(get_session()) as session:
+        wishlist_items = session.exec(
+            select(Wishlist).where(Wishlist.user_id == user_id)
+        ).all()
+
+        response = []
+
+        for w in wishlist_items:
+            book = session.get(Book, w.book_id)
+            if not book:
+                continue
+
+            response.append({
+                "wishlist_id": w.id,
+                "book_id": book.id,
+                "slug": book.slug,
+                "title": book.title,
+                "author": book.author,
+                "price": book.price,
+                "cover_image": book.cover_image,
+            })
+
+        return response
+
+
 @router.post("/add/{book_id}")
 def add_to_wishlist(
     book_id: int,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-
     existing = session.exec(
         select(Wishlist)
         .where(Wishlist.user_id == current_user.id, Wishlist.book_id == book_id)
@@ -31,12 +78,15 @@ def add_to_wishlist(
     if existing:
         return {"message": "Already in wishlist"}
 
-    new_item = Wishlist(user_id=current_user.id, book_id=book_id)
-    session.add(new_item)
+    session.add(Wishlist(user_id=current_user.id, book_id=book_id))
     session.commit()
-    session.refresh(new_item)
+
+    _cached_wishlist.cache_clear()  # 🔥 invalidate
+    _cached_wishlist_status.cache_clear()
+    _cached_wishlist_count.cache_clear()
 
     return {"message": "Added to wishlist"}
+
 
 @router.delete("/remove/{book_id}")
 def remove_from_wishlist(
@@ -44,7 +94,6 @@ def remove_from_wishlist(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-
     item = session.exec(
         select(Wishlist)
         .where(Wishlist.user_id == current_user.id, Wishlist.book_id == book_id)
@@ -56,64 +105,70 @@ def remove_from_wishlist(
     session.delete(item)
     session.commit()
 
+    _cached_wishlist.cache_clear()  # 🔥 invalidate
+    _cached_wishlist_status.cache_clear()
+    _cached_wishlist_count.cache_clear()
+
     return {"message": "Removed from wishlist"}
+
 
 
 @router.get("/")
 def get_wishlist(
-    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
+    return _cached_wishlist(
+        user_id=current_user.id,
+        bucket=_wishlist_cache_key(current_user.id)
+    )
 
-    wishlist_items = session.exec(
-        select(Wishlist).where(Wishlist.user_id == current_user.id)
-    ).all()
+@lru_cache(maxsize=2048)
+def _cached_wishlist_status(user_id: int, book_id: int, bucket: int):
+    from app.database import get_session
+    from app.models.wishlist import Wishlist
+    from sqlmodel import select
 
-    response = []
-
-    for w in wishlist_items:
-        book = session.get(Book, w.book_id)
-        if not book:
-            continue
-
-        response.append({
-            "wishlist_id": w.id,
-            "book_id": book.id,
-            "slug":book.slug,
-            "title": book.title,
-            "author": book.author,
-            "price": book.price,
-            "cover_image": book.cover_image,  # adjust field name
-        })
-
-    return response
+    session = next(get_session())
+    try:
+        exists = session.exec(
+            select(Wishlist).where(
+                Wishlist.user_id == user_id,
+                Wishlist.book_id == book_id
+            )
+        ).first()
+        return {"in_wishlist": bool(exists)}
+    finally:
+        session.close()
 
 @router.get("/status/{book_id}")
 def wishlist_status(
     book_id: int,
-    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    exists = session.exec(
-        select(Wishlist).where(
-            Wishlist.user_id == current_user.id,
-            Wishlist.book_id == book_id
-        )
-    ).first()
+    return _cached_wishlist_status(current_user.id, book_id, _ttl_bucket())
 
-    return {"in_wishlist": bool(exists)}
 
+
+@lru_cache(maxsize=1024)
+def _cached_wishlist_count(user_id: int, bucket: int):
+    from app.database import get_session
+    from app.models.wishlist import Wishlist
+    from sqlmodel import select, func
+
+    session = next(get_session())
+    try:
+        count = session.exec(
+            select(func.count()).select_from(Wishlist).where(
+                Wishlist.user_id == user_id
+            )
+        ).one()
+        return {"count": count or 0}
+    finally:
+        session.close()
 
 
 @router.get("/count")
 def wishlist_count(
-    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    count = session.exec(
-        select(func.count()).select_from(Wishlist).where(
-            Wishlist.user_id == current_user.id
-        )
-    ).first()
-
-    return {"count": count or 0}
+    return _cached_wishlist_count(current_user.id, _ttl_bucket())

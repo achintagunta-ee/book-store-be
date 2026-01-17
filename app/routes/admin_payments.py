@@ -7,13 +7,92 @@ from app.models.payment import Payment
 from app.models.user import User
 from app.models.order import Order
 from app.utils.token import get_current_user
+from functools import lru_cache
+import time
 
 router = APIRouter()
+CACHE_TTL = 60 * 60  # 60 minutes
+
+def _ttl_bucket() -> int:
+    return int(time.time() // CACHE_TTL)
 
 def require_admin(current_user: User = Depends(get_current_user)):
     if current_user.role != "admin":
         raise HTTPException(403, "Admin access required")
     return current_user
+
+@lru_cache(maxsize=256)
+def _cached_list_payments(
+    page: int,
+    limit: int,
+    status: Optional[str],
+    start_date: Optional[str],
+    end_date: Optional[str],
+    search: Optional[str],
+    bucket: int
+):
+    from app.database import get_session
+    from app.models.payment import Payment
+    from app.models.user import User
+    from sqlmodel import select, func
+
+    with next(get_session()) as session:
+        query = select(Payment, User).join(User, User.id == Payment.user_id)
+
+        if status and status.lower() != "all":
+            status = status.lower()
+            if status == "completed":
+                query = query.where(Payment.status.in_(["success", "paid"]))
+            elif status == "pending":
+                query = query.where(Payment.status == "pending")
+            elif status == "failed":
+                query = query.where(Payment.status == "failed")
+            else:
+                query = query.where(Payment.status == status)
+
+        if start_date:
+            query = query.where(func.date(Payment.created_at) >= start_date)
+        if end_date:
+            query = query.where(func.date(Payment.created_at) <= end_date)
+
+        if search:
+            s = f"%{search}%"
+            query = query.where(
+                (User.first_name.ilike(s)) |
+                (User.last_name.ilike(s)) |
+                (Payment.txn_id.ilike(s)) |
+                (Payment.order_id.cast(str).ilike(s))
+            )
+
+        total = session.exec(
+            select(func.count()).select_from(query.subquery())
+        ).one()
+
+        results = session.exec(
+            query.order_by(Payment.created_at.desc())
+            .offset((page - 1) * limit)
+            .limit(limit)
+        ).all()
+
+        return {
+            "total_items": total,
+            "total_pages": (total + limit - 1) // limit,
+            "current_page": page,
+            "results": [
+                {
+                    "payment_id": p.id,
+                    "txn_id": p.txn_id,
+                    "order_id": p.order_id,
+                    "amount": p.amount,
+                    "status": p.status,
+                    "method": p.method,
+                    "customer_name": f"{u.first_name} {u.last_name}",
+                    "created_at": p.created_at,
+                }
+                for p, u in results
+            ]
+        }
+
 
 @router.get("")
 def list_payments(
@@ -23,131 +102,93 @@ def list_payments(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     search: Optional[str] = Query(None),
-    session: Session = Depends(get_session),
     admin: User = Depends(require_admin)
 ):
-    """
-    Get payments with filters
-    """
-    # Build query
-    query = select(Payment, User).join(User, User.id == Payment.user_id)
-    
-    # Status filter
-    if status and status.lower() != "all":
-        status = status.lower()
-        if status == "completed":
-            query = query.where(Payment.status.in_(["success", "paid"]))
-        elif status == "pending":
-            query = query.where(Payment.status == "pending")
-        elif status == "failed":
-            query = query.where(Payment.status == "failed")
-        else:
-            query = query.where(Payment.status == status)
-    
-    # Date filter
-    if start_date:
-        query = query.where(func.date(Payment.created_at) >= start_date)
-    if end_date:
-        query = query.where(func.date(Payment.created_at) <= end_date)
-    
-    # Search filter
-    if search:
-        search_term = f"%{search}%"
-        query = query.where(
-            (User.first_name.ilike(search_term)) |
-            (User.last_name.ilike(search_term)) |
-            (Payment.txn_id.ilike(search_term)) |
-            (Payment.order_id.cast(str).ilike(search_term))
-        )
-    
-    # Get total count
-    total = session.exec(
-        select(func.count()).select_from(query.subquery())
-    ).one()
-    
-    # Get paginated results
-    results = session.exec(
-        query.order_by(Payment.created_at.desc())
-        .offset((page - 1) * limit)
-        .limit(limit)
-    ).all()
-    
-    return {
-        "total_items": total,
-        "total_pages": (total + limit - 1) // limit,
-        "current_page": page,
-        "results": [
-            {
-                "payment_id": payment.id,
-                "txn_id": payment.txn_id,
-                "order_id": payment.order_id,
-                "amount": payment.amount,
-                "status": payment.status,
-                "method": payment.method,
-                "customer_name": f"{user.first_name} {user.last_name}",
-                "created_at": payment.created_at,
-            }
-            for payment, user in results
-        ]
-    }
+    return _cached_list_payments(
+        page,
+        limit,
+        status,
+        str(start_date) if start_date else None,
+        str(end_date) if end_date else None,
+        search,
+        _ttl_bucket()
+    )
+
+@lru_cache(maxsize=512)
+def _cached_payment_details(payment_id: int, bucket: int):
+    from app.database import get_session
+    from app.models.payment import Payment
+    from app.models.user import User
+    from sqlmodel import select
+
+    with next(get_session()) as session:
+        result = session.exec(
+            select(Payment, User)
+            .join(User, User.id == Payment.user_id)
+            .where(Payment.id == payment_id)
+        ).first()
+
+        if not result:
+            return None
+
+        payment, user = result
+        return {
+            "payment_id": payment.id,
+            "txn_id": payment.txn_id,
+            "order_id": payment.order_id,
+            "amount": payment.amount,
+            "status": payment.status,
+            "method": payment.method,
+            "customer": {
+                "id": user.id,
+                "name": f"{user.first_name} {user.last_name}",
+                "email": user.email
+            },
+            "created_at": payment.created_at
+        }
+
 
 @router.get("/{payment_id}")
 def get_payment_details(
     payment_id: int,
-    session: Session = Depends(get_session),
     admin: User = Depends(require_admin)
 ):
-    """
-    Get payment details by ID
-    """
-    result = session.exec(
-        select(Payment, User).join(User, User.id == Payment.user_id)
-        .where(Payment.id == payment_id)
-    ).first()
-    
-    if not result:
+    data = _cached_payment_details(payment_id, _ttl_bucket())
+    if not data:
         raise HTTPException(404, "Payment not found")
-    
-    payment, user = result
-    
-    return {
-        "payment_id": payment.id,
-        "txn_id": payment.txn_id,
-        "order_id": payment.order_id,
-        "amount": payment.amount,
-        "status": payment.status,
-        "method": payment.method,
-        "customer": {
-            "id": user.id,
-            "name": f"{user.first_name} {user.last_name}",
-            "email": user.email
-        },
-        "created_at": payment.created_at
-    }
+    return data
+
+@lru_cache(maxsize=512)
+def _cached_payment_receipt(payment_id: int, bucket: int):
+    from app.database import get_session
+    from app.models.payment import Payment
+
+    with next(get_session()) as session:
+        payment = session.get(Payment, payment_id)
+        if not payment:
+            return None
+
+        return {
+            "receipt_id": f"RCT-{payment.id}",
+            "payment_id": payment.id,
+            "txn_id": payment.txn_id,
+            "order_id": payment.order_id,
+            "amount": payment.amount,
+            "method": payment.method,
+            "status": payment.status,
+            "paid_at": payment.created_at
+        }
+
 
 @router.get("/{payment_id}/receipt")
 def get_payment_receipt(
     payment_id: int,
-    session: Session = Depends(get_session),
     admin: User = Depends(require_admin)
 ):
-    """
-    Get payment receipt
-    """
-    payment = session.get(Payment, payment_id)
-    if not payment:
+    data = _cached_payment_receipt(payment_id, _ttl_bucket())
+    if not data:
         raise HTTPException(404, "Payment not found")
-    
-    return {
-        "receipt_id": f"RCT-{payment.id}",
-        "payment_id": payment.id,
-        "txn_id": payment.txn_id,
-        "order_id": payment.order_id,
-        "amount": payment.amount,
-        "method": payment.method,
-        "status": payment.status,
-        "paid_at": payment.created_at
-    }
+    return data
 
 @router.post("/offline")
 def create_offline_payment(
@@ -194,6 +235,10 @@ def create_offline_payment(
     session.add(payment)
     session.commit()
     session.refresh(payment)
+    _cached_list_payments.cache_clear()
+    _cached_payment_details.cache_clear()
+    _cached_payment_receipt.cache_clear()
+
 
     return {
         "message": "Offline payment recorded successfully",

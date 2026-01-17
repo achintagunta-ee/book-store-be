@@ -4,6 +4,9 @@ from app.database import get_session
 from app.models.book import Book
 from app.models.category import Category
 from app.models.user import User
+from app.routes.admin import clear_admin_cache
+from app.routes.book_detail import clear_book_detail_cache
+from app.routes.books_public import clear_books_cache
 from app.utils.token import get_current_admin, get_current_user
 import os
 import tempfile
@@ -12,11 +15,27 @@ from app.config import settings
 from slugify import slugify
 from app.services.r2_client import  s3_client, R2_BUCKET_NAME
 from app.services.r2_helper import  delete_r2_file , upload_book_cover
+from functools import lru_cache
+import time
 
 router = APIRouter()
 
 BOOK_COVER_DIR = os.path.join(tempfile.gettempdir(), "hithabodha_uploads", "book_covers")
 os.makedirs(BOOK_COVER_DIR, exist_ok=True)
+CACHE_TTL = 60 * 60  # 60 minutes
+
+def _ttl_bucket() -> int:
+    """
+    Changes every 60 minutes → forces cache refresh
+    """
+    return int(time.time() // CACHE_TTL)
+
+def clear_admin_books_cache():
+    _cached_admin_filter_books.cache_clear()
+    _cached_admin_book_list.cache_clear()
+    _cached_admin_book.cache_clear()
+    _cached_fix_placeholder.cache_clear()
+
 
 
 @router.post("/")
@@ -86,8 +105,63 @@ def create_book(
     session.add(book)
     session.commit()
     session.refresh(book)
+    clear_books_cache()
+    clear_admin_books_cache()
+    clear_admin_cache()
 
     return book
+
+@lru_cache(maxsize=256)
+def _cached_admin_filter_books(key: str, bucket: int):
+    from app.database import get_session
+    from app.models.book import Book
+    from app.models.category import Category
+    from sqlmodel import select
+
+    filters = eval(key)
+
+    with next(get_session()) as session:
+        query = select(Book)
+
+        if filters.get("title"):
+            query = query.where(Book.title.ilike(f"%{filters['title']}%"))
+
+        if filters.get("category"):
+            category = session.exec(
+                select(Category).where(
+                    Category.name.ilike(f"%{filters['category']}%")
+                )
+            ).first()
+            if not category:
+                return {"total_books": 0, "results": []}
+            query = query.where(Book.category_id == category.id)
+
+        if filters.get("author"):
+            query = query.where(Book.author.ilike(f"%{filters['author']}%"))
+
+        if filters.get("min_price") is not None:
+            query = query.where(Book.price >= filters["min_price"])
+
+        if filters.get("max_price") is not None:
+            query = query.where(Book.price <= filters["max_price"])
+
+        if filters.get("rating") is not None:
+            query = query.where(Book.rating >= filters["rating"])
+
+        if filters.get("is_featured") is not None:
+            query = query.where(Book.is_featured == filters["is_featured"])
+
+        if filters.get("is_featured_author") is not None:
+            query = query.where(
+                Book.is_featured_author == filters["is_featured_author"]
+            )
+
+        results = session.exec(query).all()
+
+        return {
+            "total_books": len(results),
+            "results": results
+        }
 
 
 @router.get("/filter")
@@ -100,78 +174,54 @@ def filter_books_admin(
     rating: float | None = None,
     is_featured: bool | None = None,
     is_featured_author: bool | None = None,
-    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
     if current_user.role != "admin":
         raise HTTPException(403, "Admin access required")
 
-    query = select(Book)
+    key = repr(locals())
+    return _cached_admin_filter_books(key, _ttl_bucket())
 
-    if title:
-        query = query.where(Book.title.ilike(f"%{title}%"))
+@lru_cache(maxsize=128)
+def _cached_admin_book_list(bucket: int):
+    from app.database import get_session
+    from app.models.book import Book
+    from sqlmodel import select
 
-    if category:
-        category_obj = session.exec(
-            select(Category).where(Category.name.ilike(f"%{category}%"))
-        ).first()
+    with next(get_session()) as session:
+        return session.exec(select(Book)).all()
 
-        if not category_obj:
-            return {"total_books": 0, "results": []}
-
-        query = query.where(Book.category_id == category_obj.id)
-
-    if author:
-        query = query.where(Book.author.ilike(f"%{author}%"))
-
-    if min_price is not None:
-        query = query.where(Book.price >= min_price)
-
-    if max_price is not None:
-        query = query.where(Book.price <= max_price)
-
-    if rating is not None:
-        query = query.where(Book.rating >= rating)
-
-    if is_featured is not None:
-        query = query.where(Book.is_featured == is_featured)
-
-    if is_featured_author is not None:
-        query = query.where(Book.is_featured_author == is_featured_author)
-
-    results = session.exec(query).all()
-
-    return {
-        "total_books": len(results),
-        "results": results
-    }
 
 
 @router.get("/list")
-def list_books(
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
-):
+def list_books_admin(current_user: User = Depends(get_current_user)):
     if current_user.role != "admin":
         raise HTTPException(403, "Admin access required")
 
-    return session.exec(select(Book)).all()
+    return _cached_admin_book_list(_ttl_bucket())
 
+
+@lru_cache(maxsize=256)
+def _cached_admin_book(book_id: int, bucket: int):
+    from app.database import get_session
+    from app.models.book import Book
+
+    with next(get_session()) as session:
+        return session.get(Book, book_id)
 
 @router.get("/{book_id}")
 def get_book_admin(
     book_id: int,
-    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
     if current_user.role != "admin":
         raise HTTPException(403, "Admin access required")
 
-    book = session.get(Book, book_id)
+    book = _cached_admin_book(book_id, _ttl_bucket())
     if not book:
         raise HTTPException(404, "Book not found")
-
     return book
+
 
 
 @router.put("/{book_id}")
@@ -252,6 +302,10 @@ def update_book(
     session.add(book)
     session.commit()
     session.refresh(book)
+    clear_books_cache()
+    clear_admin_books_cache()
+    clear_book_detail_cache()
+    clear_admin_cache()
     return book
 
 
@@ -273,6 +327,9 @@ def delete_book(
 
     session.delete(book)
     session.commit()
+    clear_books_cache()
+    clear_admin_books_cache()
+    clear_admin_cache()
     return {"message": "Book deleted"}
 
 @router.post("/{book_id}/upload-ebook")
@@ -313,6 +370,7 @@ def upload_ebook_pdf(
     session.add(book)
     session.commit()
     session.refresh(book)
+    clear_admin_books_cache
 
     return {
         "message": "eBook uploaded successfully",
@@ -322,16 +380,30 @@ def upload_ebook_pdf(
         "is_ebook": book.is_ebook
     }
 
+@lru_cache(maxsize=1)
+def _cached_fix_placeholder(bucket: int):
+    from app.database import get_session
+    from app.models.book import Book
+    from sqlmodel import select
+
+    placeholder = (
+        "https://a047bce5cc9e171db6a84417a1d8c8b4.r2.cloudflarestorage.com/"
+        "placeholders/book_cover_placeholder.jpg"
+    )
+
+    with next(get_session()) as session:
+        books = session.exec(
+            select(Book).where(Book.cover_image == None)
+        ).all()
+
+        for book in books:
+            book.cover_image = placeholder
+            session.add(book)
+
+        session.commit()
+        return {"updated": len(books)}
 
 @router.get("/fix-book-placeholder")
-def fix_book_placeholder(session: Session = Depends(get_session)):
-    placeholder = "https://a047bce5cc9e171db6a84417a1d8c8b4.r2.cloudflarestorage.com//placeholders/book_cover_placeholder.jpg"
+def fix_book_placeholder():
+    return _cached_fix_placeholder(_ttl_bucket())
 
-    books = session.exec(select(Book).where(Book.cover_image == None)).all()
-
-    for book in books:
-        book.cover_image = placeholder
-        session.add(book)
-
-    session.commit()
-    return {"updated": len(books)}

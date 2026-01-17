@@ -33,116 +33,150 @@ from fastapi.responses import FileResponse
 import os
 from app.notifications import dispatch_order_event
 from app.notifications import OrderEvent
+from functools import lru_cache
+import time
+from app.utils.cache_helpers import cached_addresses, _ttl_bucket
+
 # Initialize Razorpay client
 razorpay_client = razorpay.Client(
     auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
 )
 
 router = APIRouter()
+
+CACHE_TTL = 60 * 60  # 60 minutes
+
+def _ttl_bucket() -> int:
+    """
+    Changes every 60 minutes → forces cache refresh
+    """
+    return int(time.time() // CACHE_TTL)
+
+@lru_cache(maxsize=512)
+def _cached_track_order(order_id: int, user_id: int, bucket: int):
+    from app.database import get_session
+    from app.models.order import Order
+    from app.models.order_item import OrderItem
+    from app.models.payment import Payment
+    from sqlmodel import select
+
+    with next(get_session()) as session:
+        order = session.get(Order, order_id)
+
+        if not order or order.user_id != user_id:
+            return None
+
+        items = session.exec(
+            select(OrderItem).where(OrderItem.order_id == order.id)
+        ).all()
+
+        payment = session.exec(
+            select(Payment).where(Payment.order_id == order_id)
+        ).first()
+
+        tracking_available = bool(order.tracking_id and order.tracking_url)
+
+        return {
+            "order_id": f"#{order.id}",
+            "status": order.status,
+            "created_at": order.created_at,
+            "updated_at": order.updated_at,
+            "payment": {
+                "status": payment.status if payment else "unpaid",
+                "method": payment.method if payment else None,
+                "txn_id": payment.txn_id if payment else None,
+                "amount": order.total,
+                "paid_at": payment.created_at if payment else None
+            },
+            "tracking": {
+                "available": tracking_available,
+                "tracking_id": order.tracking_id,
+                "tracking_url": order.tracking_url,
+                "message": None if tracking_available
+                else "Tracking will be available once your order is shipped"
+            },
+            "books": [
+                {
+                    "book_id": i.book_id,
+                    "title": i.book_title,
+                    "quantity": i.quantity,
+                    "price": i.price,
+                    "total": i.price * i.quantity
+                }
+                for i in items
+            ]
+        }
+
 # Track Orders
 
 @router.get("/{order_id}/track")
 def track_order(
     order_id: int,
-    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    order = session.get(Order, order_id)
-
-    if not order or order.user_id != current_user.id:
+    data = _cached_track_order(order_id, current_user.id, _ttl_bucket())
+    if not data:
         raise HTTPException(404, "Order not found")
+    return data
 
-    # Fetch order items
-    items = session.exec(
-        select(OrderItem).where(OrderItem.order_id == order.id)
-    ).all()
+@lru_cache(maxsize=512)
+def _cached_invoice(order_id: int, user_id: int, bucket: int):
+    from app.database import get_session
+    from app.models.order import Order
+    from app.models.order_item import OrderItem
+    from app.models.payment import Payment
+    from sqlmodel import select
 
-    # Get payment details
-    payment = session.exec(
-        select(Payment).where(Payment.order_id == order_id)
-    ).first()
+    with next(get_session()) as session:
+        order = session.get(Order, order_id)
+        if not order or order.user_id != user_id:
+            return None
 
-    tracking_available = bool(order.tracking_id and order.tracking_url)
+        payment = session.exec(
+            select(Payment).where(Payment.order_id == order_id)
+        ).first()
 
-    return {
-        "order_id": f"#{order.id}",
-        "status": order.status,
-        "created_at": order.created_at,
-        "updated_at": order.updated_at,
-        "payment": {
-            "status": payment.status if payment else "unpaid",
-            "method": payment.method if payment else None,
-            "txn_id": payment.txn_id if payment else None,
-            "amount": order.total,
-            "paid_at": payment.created_at if payment else None
-        },
-        "tracking": {
-            "available": tracking_available,
-            "tracking_id": order.tracking_id,
-            "tracking_url": order.tracking_url,
-            "message": (
-                None if tracking_available
-                else "Tracking will be available once your order is shipped"
-            ),
-        },
-        "books": [
-            {
-                "book_id": item.book_id,
-                "title": item.book_title,
-                "quantity": item.quantity,
-                "price": item.price,
-                "total": item.price * item.quantity
-            }
-            for item in items
-        ]
-    }
+        items = session.exec(
+            select(OrderItem).where(OrderItem.order_id == order_id)
+        ).all()
+
+        return {
+            "invoice_id": f"INV-{order.id}",
+            "order_id": order.id,
+            "customer": {
+                "name": f"{order.user.first_name} {order.user.last_name}",
+                "email": order.user.email
+            },
+            "payment": {
+                "txn_id": payment.txn_id if payment else None,
+                "method": payment.method if payment else None,
+                "status": payment.status if payment else "unpaid",
+                "amount": payment.amount if payment else order.total,
+                "payment_id": payment.id if payment else None
+            },
+            "date": order.created_at,
+            "total": order.total,
+            "items": [
+                {
+                    "title": i.book_title,
+                    "price": i.price,
+                    "qty": i.quantity,
+                    "total": i.price * i.quantity
+                }
+                for i in items
+            ]
+        }
 
 #View Invoice 
 @router.get("/{order_id}/invoice")
 def get_invoice(
     order_id: int,
-    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    order = session.get(Order, order_id)
-
-    if not order or order.user_id != current_user.id:
+    data = _cached_invoice(order_id, current_user.id, _ttl_bucket())
+    if not data:
         raise HTTPException(404, "Order not found")
-
-    payment = session.exec(
-        select(Payment).where(Payment.order_id == order_id)
-    ).first()
-
-    items = session.exec(
-        select(OrderItem).where(OrderItem.order_id == order_id)
-    ).all()
-
-    return {
-        "invoice_id": f"INV-{order.id}",
-        "order_id": order.id,
-        "customer": {
-            "name": f"{current_user.first_name} {current_user.last_name}",
-            "email": current_user.email
-        },
-        "payment": {
-            "txn_id": payment.txn_id if payment else None,
-            "method": payment.method if payment else None,
-            "status": payment.status if payment else "unpaid",
-            "amount": payment.amount if payment else order.total,
-            "payment_id": payment.id if payment else None  # ✅ Include payment_id
-        },
-        "date": order.created_at,
-        "total": order.total,
-        "items": [
-            {
-                "title": i.book_title,
-                "price": i.price,
-                "qty": i.quantity,
-                "total": i.price * i.quantity
-            }
-            for i in items
-        ]
-    }
+    return data
 
 
 

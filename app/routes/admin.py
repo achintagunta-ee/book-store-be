@@ -18,6 +18,7 @@ from app.models.category import Category
 from app.constants.order_status import ALLOWED_TRANSITIONS
 from app.services.notification_service import create_notification
 from app.services.r2_helper import delete_r2_file, to_presigned_url, upload_profile_image, upload_site_logo
+from app.utils.cache_helpers import clear_user_caches
 from app.utils.hash import verify_password, hash_password
 from app.utils.token import get_current_admin, get_current_user
 import os
@@ -31,15 +32,82 @@ from app.models.notifications import (
     NotificationChannel,
     NotificationStatus,
 )
+from functools import lru_cache
+import time
 
 
 router = APIRouter()
+CACHE_TTL = 60 * 60  # 60 minutes
 
+def _ttl_bucket() -> int:
+    return int(time.time() // CACHE_TTL)
 
 def require_admin(current_user: User = Depends(get_current_user)):
     if current_user.role != "admin":
         raise HTTPException(403, "Admin access required")
     return current_user
+
+def clear_admin_cache():
+    _cached_admin_dashboard.cache_clear()
+    _cached_admin_search.cache_clear()
+
+@lru_cache(maxsize=32)
+def _cached_admin_dashboard(bucket: int):
+    from app.database import get_session
+    from app.models.book import Book
+    from app.models.order import Order
+    from sqlmodel import select, func
+
+    with next(get_session()) as session:
+        total_books = session.exec(select(func.count(Book.id))).one()
+        total_orders = session.exec(select(func.count(Order.id))).one()
+
+        total_revenue = session.exec(
+            select(func.coalesce(func.sum(Order.total), 0))
+            .where(Order.status.in_(["paid", "shipped", "delivered"]))
+        ).one()
+
+        low_stock = session.exec(
+            select(func.count(Book.id)).where(Book.stock <= 5)
+        ).one()
+
+        return {
+            "total_books": total_books,
+            "total_orders": total_orders,
+            "total_revenue": float(total_revenue),
+            "low_stock": low_stock
+        }
+@lru_cache(maxsize=128)
+def _cached_admin_search(q: str, bucket: int):
+    from app.database import get_session
+    from app.models.book import Book
+    from app.models.user import User
+    from app.models.order import Order
+    from sqlmodel import select
+
+    with next(get_session()) as session:
+        books = session.exec(
+            select(Book).where(Book.title.ilike(f"%{q}%"))
+        ).all()
+
+        users = session.exec(
+            select(User).where(
+                (User.username.ilike(f"%{q}%")) |
+                (User.email.ilike(f"%{q}%"))
+            )
+        ).all()
+
+        orders = []
+        if q.isdigit():
+            orders = session.exec(
+                select(Order).where(Order.id == int(q))
+            ).all()
+
+        return {
+            "books": books,
+            "users": users,
+            "orders": orders
+        }
 
 
 # -------- ADMIN PROFILE --------
@@ -124,28 +192,10 @@ from sqlmodel import select, func
 
 @router.get("/dashboard")
 def admin_dashboard(
-    session: Session = Depends(get_session),
     current_admin: User = Depends(require_admin)
 ):
-    total_books = session.exec(select(func.count(Book.id))).one()
-    total_orders = session.exec(select(func.count(Order.id))).one()
-
-    total_revenue = session.exec(
-        select(func.coalesce(func.sum(Order.total), 0))
-        .where(Order.status.in_(["paid", "shipped", "delivered"]))
-    ).one()
-
-    low_stock = session.exec(
-        select(func.count(Book.id)).where(Book.stock <= 5)
-    ).one()
-
     return {
-        "cards": {
-            "total_books": total_books,
-            "total_orders": total_orders,
-            "total_revenue": float(total_revenue),
-            "low_stock": low_stock
-        },
+        "cards": _cached_admin_dashboard(_ttl_bucket()),
         "admin_info": {
             "id": current_admin.id,
             "username": current_admin.username,
@@ -157,31 +207,10 @@ def admin_dashboard(
 @router.get("/search")
 def admin_search(
     q: str,
-    session: Session = Depends(get_session),
     admin: User = Depends(require_admin)
 ):
-    books = session.exec(
-        select(Book).where(Book.title.ilike(f"%{q}%"))
-    ).all()
+    return _cached_admin_search(q, _ttl_bucket())
 
-    users = session.exec(
-        select(User).where(
-            (User.username.ilike(f"%{q}%")) |
-            (User.email.ilike(f"%{q}%"))
-        )
-    ).all()
-
-    orders = []
-    if q.isdigit():
-        orders = session.exec(
-            select(Order).where(Order.id == int(q))
-        ).all()
-
-    return {
-        "books": books,
-        "users": users,
-        "orders": orders
-    }
 
 # -------- ADMIN NOTIFICATIONS --------
 
@@ -269,6 +298,7 @@ def notify_customer(
     )
 
     session.commit()
+    clear_user_caches()
     return {"message": "Customer notified"}
 
 

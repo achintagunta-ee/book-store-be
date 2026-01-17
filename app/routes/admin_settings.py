@@ -9,38 +9,52 @@ from app.database import get_session
 from app.dependencies.admin import require_admin
 from app.models.general_settings import GeneralSettings
 from app.models.social_links import SocialLinks
+from app.routes.public_settings import _cached_social_links
 from app.services.r2_helper import to_presigned_url, upload_site_logo
-
+from functools import lru_cache
+import time
+from functools import lru_cache
+import time
 
 router = APIRouter()
+CACHE_TTL = 60 * 60  # 60 minutes
 
+def _ttl_bucket() -> int:
+    return int(time.time() // CACHE_TTL)
+
+@lru_cache(maxsize=1)
+def _cached_general_settings(bucket: int):
+    from app.database import get_session
+    from app.models.general_settings import GeneralSettings
+    from app.services.r2_helper import to_presigned_url
+
+    with next(get_session()) as session:
+        settings = session.get(GeneralSettings, 1)
+
+        if not settings:
+            settings = GeneralSettings(
+                id=1,
+                site_title="Hithabodha Book Store",
+                store_address="",
+                contact_email=""
+            )
+            session.add(settings)
+            session.commit()
+            session.refresh(settings)
+
+        return {
+            "site_title": settings.site_title,
+            "store_address": settings.store_address,
+            "contact_email": settings.contact_email,
+            "updated_at": settings.updated_at,
+            "site_logo_url": to_presigned_url(settings.site_logo),
+        }
 
 @router.get("/general")
 def get_general_settings(
-    session = Depends(get_session),
     admin = Depends(require_admin)
 ):
-    settings = session.get(GeneralSettings, 1)
-
-    if not settings:
-        settings = GeneralSettings(
-            id=1,
-            site_title="Hithabodha Book Store",
-            store_address="",
-            contact_email=""
-        )
-        session.add(settings)
-        session.commit()
-        session.refresh(settings)
-
-    return {
-        "site_title": settings.site_title,
-        "store_address": settings.store_address,
-        "contact_email": settings.contact_email,
-        "updated_at": settings.updated_at,
-        "site_logo_url": to_presigned_url(settings.site_logo),
-    }
-
+    return _cached_general_settings(_ttl_bucket())
 
 
 @router.put("/general/update")
@@ -76,6 +90,8 @@ def update_general_settings(
     settings.updated_at = datetime.utcnow()
     session.commit()
     session.refresh(settings)
+    _cached_general_settings.cache_clear()
+
 
     return {
         "message": "General settings updated successfully",
@@ -123,5 +139,5 @@ def update_social_links(
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
+    _cached_social_links.cache_clear()
     return settings

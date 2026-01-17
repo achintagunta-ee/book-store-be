@@ -18,7 +18,6 @@ from app.routes import (
     ebooks,
     order_cancellation,
     public_settings,
-    test_email,
     user_library,
     user_orders,
     users,
@@ -105,7 +104,6 @@ app.include_router(admin_payments.router,prefix="/admin/payments",tags= ["Admin 
 app.include_router(admin_orders.router,prefix="/admin/orders",tags= ["Admin Orders"])
 app.include_router(admin_notifications.router,prefix="/admin/notifications",tags= ["Admin Notifications"])
 app.include_router(book_inventory.router,prefix="/admin/book",tags= ["Book Inventory"])
-app.include_router(test_email.router,prefix="/email",tags=["Emails"])
 app.include_router(admin_settings.router,prefix="/admin/settings",tags= ["Admin Settings"])
 app.include_router(public_settings.router,prefix="/settings",tags= ["Public Settings"])
 app.include_router(order_cancellation.router,prefix="/orders/cancellations",tags= ["User Order Cancellation"])

@@ -12,11 +12,27 @@ import io
 import os
 from datetime import datetime
 from dotenv import load_dotenv
+from functools import lru_cache
+import time
 
 # Load environment variables from .env file
 load_dotenv()
 
 router = APIRouter()
+CACHE_TTL = 60 * 60  # 60 minutes
+
+def _ttl_bucket() -> int:
+    """
+    Changes every 60 minutes → auto cache expiry
+    """
+    return int(time.time() // CACHE_TTL)
+
+def clear_r2_cache():
+    _cached_list_files.cache_clear()
+    _cached_list_by_folder.cache_clear()
+    _cached_file_info.cache_clear()
+    _cached_presigned_url.cache_clear()
+
 
 # R2 Configuration
 R2_ACCOUNT_ID = os.getenv("R2_ACCOUNT_ID")
@@ -70,6 +86,7 @@ async def upload_file(
             Body=contents,
             ContentType=file.content_type
         )
+        clear_r2_cache()
         
         return {
             "message": "File uploaded successfully",
@@ -112,7 +129,7 @@ async def upload_multiple_files(files: List[UploadFile] = File(...)):
                 "filename": file.filename,
                 "error": str(e)
             })
-    
+    clear_r2_cache()
     return {"uploaded_files": uploaded_files}
 
 
@@ -137,84 +154,89 @@ async def download_file(file_key: str):
             raise HTTPException(status_code=404, detail="File not found")
         raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
 
+@lru_cache(maxsize=256)
+def _cached_list_files(prefix: str, max_keys: int, bucket: int):
+    response = s3_client.list_objects_v2(
+        Bucket=R2_BUCKET_NAME,
+        Prefix=prefix,
+        MaxKeys=max_keys
+    )
+
+    files = []
+    if "Contents" in response:
+        for obj in response["Contents"]:
+            files.append({
+                "key": obj["Key"],
+                "size": obj["Size"],
+                "last_modified": obj["LastModified"].isoformat()
+            })
+
+    return {
+        "files": files,
+        "count": len(files)
+    }
+
 
 @router.get("/list")
 async def list_files(prefix: str = "", max_keys: int = 100):
-    """List files in R2 storage"""
-    try:
-        response = s3_client.list_objects_v2(
-            Bucket=R2_BUCKET_NAME,
-            Prefix=prefix,
-            MaxKeys=max_keys
-        )
-        
-        files = []
-        if 'Contents' in response:
-            for obj in response['Contents']:
-                files.append({
-                    "key": obj['Key'],
-                    "size": obj['Size'],
-                    "last_modified": obj['LastModified'].isoformat()
-                })
-        
-        return {
-            "files": files,
-            "count": len(files)
-        }
-    
-    except ClientError as e:
-        raise HTTPException(status_code=500, detail=f"List failed: {str(e)}")
-
+    return _cached_list_files(prefix, max_keys, _ttl_bucket())
 
 @router.delete("/delete/{file_key:path}")
 async def delete_file(file_key: str):
+    
     """Delete a file from R2 storage"""
     try:
         s3_client.delete_object(Bucket=R2_BUCKET_NAME, Key=file_key)
+        clear_r2_cache()
         return {"message": "File deleted successfully", "key": file_key}
     
     except ClientError as e:
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
 
 
+@lru_cache(maxsize=512)
+def _cached_file_info(file_key: str, bucket: int):
+    response = s3_client.head_object(
+        Bucket=R2_BUCKET_NAME,
+        Key=file_key
+    )
+
+    return {
+        "key": file_key,
+        "size": response["ContentLength"],
+        "content_type": response.get("ContentType"),
+        "last_modified": response["LastModified"].isoformat(),
+        "etag": response["ETag"]
+    }
+
+
 @router.get("/file-info/{file_key:path}")
 async def get_file_info(file_key: str):
-    """Get metadata information about a file"""
     try:
-        response = s3_client.head_object(Bucket=R2_BUCKET_NAME, Key=file_key)
-        
-        return {
-            "key": file_key,
-            "size": response['ContentLength'],
-            "content_type": response.get('ContentType'),
-            "last_modified": response['LastModified'].isoformat(),
-            "etag": response['ETag']
-        }
-    
+        return _cached_file_info(file_key, _ttl_bucket())
     except ClientError as e:
-        if e.response['Error']['Code'] == '404':
-            raise HTTPException(status_code=404, detail="File not found")
-        raise HTTPException(status_code=500, detail=f"Failed to get info: {str(e)}")
+        if e.response["Error"]["Code"] == "404":
+            raise HTTPException(404, "File not found")
+        raise HTTPException(500, str(e))
+    
+@lru_cache(maxsize=512)
+def _cached_presigned_url(file_key: str, expiration: int, bucket: int):
+    return {
+        "url": s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": R2_BUCKET_NAME, "Key": file_key},
+            ExpiresIn=expiration
+        ),
+        "expires_in_seconds": expiration
+    }
 
 
 @router.get("/generate-presigned-url/{file_key:path}")
 async def generate_presigned_url(file_key: str, expiration: int = 3600):
-    """Generate a presigned URL for temporary file access"""
     try:
-        url = s3_client.generate_presigned_url(
-            'get_object',
-            Params={'Bucket': R2_BUCKET_NAME, 'Key': file_key},
-            ExpiresIn=expiration
-        )
-        
-        return {
-            "url": url,
-            "expires_in_seconds": expiration
-        }
-    
+        return _cached_presigned_url(file_key, expiration, _ttl_bucket())
     except ClientError as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate URL: {str(e)}")
-
+        raise HTTPException(500, str(e))
 
 @router.post("/upload-by-type")
 async def upload_file_by_type(
@@ -255,7 +277,7 @@ async def upload_file_by_type(
             Body=contents,
             ContentType=file.content_type
         )
-        
+        clear_r2_cache()
         return {
             "message": "File uploaded successfully",
             "filename": file.filename,
@@ -290,6 +312,7 @@ async def upload_book_cover(file: UploadFile = File(...), book_id: int = None):
             Body=contents,
             ContentType=file.content_type
         )
+        clear_r2_cache()
         
         return {
             "message": "Book cover uploaded successfully",
@@ -302,39 +325,37 @@ async def upload_book_cover(file: UploadFile = File(...), book_id: int = None):
     except ClientError as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
+@lru_cache(maxsize=256)
+def _cached_list_by_folder(folder: str, max_keys: int, bucket: int):
+    prefix = folder.strip("/")
+    if prefix and not prefix.endswith("/"):
+        prefix += "/"
+
+    response = s3_client.list_objects_v2(
+        Bucket=R2_BUCKET_NAME,
+        Prefix=prefix,
+        MaxKeys=max_keys
+    )
+
+    files = []
+    if "Contents" in response:
+        for obj in response["Contents"]:
+            files.append({
+                "key": obj["Key"],
+                "size": obj["Size"],
+                "last_modified": obj["LastModified"].isoformat()
+            })
+
+    return {
+        "folder": folder or "root",
+        "files": files,
+        "count": len(files)
+    }
 
 @router.get("/list-by-folder")
 async def list_files_by_folder(folder: str = "", max_keys: int = 100):
-    """List files in a specific folder"""
-    try:
-        # Ensure folder ends with / for proper prefix matching
-        prefix = folder.strip("/")
-        if prefix and not prefix.endswith("/"):
-            prefix += "/"
-        
-        response = s3_client.list_objects_v2(
-            Bucket=R2_BUCKET_NAME,
-            Prefix=prefix,
-            MaxKeys=max_keys
-        )
-        
-        files = []
-        if 'Contents' in response:
-            for obj in response['Contents']:
-                files.append({
-                    "key": obj['Key'],
-                    "size": obj['Size'],
-                    "last_modified": obj['LastModified'].isoformat()
-                })
-        
-        return {
-            "folder": folder or "root",
-            "files": files,
-            "count": len(files)
-        }
-    
-    except ClientError as e:
-        raise HTTPException(status_code=500, detail=f"List failed: {str(e)}")
+    return _cached_list_by_folder(folder, max_keys, _ttl_bucket())
+
     
 @router.post("/upload-from-path")    
 async def upload_file_from_path(file_path: str):
@@ -366,7 +387,7 @@ async def upload_file_from_path(file_path: str):
             Body=contents,
             ContentType=content_type or 'application/octet-stream'
         )
-        
+        clear_r2_cache()
         return {
             "message": "File uploaded successfully",
             "filename": filename,

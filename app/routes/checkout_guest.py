@@ -9,6 +9,16 @@ from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.address import Address
 from app.routes.admin import create_notification
+from app.utils.cache_helpers import (
+    cached_address_and_cart,
+    cached_addresses,
+    cached_my_payments,
+    cached_payment_detail,
+    _ttl_bucket,
+    clear_user_caches,
+)
+
+from app.routes.user_orders import _cached_invoice, _cached_track_order
 from app.schemas.guest_checkout import GuestCheckoutSchema, GuestPaymentVerifySchema
 from app.services.email_service import send_order_confirmation
 from app.services.inventory_service import reduce_inventory
@@ -37,8 +47,31 @@ from app.notifications import OrderEvent
 razorpay_client = razorpay.Client(
     auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
 )
-
+from functools import lru_cache
+import time
 router = APIRouter()
+
+CACHE_TTL = 60 * 60  # 60 minutes
+
+def _ttl_bucket():
+    return int(time.time() // CACHE_TTL)
+
+@lru_cache(maxsize=256)
+def _cached_guest_order(order_id: int, bucket: int):
+    from app.database import get_session
+    from app.models.order import Order
+
+    with next(get_session()) as session:
+        order = session.get(Order, order_id)
+        if not order or order.placed_by != "guest":
+            return None
+
+        return {
+            "order_id": order.id,
+            "status": order.status,
+            "total": order.total,
+            "created_at": order.created_at,
+        }
 
 @router.post("")
 def guest_checkout(
@@ -129,6 +162,12 @@ def guest_checkout(
     # 🔐 Store gateway order id
     order.gateway_order_id = razorpay_order["id"]
     session.commit()
+    _cached_track_order.cache_clear()
+    _cached_invoice.cache_clear()
+    cached_address_and_cart()
+    cached_addresses()
+    cached_my_payments()
+    clear_user_caches()
 
     return {
         "order_id": order.id,
@@ -138,6 +177,13 @@ def guest_checkout(
         "guest_email": guest.email,
         "guest_name": guest.name
     }
+@router.get("/{order_id}")
+def get_guest_order(order_id: int):
+    data = _cached_guest_order(order_id, _ttl_bucket())
+    if not data:
+        raise HTTPException(404, "Guest order not found")
+    return data
+
 
 @router.post("/verify-payment")
 def verify_guest_payment(
@@ -195,6 +241,10 @@ def verify_guest_payment(
         title="Guest Order Paid",
         content=f"Guest order #{order.id} paid by {order.guest_email}",
     )
+    _cached_track_order.cache_clear()
+    _cached_invoice.cache_clear()
+    _cached_guest_order.cache_clear()
+    clear_user_caches()
 
     return {
         "message": "Payment successful",
