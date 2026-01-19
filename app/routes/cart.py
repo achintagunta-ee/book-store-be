@@ -10,7 +10,7 @@ from app.services.r2_helper import to_presigned_url
 from app.utils.token import get_current_user  # JWT dependency
 from app.models.cart import CartItem 
 from datetime import datetime
-from app.utils.cache_helpers import cached_address_and_cart, _ttl_bucket, cached_addresses
+from app.utils.cache_helpers import cached_address_and_cart, cached_addresses
 from functools import lru_cache
 import time
 
@@ -24,7 +24,7 @@ def _ttl_bucket() -> int:
     return int(time.time() // CACHE_TTL)
 def clear_cart_cache():
     _cached_cart.cache_clear()
-    _cached_cart_details.cache_clear()
+ 
 
 # Add to Cart 
 

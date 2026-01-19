@@ -7,6 +7,7 @@ from app.models.category import Category
 from app.models.user import User
 from app.routes.admin import clear_admin_cache
 from app.routes.book_detail import clear_book_detail_cache
+from app.routes.book_inventory import clear_inventory_cache
 from app.routes.books_public import clear_books_cache
 from app.utils.token import get_current_admin, get_current_user
 import os
@@ -109,6 +110,8 @@ def create_book(
     clear_books_cache()
     clear_admin_books_cache()
     clear_admin_cache()
+    clear_inventory_cache()
+
 
     return book
 
@@ -265,10 +268,12 @@ def update_book(
     # If title updated → regenerate slug
     if title is not None:
         book.title = title
-
-    # If admin didn't send slug → auto update slug
     if not slug:
         book.slug = slugify(title)
+
+    if slug:
+       book.slug = slugify(slug)
+
 
 # If admin explicitly sends slug → use it
     if slug is not None and slug != "":
@@ -340,6 +345,8 @@ def delete_book(
     clear_books_cache()
     clear_admin_books_cache()
     clear_admin_cache()
+    clear_inventory_cache()
+
     return {"message": "Book deleted"}
 
 @router.post("/{book_id}/upload-ebook")
@@ -380,7 +387,7 @@ def upload_ebook_pdf(
     session.add(book)
     session.commit()
     session.refresh(book)
-    clear_admin_books_cache
+    clear_admin_books_cache()
 
     return {
         "message": "eBook uploaded successfully",

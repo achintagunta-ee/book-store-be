@@ -4,7 +4,7 @@ from app.database import get_session
 from app.models.category import Category
 from app.models.user import User
 from app.routes.books_public import clear_books_cache
-from app.routes.categories_public import _cached_books_by_category, _cached_list_categories, _cached_search_category
+from app.routes.categories_public import  _cached_list_categories, _cached_search_category
 from app.utils.token import get_current_user
 from app.models.book import Book
 from functools import lru_cache
@@ -40,7 +40,6 @@ def create_category(
     session.refresh(category)
     _cached_list_categories.cache_clear()
     _cached_search_category.cache_clear()
-    _cached_list_categories.cache_clear()
     _cached_category_by_id.cache_clear()
     
     return category
@@ -103,7 +102,6 @@ def update_category(
     session.refresh(category)
     _cached_list_categories.cache_clear()
     _cached_search_category.cache_clear()
-    _cached_list_categories.cache_clear()
     _cached_category_by_id.cache_clear()
     clear_books_cache()
 
@@ -132,7 +130,6 @@ def delete_category(
     session.commit()
     _cached_list_categories.cache_clear()
     _cached_search_category.cache_clear()
-    _cached_list_categories.cache_clear()
     _cached_category_by_id.cache_clear()
 
 

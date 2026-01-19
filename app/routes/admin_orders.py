@@ -435,6 +435,7 @@ def update_order_status(
     _cached_list_orders.cache_clear()
     _cached_order_details.cache_clear()
     _cached_invoice_view.cache_clear()
+    
 
     return {
         "message": "Order status updated",
@@ -573,6 +574,8 @@ def create_offline_order(
     _cached_list_orders.cache_clear()
     _cached_order_details.cache_clear()
     _cached_invoice_view.cache_clear()
+    clear_admin_cache()
+
 
 
     return {

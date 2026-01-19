@@ -17,7 +17,7 @@ def _ttl_bucket() -> int:
     """
     return int(time.time() // CACHE_TTL)
 def clear_books_cache():
-    _cached_search_books.cache_clear()
+    _cached_quick_search_books.cache_clear()
     _cached_advanced_search.cache_clear()
     _cached_filter_books.cache_clear()
     _cached_featured_books.cache_clear()
@@ -27,7 +27,7 @@ def clear_books_cache():
 # ---------- SEARCH BOOKS ----------
 
 @lru_cache(maxsize=512)
-def _cached_search_books(query: str, bucket: int):
+def _cached_quick_search_books(query: str, bucket: int):
     from app.database import get_session
     from app.models.book import Book
     from sqlmodel import select
@@ -48,7 +48,7 @@ def _cached_search_books(query: str, bucket: int):
 
 @router.get("/search/query")
 def search_books(query: str = Query(...)):
-    return _cached_search_books(query, _ttl_bucket())
+    return _cached_quick_search_books(query, _ttl_bucket())
 
 @lru_cache(maxsize=512)
 def _cached_advanced_search(params_key: str, bucket: int):
@@ -347,7 +347,7 @@ def get_book_by_slug(slug: str):
 
 
 @lru_cache(maxsize=256)
-def _cached_search_books(query: str, bucket: int):
+def _cached_dynamic_search_books(query: str, bucket: int):
     with next(get_session()) as session:
         return session.exec(
             select(Book)
@@ -361,7 +361,7 @@ def _cached_search_books(query: str, bucket: int):
 
 @router.get("/dynamic-search")
 def search_books(query: str):
-    results = _cached_search_books(query.lower(), _ttl_bucket())
+    results = _cached_dynamic_search_books(query.lower(), _ttl_bucket())
     return [{
         "book_id": b.id,
         "title": b.title,
@@ -400,24 +400,6 @@ def _cached_paginated_books(key: str, bucket: int):
             "current_page": params["page"],
             "results": books
         }
-
-@lru_cache(maxsize=512)
-def _cached_paginated_books(key: str, bucket: int):
-    params = eval(key)
-    with next(get_session()) as session:
-        query = select(Book)
-
-        if params["category_id"]:
-            query = query.where(Book.category_id == params["category_id"])
-        if params["author"]:
-            query = query.where(Book.author.ilike(f"%{params['author']}%"))
-
-        total = session.exec(select(func.count()).select_from(query.subquery())).one()
-        books = session.exec(
-            query.offset((params["page"] - 1) * params["limit"]).limit(params["limit"])
-        ).all()
-
-        return {"total": total, "books": books}
 
 @router.get("")
 def list_books_paginated(page: int = 1, limit: int = 12, category_id: int | None = None, author: str | None = None):

@@ -15,7 +15,7 @@ from app.models.payment import Payment
 from app.models.user import User
 from app.models.book import Book
 from app.models.category import Category
-from app.routes.admin import require_admin
+from app.routes.admin import clear_admin_cache, require_admin
 from app.utils.hash import verify_password, hash_password
 from app.utils.token import get_current_admin, get_current_user
 import os
@@ -139,6 +139,9 @@ def resend_notification(
     session.refresh(notification)
     _cached_admin_notifications.cache_clear()
     _cached_admin_notification_detail.cache_clear()
+    clear_admin_cache()
+    
+
 
 
     return {
