@@ -113,8 +113,11 @@ def update_address(
     session.refresh(address)
     _cached_addresses.cache_clear()
     _cached_my_profile.cache_clear()
-    cached_addresses.cache_clear()
-    cached_address_and_cart.cache_clear()
+    
+    cached_address_and_cart(current_user.id, _ttl_bucket())
+    cached_addresses(current_user.id, _ttl_bucket())
+    cached_my_payments(current_user.id, 1, 10, _ttl_bucket())
+
 
 
     return {
@@ -137,6 +140,10 @@ def delete_address(
     session.commit()
     cached_addresses.cache_clear()
     cached_address_and_cart.cache_clear()
+    cached_address_and_cart(current_user.id, _ttl_bucket())
+    cached_addresses(current_user.id, _ttl_bucket())
+    cached_my_payments(current_user.id, 1, 10, _ttl_bucket())
+
 
     return {
         "message": "Address deleted successfully"
@@ -358,7 +365,7 @@ def create_razorpay_order(
     cached_payment_detail.cache_clear()
 
     cached_address_and_cart(current_user.id, _ttl_bucket())
-    cached_my_payments()
+    cached_my_payments(current_user.id, _ttl_bucket())
     clear_user_caches()
     
 
@@ -518,9 +525,11 @@ def verify_razorpay_payment(
     
     _cached_order_history.cache_clear()
     _cached_order_detail.cache_clear()
-    cached_payment_detail()
-    cached_address_and_cart()
-    cached_my_payments()
+    cached_payment_detail.cache_clear()
+    cached_address_and_cart.cache_clear()
+    cached_my_payments.cache_clear()
+
+    
     clear_user_caches()
 
     return {
@@ -647,9 +656,10 @@ def place_order(
     )
     _cached_order_history.cache_clear()
     _cached_order_detail.cache_clear()
-    cached_payment_detail()
-    cached_address_and_cart()
-    cached_my_payments()
+    cached_payment_detail.cache_clear()
+    cached_address_and_cart.cache_clear()
+    cached_my_payments.cache_clear()
+
     clear_user_caches()
 
     return {
