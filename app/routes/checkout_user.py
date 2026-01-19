@@ -74,12 +74,15 @@ def add_address(
     session.add(address)
     session.commit()
     session.refresh(address)
-    cached_address_and_cart()
-    cached_addresses()
+    
     _cached_payment_detail.cache_clear()
-    cached_my_payments()
+    
     cached_addresses.cache_clear()
     cached_address_and_cart.cache_clear()
+    cached_address_and_cart(current_user.id, _ttl_bucket())
+    cached_addresses(current_user.id, _ttl_bucket())
+    cached_my_payments(current_user.id, 1, 10, _ttl_bucket())
+
 
 
     return {"message": "Address saved", "address_id": address.id}
@@ -352,8 +355,9 @@ def create_razorpay_order(
     session.commit()
     _cached_order_history.cache_clear()
     _cached_order_detail.cache_clear()
-    cached_payment_detail()
-    cached_address_and_cart()
+    cached_payment_detail.cache_clear()
+
+    cached_address_and_cart(current_user.id, _ttl_bucket())
     cached_my_payments()
     clear_user_caches()
     
@@ -466,9 +470,11 @@ def verify_razorpay_payment(
     session.commit()
     _cached_track_order.cache_clear()
     _cached_invoice.cache_clear()
-    cached_payment_detail()
-    cached_address_and_cart()
-    cached_my_payments()
+    cached_payment_detail.cache_clear()
+    cached_address_and_cart(current_user.id, _ttl_bucket())
+    cached_my_payments(current_user.id, 1, 10, _ttl_bucket())
+
+   
     clear_user_caches()
 
 
@@ -706,9 +712,10 @@ def complete_payment(
     clear_cart(session, current_user.id)
     _cached_track_order.cache_clear()
     _cached_invoice.cache_clear()
-    cached_payment_detail()
-    cached_address_and_cart()
-    cached_my_payments()
+    cached_payment_detail.cache_clear()
+    cached_address_and_cart(current_user.id, _ttl_bucket())
+    cached_my_payments(current_user.id, 1, 10, _ttl_bucket())
+
     clear_user_caches()
 
 

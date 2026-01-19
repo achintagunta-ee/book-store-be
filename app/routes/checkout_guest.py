@@ -164,9 +164,11 @@ def guest_checkout(
     session.commit()
     _cached_track_order.cache_clear()
     _cached_invoice.cache_clear()
-    cached_address_and_cart()
-    cached_addresses()
-    cached_my_payments()
+    cached_address_and_cart(order.user_id, _ttl_bucket())
+    cached_addresses(order.user_id, _ttl_bucket())
+
+    cached_my_payments(order.user_id, _ttl_bucket())
+
     clear_user_caches()
 
     return {
