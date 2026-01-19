@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, status
 from sqlmodel import Session, select
 from app.database import get_session
+from app.models import book
 from app.models.book import Book
 from app.models.category import Category
 from app.models.user import User
@@ -261,9 +262,18 @@ def update_book(
     if not book:
         raise HTTPException(404, "Book not found")
 
-    if title is not None: book.title = title
-    if slug is not None:
-        book.slug = slug or slugify(book.title)
+    # If title updated → regenerate slug
+    if title is not None:
+        book.title = title
+
+    # If admin didn't send slug → auto update slug
+    if not slug:
+        book.slug = slugify(title)
+
+# If admin explicitly sends slug → use it
+    if slug is not None and slug != "":
+            book.slug = slugify(slug)
+
     if excerpt is not None: book.excerpt = excerpt
     if description is not None: book.description = description
     if author is not None: book.author = author
