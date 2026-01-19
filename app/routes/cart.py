@@ -113,6 +113,7 @@ def _cached_cart(user_id: int, bucket: int):
                 "item_id": cart_item.id,
                 "book_id": book.id,
                 "book_name": book.title,
+                "cover_image": book.cover_image,
                 "slug": book.slug,
                 "cover_image_url": to_presigned_url(book.cover_image)
                 if book.cover_image else None,
@@ -127,7 +128,7 @@ def _cached_cart(user_id: int, bucket: int):
             })
 
         shipping = 0 if subtotal >= 500 else 150
-        tax = round(subtotal * 0.08, 2)
+        tax = 0
         final_total = subtotal + tax + shipping
 
         return {
