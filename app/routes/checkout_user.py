@@ -10,6 +10,7 @@ from app.models.order import Order, OrderStatus
 from app.models.order_item import OrderItem
 from app.models.address import Address
 from app.routes.admin import create_notification
+from app.routes.book_detail import clear_book_detail_cache
 from app.routes.user_orders import _cached_invoice, _cached_track_order, _cached_track_order
 from app.routes.users import _cached_addresses, _cached_my_profile, _cached_order_detail, _cached_order_history
 from app.routes.users import _cached_my_profile
@@ -480,8 +481,7 @@ def verify_razorpay_payment(
     cached_payment_detail.cache_clear()
     cached_address_and_cart(current_user.id, _ttl_bucket())
     cached_my_payments(current_user.id, 1, 10, _ttl_bucket())
-
-   
+    clear_book_detail_cache()
     clear_user_caches()
 
 
