@@ -7,6 +7,9 @@ from app.models.book import Book
 from app.models.ebook_purchase import EbookPurchase
 from app.models.ebook_payment import EbookPayment
 from app.models.user import User
+from app.notifications import OrderEvent, dispatch_order_event
+from app.services.email_service import send_email
+from app.utils.admin_utils import create_notification
 from app.utils.token import get_current_admin
 
 router = APIRouter()
@@ -51,6 +54,64 @@ def grant_access(
     purchase.access_expires_at = datetime.utcnow() + timedelta(days=36500)  # lifetime
     session.add(purchase)
     session.commit()
+    user = session.get(User, purchase.user_id)
+    book = session.get(Book, purchase.book_id)
+
+    send_email(
+        to=user.email,
+        subject="eBook Access Granted",
+        template="user_emails/user_ebook_access_granted.html",
+        data={
+            "first_name": user.first_name,
+            "book_title": book.title,
+        }
+    )
+
+    send_email(
+        to="admin@hithabodha.com",
+        subject="Admin Granted eBook Access",
+        template="admin_emails/admin_ebook_access_granted.html",
+        data={
+            "purchase_id": purchase.id,
+            "book_title": book.title,
+        }
+    )
+
+    create_notification(
+        session=session,
+        recipient_role="customer",
+        user_id=user.id,
+        trigger_source="ebook_access_granted",
+        related_id=purchase.id,
+        title="eBook Access Granted",
+        content=f"You now have lifetime access to {book.title}",
+    )
+
+    session.commit()
+
+    dispatch_order_event(
+    event=OrderEvent.EBOOK_ACCESS_GRANTED,
+    order=purchase,
+    user=user,
+    session=session,
+    notify_user=True,
+    notify_admin=True,
+    extra={
+        "admin_title": "eBook Access Granted",
+        "admin_content": f"Access granted for {user.email}",
+
+        "user_template": "user_emails/user_ebook_access_granted.html",
+        "user_subject": "Your eBook access granted",
+
+        "admin_template": "admin_emails/admin_ebook_access_granted.html",
+        "admin_subject": "Admin granted ebook access",
+
+        "first_name": user.first_name,
+        "book_title": book.title,
+    }
+)
+
+
 
     return {"message": "Access granted", "purchase_id": purchase_id}
 

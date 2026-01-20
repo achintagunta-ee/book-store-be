@@ -10,6 +10,9 @@ class OrderEvent(str, Enum):
     CANCEL_REJECTED = "cancel_rejected"
     CANCEL_APPROVED = "cancel_approved"
     REFUND_PROCESSED = "refund_processed"
+    EBOOK_PURCHASE_CREATED = "ebook_purchase_created"
+    EBOOK_PAYMENT_SUCCESS = "ebook_payment_success"
+    EBOOK_ACCESS_GRANTED = "ebook_access_granted"
 # app/notifications/channels.py
 from enum import Enum
 
@@ -63,6 +66,27 @@ NOTIFICATION_RULES = {
     Channel.EMAIL_ADMIN: True,
     Channel.INAPP_ADMIN: True,
 },
+
+OrderEvent.EBOOK_PURCHASE_CREATED: {
+        Channel.POPUP_USER: True,
+        Channel.EMAIL_USER: True,
+        Channel.EMAIL_ADMIN: True,
+        Channel.INAPP_ADMIN: True,
+    },
+
+    OrderEvent.EBOOK_PAYMENT_SUCCESS: {
+        Channel.POPUP_USER: True,
+        Channel.EMAIL_USER: True,
+        Channel.EMAIL_ADMIN: True,
+        Channel.INAPP_ADMIN: True,
+    },
+
+    OrderEvent.EBOOK_ACCESS_GRANTED: {
+        Channel.EMAIL_USER: True,
+        Channel.EMAIL_ADMIN: True,
+        Channel.INAPP_ADMIN: True,
+    },
+
 
 }
 # app/notifications/popup.py

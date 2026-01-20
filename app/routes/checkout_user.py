@@ -32,9 +32,6 @@ from fastapi.responses import FileResponse
 from app.models.payment import Payment
 from app.config import settings
 from uuid import uuid4
-from app.models.payment import Payment
-from fastapi.responses import FileResponse
-import os
 from app.notifications import dispatch_order_event
 from app.notifications import OrderEvent
 from functools import lru_cache

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Razorpay eBook Test</title>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 40px;
+    }
+    button {
+      padding: 12px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>📘 Razorpay eBook Payment Test</h2>
+
+  <p>
+    <b>Purchase ID:</b>
+    <input id="purchaseId" value="1" />
+  </p>
+
+  <p>
+    <b>JWT Token:</b><br/>
+    <textarea id="token" rows="4" cols="80"
+      placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NzE0NzAzMzB9.D4P2_5eqTXh0Y2K1If43BJoM3ysyPtb1u5w3bSlfK6s"></textarea>
+  </p>
+
+  <button onclick="startPayment()">Pay with Razorpay</button>
+
+  <pre id="output"></pre>
+
+  <script>
+    async function startPayment() {
+      const purchaseId = document.getElementById("purchaseId").value;
+      const token = document.getElementById("token").value;
+
+      if (!purchaseId || !token) {
+        alert("Purchase ID and token required");
+        return;
+      }
+
+      // 🔹 1️⃣ Create Razorpay Order
+      const orderRes = await fetch(
+        `http://localhost:8000/ebooks/${purchaseId}/create-razorpay-order`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization": "Bearer " + token,
+            "Content-Type": "application/json"
+          }
+        }
+      );
+
+      const orderData = await orderRes.json();
+      console.log("Order created:", orderData);
+
+      if (!orderData.razorpay_order_id) {
+        alert("Failed to create Razorpay order");
+        return;
+      }
+
+      // 🔹 2️⃣ Open Razorpay Checkout
+      const options = {
+        key: orderData.razorpay_key,
+        amount: orderData.amount * 100,
+        currency: "INR",
+        name: "Hithabodha",
+        description: "eBook Purchase",
+        order_id: orderData.razorpay_order_id,
+
+        handler: async function (response) {
+          console.log("Payment success:", response);
+
+          // 🔹 3️⃣ Verify payment on backend
+          const verifyRes = await fetch(
+            `http://localhost:8000/ebooks/${purchaseId}/verify-razorpay-payment`
+,
+            {
+              method: "POST",
+              headers: {
+                "Authorization": "Bearer " + token,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature
+              })
+            }
+          );
+
+          const verifyData = await verifyRes.json();
+          console.log("Verify response:", verifyData);
+
+          document.getElementById("output").innerText =
+            JSON.stringify(verifyData, null, 2);
+        },
+
+        prefill: {
+          email: orderData.user_email,
+          name: orderData.user_name
+        },
+
+        theme: {
+          color: "#3399cc"
+        }
+      };
+
+      const rzp = new Razorpay(options);
+      rzp.open();
+    }
+  </script>
+
+</body>
+</html>
