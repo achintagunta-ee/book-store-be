@@ -7,6 +7,7 @@ from app.database import get_session
 from app.models.ebook_payment import EbookPayment
 from app.models.ebook_purchase import EbookPurchase
 from app.models.book import Book
+from app.models.notifications import NotificationChannel, RecipientRole
 from app.models.user import User
 from app.notifications import OrderEvent, dispatch_order_event
 from app.schemas.user_schemas import RazorpayPaymentVerifySchema
@@ -111,8 +112,9 @@ def create_ebook_razorpay_order(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    purchase = session.get(EbookPurchase, purchase_id)
+    """Create Razorpay order for eBook purchase"""
 
+    purchase = session.get(EbookPurchase, purchase_id)
     if not purchase or purchase.user_id != current_user.id:
         raise HTTPException(404, "Purchase not found")
 
@@ -120,8 +122,20 @@ def create_ebook_razorpay_order(
         raise HTTPException(400, "Invalid purchase state")
 
     if purchase.gateway_order_id:
-        raise HTTPException(400, "Razorpay order already created")
+        return {
+        "purchase_id": purchase.id,
+        "razorpay_order_id": purchase.gateway_order_id,
+        "razorpay_key": settings.RAZORPAY_KEY_ID,
+        "amount": purchase.amount,
+        "user_email": current_user.email,
+        "user_name": current_user.first_name,
+        "message": "Razorpay order already created"
+    }
+        
 
+    book = session.get(Book, purchase.book_id)
+
+    # 🔹 Create Razorpay order
     razorpay_order = razorpay_client.order.create({
         "amount": int(purchase.amount * 100),
         "currency": "INR",
@@ -129,72 +143,166 @@ def create_ebook_razorpay_order(
         "notes": {
             "purchase_id": purchase.id,
             "user_id": current_user.id,
-            "book_id": purchase.book_id,
-        },
+            "user_email": current_user.email,
+            "book_title": book.title,
+        }
     })
 
     purchase.gateway_order_id = razorpay_order["id"]
     session.commit()
+
+    # 🔔 ADMIN notification
+    create_notification(
+        session=session,
+        recipient_role=RecipientRole.admin,
+        user_id=None,
+        trigger_source="ebook_payment",
+        related_id=purchase.id,
+        title="eBook Payment Initiated",
+        content=f"{current_user.email} started payment for {book.title}",
+    )
+
+    # 📩 Event → email + notification pipeline
+    dispatch_order_event(
+        event=OrderEvent.EBOOK_PURCHASE_CREATED,
+        order=purchase,
+        user=current_user,
+        session=session,
+        extra={
+            "user_template": "user_emails/ebook_payment_started.html",
+            "user_subject": "Complete your eBook payment",
+            "admin_template": "admin_emails/ebook_payment_started.html",
+            "admin_subject": "eBook payment initiated",
+            "book_title": book.title,
+            "amount": purchase.amount,
+            "purchase_id": purchase.id,
+            "first_name": current_user.first_name,
+        }
+    )
 
     return {
         "purchase_id": purchase.id,
         "razorpay_order_id": razorpay_order["id"],
         "razorpay_key": settings.RAZORPAY_KEY_ID,
         "amount": purchase.amount,
+        "user_email": current_user.email,
+        "user_name": f"{current_user.first_name} {current_user.last_name}",
     }
 
+
 @router.post("/{purchase_id}/verify-razorpay-payment")
-def verify_ebook_payment(
+def verify_ebook_razorpay_payment(
     purchase_id: int,
     payload: RazorpayPaymentEbookVerifySchema,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    purchase = session.get(EbookPurchase, purchase_id)
+    """Verify Razorpay payment for eBook"""
 
+    purchase = session.get(EbookPurchase, purchase_id)
     if not purchase or purchase.user_id != current_user.id:
         raise HTTPException(404, "Purchase not found")
 
+    # 🔒 Idempotency
     if purchase.status == "paid":
-        return {"message": "Payment already verified"}
+        return {
+            "message": "Payment already processed",
+            "purchase_id": purchase.id,
+        }
+
+    if not purchase.gateway_order_id:
+        raise HTTPException(400, "Razorpay order not initialized")
 
     if purchase.gateway_order_id != payload.razorpay_order_id:
         raise HTTPException(400, "Order mismatch")
 
-    # 🔐 Verify Razorpay signature
-    razorpay_client.utility.verify_payment_signature({
-        "razorpay_order_id": payload.razorpay_order_id,
-        "razorpay_payment_id": payload.razorpay_payment_id,
-        "razorpay_signature": payload.razorpay_signature,
-    })
+    # 🔐 Verify signature
+    try:
+        razorpay_client.utility.verify_payment_signature({
+            "razorpay_order_id": payload.razorpay_order_id,
+            "razorpay_payment_id": payload.razorpay_payment_id,
+            "razorpay_signature": payload.razorpay_signature,
+        })
+    except razorpay.errors.SignatureVerificationError:
+        raise HTTPException(400, "Payment verification failed")
 
     # 🔐 Capture payment
     razorpay_client.payment.capture(
         payload.razorpay_payment_id,
-        int(purchase.amount * 100),
+        int(purchase.amount * 100)
     )
 
-    # ✅ Grant access
+    # ✅ Grant lifetime access
     purchase.status = "paid"
     purchase.access_expires_at = None
     purchase.updated_at = datetime.utcnow()
 
-    session.add(EbookPayment(
+    payment = EbookPayment(
         ebook_purchase_id=purchase.id,
         user_id=current_user.id,
         txn_id=payload.razorpay_payment_id,
         amount=purchase.amount,
         status="success",
         method="razorpay",
-    ))
-
+    )
+    session.add(payment)
     session.commit()
 
+    book = session.get(Book, purchase.book_id)
+
+    # 🔔 USER notification
+    create_notification(
+        session=session,
+        recipient_role=RecipientRole.customer,
+        user_id=current_user.id,
+        trigger_source="ebook_payment",
+        related_id=purchase.id,
+        title="Payment Successful",
+        content=f"You now own {book.title}",
+        channel=NotificationChannel.email,
+    )
+
+    # 🔔 ADMIN notification
+    create_notification(
+        session=session,
+        recipient_role=RecipientRole.admin,
+        user_id=None,
+        trigger_source="ebook_payment",
+        related_id=purchase.id,
+        title="eBook Payment Completed",
+        content=f"{current_user.email} paid for {book.title}",
+    )
+
+    # 📩 Dispatch event (emails + logs)
+    dispatch_order_event(
+        event=OrderEvent.EBOOK_PAYMENT_SUCCESS,
+        order=purchase,
+        user=current_user,
+        session=session,
+        extra={
+            "user_template": "user_emails/ebook_payment_success.html",
+            "user_subject": "eBook payment successful",
+            "admin_template": "admin_emails/ebook_payment_success.html",
+            "admin_subject": "eBook payment completed",
+            "book_title": book.title,
+            "amount": purchase.amount,
+            "purchase_id": purchase.id,
+            "txn_id": payment.txn_id,
+            "first_name": current_user.first_name,
+        }
+    )
+
     return {
-        "message": "Payment successful",
+        "message": "Payment successful. eBook access granted.",
         "purchase_id": purchase.id,
-        "access": "granted",
+        "payment_id": payment.id,
+        "txn_id": payment.txn_id,
+        "book_title": book.title,
+        "access": "lifetime",
+        "library_url": "/ebooks/my-library",
+        "continue_shopping_url": "/ebooks",
     }
+
 
 
 
