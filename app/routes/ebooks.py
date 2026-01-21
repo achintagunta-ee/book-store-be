@@ -169,9 +169,9 @@ def create_ebook_razorpay_order(
         user=current_user,
         session=session,
         extra={
-            "user_template": "user_emails/ebook_payment_started.html",
+            "user_template": "user_emails/user_ebook_payment_started.html",
             "user_subject": "Complete your eBook payment",
-            "admin_template": "admin_emails/ebook_payment_started.html",
+            "admin_template": "admin_emails/admin_ebook_payment_started.html",
             "admin_subject": "eBook payment initiated",
             "book_title": book.title,
             "amount": purchase.amount,
