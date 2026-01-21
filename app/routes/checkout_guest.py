@@ -229,7 +229,26 @@ def verify_guest_payment(
     )
 
     # 5️⃣ Guest confirmation email
-    send_payment_success_email(order)
+    dispatch_order_event(
+    event=OrderEvent.PAYMENT_SUCCESS,
+    order=order,
+    session=session,
+    extra={
+        "popup_message": "Payment successful",
+        "admin_title": "Payment Received",
+        "admin_content": f"Payment for order #{order.id}",
+        "user_template": "user_emails/guest_user_payment_success.html",
+        "user_subject": f"Payment success #{order.id}",
+        "admin_template": "admin_emails/admin_payment_received.html",
+        "admin_subject": f"Payment received #{order.id}",
+        "order_id": order.id,
+        "amount": payment.amount,
+        "txn_id": payment.txn_id,
+        "user_email": order.guest_email,
+        "user_name": order.guest_name,
+    }
+)
+    session.commit()
     
     reduce_inventory(session, order.id)
 

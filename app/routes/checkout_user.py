@@ -358,6 +358,38 @@ def create_razorpay_order(
     )
     order.gateway_order_id = razorpay_order["id"]   # 🔥 REQUIRED
     session.commit()
+
+    popup_data = dispatch_order_event(
+        event=OrderEvent.ORDER_PLACED,
+        order=order,
+        user=current_user,
+        session=session,
+        notify_user=True,     # popup + email
+        notify_admin=True,    # in-app + email
+        extra={
+            # USER POPUP
+            "popup_message": "Order placed successfully. Please complete the payment.",
+
+            # USER EMAIL
+            "user_template": "user_emails/user_order_placed.html",
+            "user_subject": f"Order #{order.id} placed successfully",
+
+            # ADMIN EMAIL
+            "admin_template": "admin_emails/admin_new_order.html",
+            "admin_subject": f"New order placed – #{order.id}",
+
+            # ADMIN IN-APP
+            "admin_title": "New Order Placed",
+            "admin_content": f"Order #{order.id} placed by {current_user.email}",
+
+            # TEMPLATE DATA
+            "first_name": current_user.first_name,
+            "order_id": order.id,
+            "total": order.total,
+            "customer_email": current_user.email,
+        }
+    )
+
     _cached_order_history.cache_clear()
     _cached_order_detail.cache_clear()
     cached_payment_detail.cache_clear()
@@ -369,6 +401,7 @@ def create_razorpay_order(
 
 
     return {
+    **(popup_data or {}),
     "order_id": order.id,
     "razorpay_order_id": razorpay_order["id"],
     "razorpay_key": settings.RAZORPAY_KEY_ID,  # ✅ Change to razorpay_key
