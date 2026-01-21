@@ -10,6 +10,7 @@ from app.models.user import User
 from app.routes.book_detail import clear_book_detail_cache
 from app.schemas.review_schemas import ReviewCreate , ReviewUpdate
 from app.utils.token import get_current_user 
+from app.utils.pagination import paginate
 
 
 from functools import lru_cache
@@ -110,12 +111,40 @@ def _cached_book_reviews(slug: str, bucket: int):
         }
 
 
+
+
 @router.get("/books/{slug}/reviews")
-def list_reviews(slug: str):
-    data = _cached_book_reviews(slug, _ttl_bucket())
-    if not data:
-        raise HTTPException(404, f"Book '{slug}' not found")
-    return data
+def list_reviews(
+    slug: str,
+    page: int = 1,
+    limit: int = 10,
+    search: str | None = None,
+    session: Session = Depends(get_session),
+):
+    book = session.exec(
+        select(Book).where(Book.slug == slug)
+    ).first()
+
+    if not book:
+        raise HTTPException(404, "Book not found")
+
+    query = select(Review).where(Review.book_id == book.id)
+
+    if search:
+        query = query.where(
+            Review.comment.ilike(f"%{search}%") |
+            Review.user_name.ilike(f"%{search}%")
+        )
+
+    query = query.order_by(Review.created_at.desc())
+
+    return paginate(
+        session=session,
+        query=query,
+        page=page,
+        limit=limit,
+    )
+
 
 # ---------------------------------------------------------
 # 2️⃣ UPDATE A REVIEW

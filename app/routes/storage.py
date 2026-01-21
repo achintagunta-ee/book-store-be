@@ -3,7 +3,9 @@ FastAPI with Cloudflare R2 Storage Integration
 Install required packages: pip install fastapi boto3 python-multipart uvicorn python-dotenv
 """
 
-from fastapi import FastAPI, UploadFile, File, HTTPException , APIRouter
+import select
+from fastapi import FastAPI, Query, UploadFile, File, HTTPException , APIRouter
+from fastapi.params import Depends
 from fastapi.responses import StreamingResponse
 import boto3
 from botocore.exceptions import ClientError
@@ -14,6 +16,12 @@ from datetime import datetime
 from dotenv import load_dotenv
 from functools import lru_cache
 import time
+
+from requests import Session
+from app.database import get_session
+from app.models.user import User
+from app.utils.pagination import paginate
+from app.utils.token import get_current_admin
 
 # Load environment variables from .env file
 load_dotenv()
@@ -28,7 +36,6 @@ def _ttl_bucket() -> int:
     return int(time.time() // CACHE_TTL)
 
 def clear_r2_cache():
-    _cached_list_files.cache_clear()
     _cached_list_by_folder.cache_clear()
     _cached_file_info.cache_clear()
     _cached_presigned_url.cache_clear()
@@ -154,13 +161,8 @@ async def download_file(file_key: str):
             raise HTTPException(status_code=404, detail="File not found")
         raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
 
-@lru_cache(maxsize=256)
-def _cached_list_files(prefix: str, max_keys: int, bucket: int):
-    response = s3_client.list_objects_v2(
-        Bucket=R2_BUCKET_NAME,
-        Prefix=prefix,
-        MaxKeys=max_keys
-    )
+
+    
 
     files = []
     if "Contents" in response:
@@ -178,8 +180,17 @@ def _cached_list_files(prefix: str, max_keys: int, bucket: int):
 
 
 @router.get("/list")
-async def list_files(prefix: str = "", max_keys: int = 100):
-    return _cached_list_files(prefix, max_keys, _ttl_bucket())
+def list_files(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, le=100),
+    session: Session = Depends(get_session),
+    admin: User = Depends(get_current_admin),
+):
+    query = select(File).order_by(File.created_at.desc())
+
+    return paginate(session=session, query=query, page=page, limit=limit)
+
+
 
 @router.delete("/delete/{file_key:path}")
 async def delete_file(file_key: str):

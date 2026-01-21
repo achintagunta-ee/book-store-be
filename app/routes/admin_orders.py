@@ -19,7 +19,8 @@ from app.routes.order_cancellation import _cached_cancellation_status
 from app.schemas.offline_order_schemas import OfflineOrderCreate
 from app.services.notification_service import create_notification
 from app.utils.cache_helpers import clear_user_caches
-from app.utils.token import get_current_user
+from app.utils.pagination import paginate
+from app.utils.token import get_current_admin, get_current_user
 from app.services.email_service import send_email
 from app.utils.template import render_template
 import os
@@ -49,86 +50,29 @@ class OrderStatus(str, Enum):
     cancelled = "cancelled"
     failed = "failed"
 
-@lru_cache(maxsize=256)
-def _cached_list_orders(
-    page: int,
-    limit: int,
-    search: str | None,
-    status: str | None,
-    start_date: str | None,
-    end_date: str | None,
-    bucket: int
-):
-    from app.database import get_session
-    from app.models.order import Order
-    from app.models.user import User
-    from sqlmodel import select, func
-
-    with next(get_session()) as session:
-        query = select(Order, User).join(User, User.id == Order.user_id)
-
-        if search:
-            query = query.where(
-                (User.first_name.ilike(f"%{search}%")) |
-                (User.last_name.ilike(f"%{search}%")) |
-                (Order.id.cast(str).ilike(f"%{search}%"))
-            )
-
-        if status:
-            query = query.where(Order.status == status)
-
-        if start_date:
-            query = query.where(func.date(Order.created_at) >= start_date)
-        if end_date:
-            query = query.where(func.date(Order.created_at) <= end_date)
-
-        total = session.exec(
-            select(func.count()).select_from(query.subquery())
-        ).one()
-
-        orders = session.exec(
-            query.order_by(Order.created_at.desc())
-            .offset((page - 1) * limit)
-            .limit(limit)
-        ).all()
-
-        return {
-            "total_items": total,
-            "total_pages": (total + limit - 1) // limit,
-            "current_page": page,
-            "results": [
-                {
-                    "order_id": o.id,
-                    "customer_name": f"{u.first_name} {u.last_name}",
-                    "date": o.created_at.date(),
-                    "total_amount": o.total,
-                    "status": o.status,
-                }
-                for o, u in orders
-            ]
-        }
-
-
-# a) Get Orders with filters
 @router.get("")
 def list_orders(
-    page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100),
-    search: str | None = Query(None),
-    status: OrderStatus | None = Query(None),
-    start_date: date | None = Query(None),
-    end_date: date | None = Query(None),
-    admin: User = Depends(require_admin),
+    page: int = 1,
+    limit: int = 10,
+    status: str | None = None,
+    search: str | None = None,
+    session: Session = Depends(get_session),
+    admin: User = Depends(get_current_admin),
 ):
-    return _cached_list_orders(
-        page,
-        limit,
-        search,
-        status.value if status else None,
-        str(start_date) if start_date else None,
-        str(end_date) if end_date else None,
-        _ttl_bucket(),
-    )
+    query = select(Order).join(User)
+
+    if status:
+        query = query.where(Order.status == status)
+
+    if search:
+        query = query.where(
+            User.email.ilike(f"%{search}%") |
+            Order.id.cast(str).ilike(f"%{search}%")
+        )
+
+    query = query.order_by(Order.created_at.desc())
+
+    return paginate(session=session, query=query, page=page, limit=limit)
 
 
 @lru_cache(maxsize=512)
@@ -432,7 +376,6 @@ def update_order_status(
         )
     _cached_cancellation_status.cache_clear()
     clear_admin_cache()
-    _cached_list_orders.cache_clear()
     _cached_order_details.cache_clear()
     _cached_invoice_view.cache_clear()
     
@@ -495,7 +438,7 @@ def add_tracking_info(
 
 
     session.commit()
-    _cached_list_orders.cache_clear()
+
     _cached_order_details.cache_clear()
     _cached_invoice_view.cache_clear()
 
@@ -571,7 +514,7 @@ def create_offline_order(
     session.add(order)
     session.commit()
     session.refresh(order)
-    _cached_list_orders.cache_clear()
+   
     _cached_order_details.cache_clear()
     _cached_invoice_view.cache_clear()
     clear_admin_cache()

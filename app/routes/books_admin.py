@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, HTTPException, status
 from sqlmodel import Session, select
 from app.database import get_session
 from app.models import book
@@ -19,6 +19,7 @@ from app.services.r2_client import  s3_client, R2_BUCKET_NAME
 from app.services.r2_helper import  delete_r2_file , upload_book_cover
 from functools import lru_cache
 import time
+from app.utils.pagination import paginate
 
 router = APIRouter()
 
@@ -34,7 +35,7 @@ def _ttl_bucket() -> int:
 
 def clear_admin_books_cache():
     _cached_admin_filter_books.cache_clear()
-    _cached_admin_book_list.cache_clear()
+    
     _cached_admin_book.cache_clear()
     _cached_fix_placeholder.cache_clear()
 
@@ -186,23 +187,22 @@ def filter_books_admin(
     key = repr(locals())
     return _cached_admin_filter_books(key, _ttl_bucket())
 
-@lru_cache(maxsize=128)
-def _cached_admin_book_list(bucket: int):
-    from app.database import get_session
-    from app.models.book import Book
-    from sqlmodel import select
+@router.get("/admin/books")
+def admin_book_list(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, le=100),
+    search: str | None = None,
+    session: Session = Depends(get_session),
+    admin: User = Depends(get_current_admin),
+):
+    query = select(Book)
 
-    with next(get_session()) as session:
-        return session.exec(select(Book)).all()
+    if search:
+        query = query.where(Book.title.ilike(f"%{search}%"))
 
+    query = query.order_by(Book.updated_at.desc())
 
-
-@router.get("/list")
-def list_books_admin(current_user: User = Depends(get_current_user)):
-    if current_user.role != "admin":
-        raise HTTPException(403, "Admin access required")
-
-    return _cached_admin_book_list(_ttl_bucket())
+    return paginate(session=session, query=query, page=page, limit=limit)
 
 
 @lru_cache(maxsize=256)

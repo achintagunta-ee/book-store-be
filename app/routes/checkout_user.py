@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.temp_pydantic_v1_params import Query
 import razorpay
 from requests import session
 from sqlalchemy import func
@@ -36,6 +37,9 @@ from app.notifications import dispatch_order_event
 from app.notifications import OrderEvent
 from functools import lru_cache
 import time
+from app.models.payment import Payment
+from app.models.ebook_payment import EbookPayment
+from app.utils.pagination import paginate
 from app.utils.cache_helpers import (
     cached_addresses,
     cached_address_and_cart,
@@ -879,15 +883,77 @@ def user_payment_detail(
 
 
 
+
+
 @router.get("/my-payments")
 def list_my_payments(
-    page: int = 1,
-    limit: int = 10,
-    current_user: User = Depends(get_current_user)
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=50),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
-    return cached_my_payments(
-        current_user.id,
-        page,
-        limit,
-        _ttl_bucket()
-    )
+    # -----------------------------
+    # 1️⃣ Physical book payments
+    # -----------------------------
+    order_payments = session.exec(
+        select(Payment)
+        .where(Payment.user_id == current_user.id)
+    ).all()
+
+    # -----------------------------
+    # 2️⃣ Ebook payments
+    # -----------------------------
+    ebook_payments = session.exec(
+        select(EbookPayment)
+        .where(EbookPayment.user_id == current_user.id)
+    ).all()
+
+    # -----------------------------
+    # 3️⃣ Normalize into one list
+    # -----------------------------
+    combined = []
+
+    for p in order_payments:
+        combined.append({
+            "payment_id": p.id,
+            "txn_id": p.txn_id,
+            "amount": p.amount,
+            "status": p.status,
+            "method": p.method,
+            "created_at": p.created_at,
+            "type": "physical",
+            "reference_id": p.order_id,
+        })
+
+    for p in ebook_payments:
+        combined.append({
+            "payment_id": p.id,
+            "txn_id": p.txn_id,
+            "amount": p.amount,
+            "status": p.status,
+            "method": p.method,
+            "created_at": p.created_at,
+            "type": "ebook",
+            "reference_id": p.ebook_purchase_id,
+        })
+
+    # -----------------------------
+    # 4️⃣ Sort by date (DESC)
+    # -----------------------------
+    combined.sort(key=lambda x: x["created_at"], reverse=True)
+
+    # -----------------------------
+    # 5️⃣ Manual pagination
+    # -----------------------------
+    total_items = len(combined)
+    start = (page - 1) * limit
+    end = start + limit
+    paginated = combined[start:end]
+
+    return {
+        "total_items": total_items,
+        "total_pages": (total_items + limit - 1) // limit,
+        "current_page": page,
+        "limit": limit,
+        "results": paginated,
+    }

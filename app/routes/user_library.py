@@ -48,7 +48,7 @@ def _cached_my_ebooks(user_id: int, bucket: int):
         return result
 
 
-@router.get("/my-library")
+@router.get("")
 def my_ebook_library(
     current_user: User = Depends(get_current_user)
 ):
@@ -56,7 +56,7 @@ def my_ebook_library(
 
 
 
-@router.get("/library/books/{book_id}/read")
+@router.get("{book_id}/read")
 def read_ebook(
     book_id: int,
     session: Session = Depends(get_session),

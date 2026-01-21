@@ -5,6 +5,7 @@ from app.models.category import Category
 from app.models.book import Book
 from functools import lru_cache
 import time
+from app.utils.pagination import paginate
 
 router = APIRouter()
 CACHE_TTL = 60 * 60  # 60 minutes

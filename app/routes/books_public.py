@@ -7,6 +7,7 @@ from app.models.category import Category
 from app.services.r2_client import s3_client, R2_BUCKET_NAME
 from functools import lru_cache
 import time
+from app.utils.pagination import paginate
 
 router = APIRouter()
 CACHE_TTL = 60 * 60  # 60 minutes
@@ -184,115 +185,137 @@ def featured_authors():
 
 
 # ---------- LIST BOOKS BY CATEGORY ID ----------
-@lru_cache(maxsize=256)
-def _cached_books_by_category_id(category_id: int, bucket: int):
-    with next(get_session()) as session:
-        category = session.get(Category, category_id)
-        if not category:
-            return None
-        books = session.exec(select(Book).where(Book.category_id == category_id)).all()
-        return category.name, books
+@router.get("/{category_id}/books")
+def list_books_by_category_id(
+    category_id: int,
+    page: int = Query(1, ge=1),
+    limit: int = Query(12, le=50),
+    session: Session = Depends(get_session),
+):
+    query = (
+        select(Book)
+        .where(Book.category_id == category_id)
+        .order_by(Book.created_at.desc())
+    )
 
-@router.get("/category/{category_id}")
-def list_books_by_category_id(category_id: int):
-    data = _cached_books_by_category_id(category_id, _ttl_bucket())
-    if not data:
-        raise HTTPException(404, "Category not found")
-    category_name, books = data
-    return {
-        "category": category_name,
-        "category_id": category_id,
-        "total_books": len(books),
-        "books": books
-    }
+    return paginate(session=session, query=query, page=page, limit=limit)
+
 
 
 
 
 # ---------- LIST BOOKS BY CATEGORY NAME ----------
-@lru_cache(maxsize=256)
-def _cached_books_by_category_name(category_name: str, bucket: int):
-    with next(get_session()) as session:
-        category = session.exec(
-            select(Category).where(Category.name.ilike(f"%{category_name}%"))
-        ).first()
-
-        if not category:
-            return None
-
-        books = session.exec(
-            select(Book).where(Book.category_id == category.id)
-        ).all()
-
-        return {
-            "category": {
-                "id": category.id,
-                "name": category.name
-            },
-            "books": [
-                {
-                    "id": b.id,
-                    "title": b.title,
-                    "author": b.author,
-                    "price": b.price
-                }
-                for b in books
-            ]
-        }
 
 
 @router.get("/category-name/{category_name}")
-def books_by_category_name(category_name: str):
-    data = _cached_books_by_category_name(category_name.lower(), _ttl_bucket())
 
-    if not data:
+def list_books_by_category_name(
+    category_name: str,
+    page: int = Query(1, ge=1),
+    limit: int = Query(12, le=50),
+    search: str | None = None,
+    session: Session = Depends(get_session),
+):
+    category = session.exec(
+        select(Category).where(Category.name.ilike(category_name))
+    ).first()
+
+    if not category:
         raise HTTPException(404, f"Category '{category_name}' not found")
 
-    return {
-        "category": data["category"]["name"],
-        "category_id": data["category"]["id"],
-        "total_books": len(data["books"]),
-        "books": data["books"]
+    query = select(Book).where(Book.category_id == category.id)
+
+    if search:
+        query = query.where(Book.title.ilike(f"%{search}%"))
+
+    query = query.order_by(Book.created_at.desc())
+
+    data = paginate(
+        session=session,
+        query=query,
+        page=page,
+        limit=limit,
+    )
+
+    data["category"] = {
+        "id": category.id,
+        "name": category.name,
     }
+
+    data["results"] = [
+        {
+            "id": b.id,
+            "title": b.title,
+            "author": b.author,
+            "price": b.price,
+            "slug": b.slug,
+        }
+        for b in data["results"]
+    ]
+
+    return data
+
+
 
 
 # ---------- GET SPECIFIC BOOK INSIDE A CATEGORY ----------
-@lru_cache(maxsize=256)
-def _cached_book_in_category(category_name: str, book_name: str, bucket: int):
-    with next(get_session()) as session:
-        category = session.exec(
-            select(Category).where(Category.name.ilike(f"%{category_name}%"))
-        ).first()
-        if not category:
-            return None
-        book = session.exec(
-            select(Book).where(
-                Book.category_id == category.id,
-                Book.title.ilike(f"%{book_name}%")
-            )
-        ).first()
-        return book
+
 
 @router.get("/category/{category_name}/books/{book_name}")
-def get_book_in_category(category_name: str, book_name: str):
-    book = _cached_book_in_category(category_name.lower(), book_name.lower(), _ttl_bucket())
+def get_book_in_category(
+    category_name: str,
+    book_slug: str,
+    session: Session = Depends(get_session),
+):
+    category = session.exec(
+        select(Category).where(Category.name.ilike(category_name))
+    ).first()
+
+    if not category:
+        raise HTTPException(404, f"Category '{category_name}' not found")
+
+    book = session.exec(
+        select(Book).where(
+            Book.category_id == category.id,
+            Book.slug == book_slug
+        )
+    ).first()
+
     if not book:
-        raise HTTPException(404, f"Book '{book_name}' not found in category '{category_name}'")
-    return book
+        raise HTTPException(
+            404,
+            f"Book '{book_slug}' not found in category '{category_name}'"
+        )
+
+    return {
+        "id": book.id,
+        "title": book.title,
+        "author": book.author,
+        "price": book.price,
+        "description": book.description,
+        "created_at": book.created_at,
+    }
 
 
 
 
 # ---------- LIST ALL BOOKS ----------
-@lru_cache(maxsize=1)
-def _cached_all_books(bucket: int):
-    with next(get_session()) as session:
-        return session.exec(select(Book)).all()
-
 @router.get("/")
-def list_books():
-    books = _cached_all_books(_ttl_bucket())
-    return {"total": len(books), "books": books}
+def user_book_list(
+    page: int = Query(1, ge=1),
+    limit: int = Query(12, le=50),
+    search: str | None = None,
+    session: Session = Depends(get_session),
+):
+    query = select(Book).where(Book.is_active == True)
+
+    if search:
+        query = query.where(Book.title.ilike(f"%{search}%"))
+
+    query = query.order_by(Book.created_at.desc())
+
+    return paginate(session=session, query=query, page=page, limit=limit)
+
 
 
 

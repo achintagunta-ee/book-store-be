@@ -9,6 +9,7 @@ from app.utils.token import get_current_user
 from app.models.book import Book
 from functools import lru_cache
 import time
+from app.utils.pagination import paginate
 
 router = APIRouter()
 CACHE_TTL = 60 * 60  # 60 minutes

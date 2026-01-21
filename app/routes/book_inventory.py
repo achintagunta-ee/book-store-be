@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.temp_pydantic_v1_params import Query
 from sqlmodel import Session, func, select
 from app.database import get_session
 from app.models.book import Book
@@ -9,6 +10,7 @@ from app.routes.admin import create_notification
 from app.utils.token import get_current_admin, get_current_user
 from functools import lru_cache
 import time
+from app.utils.pagination import paginate
 
 def require_admin(current_user: User = Depends(get_current_user)):
     if current_user.role != "admin":
@@ -25,7 +27,7 @@ def _ttl_bucket() -> int:
     return int(time.time() // CACHE_TTL)
 def clear_inventory_cache():
     _cached_inventory_summary.cache_clear()
-    _cached_inventory_list.cache_clear()
+    
 
 
 @lru_cache(maxsize=32)
@@ -56,46 +58,37 @@ def _cached_inventory_summary(bucket: int):
 def inventory_summary(admin: User = Depends(get_current_admin)):
     return _cached_inventory_summary(_ttl_bucket())
 
-@lru_cache(maxsize=128)
-def _cached_inventory_list(status: str | None, bucket: int):
-    from app.database import get_session
-    from app.models.book import Book
-    from sqlmodel import select
-
-    with next(get_session()) as session:
-        query = select(Book)
-
-        if status == "low_stock":
-            query = query.where(Book.stock <= 5, Book.stock > 0)
-        elif status == "out_of_stock":
-            query = query.where(Book.stock == 0)
-        elif status == "in_stock":
-            query = query.where(Book.stock > 5)
-
-        books = session.exec(query).all()
-
-        return [
-            {
-                "id": b.id,
-                "title": b.title,
-                "author": b.author,
-                "stock": b.stock,
-                "status": (
-                    "OUT_OF_STOCK" if b.stock == 0
-                    else "LOW_STOCK" if b.stock <= 5
-                    else "IN_STOCK"
-                )
-            }
-            for b in books
-        ]
-
-
 @router.get("/inventory")
-def list_inventory(
-    status: Optional[str] = None,
-    admin: User = Depends(get_current_admin)
+def inventory_list(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    search: str | None = None,
+    session: Session = Depends(get_session),
+    admin: User = Depends(get_current_admin),
 ):
-    return _cached_inventory_list(status, _ttl_bucket())
+    query = select(Book)
+
+    if search:
+        query = query.where(Book.title.ilike(f"%{search}%"))
+
+    query = query.order_by(Book.updated_at.desc())
+
+    data = paginate(session=session, query=query, page=page, limit=limit)
+
+    data["results"] = [
+        {
+            "book_id": b.id,
+            "title": b.title,
+            "stock": b.stock,
+            "in_stock": b.in_stock,
+            "price": b.price,
+            "updated_at": b.updated_at,
+        }
+        for b in data["results"]
+    ]
+
+    return data
+
 
 @router.patch("/inventory/{book_id}")
 def update_book_inventory(

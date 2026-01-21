@@ -111,7 +111,7 @@ app.include_router(public_settings.router,prefix="/settings",tags= ["Public Sett
 app.include_router(order_cancellation.router,prefix="/orders/cancellations",tags= ["User Order Cancellation"])
 app.include_router(admin_cancellation.router,prefix="/admin/cancellations",tags= ["Admin Order Cancellation"])
 app.include_router(ebooks.router,prefix="/ebooks",tags= ["Ebook Purchase"])
-app.include_router(user_library.router,prefix="/users",tags= ["Users Library"])
+app.include_router(user_library.router,prefix="/users/library",tags= ["Users Library"])
 app.include_router(ebooks_admin.router,prefix="/ebooks/admin",tags=["Ebook Admin"])
 
 

@@ -6,7 +6,8 @@ from app.database import get_session
 from app.models.payment import Payment
 from app.models.user import User
 from app.models.order import Order
-from app.utils.token import get_current_user
+from app.utils.pagination import paginate
+from app.utils.token import get_current_admin, get_current_user
 from functools import lru_cache
 import time
 
@@ -21,98 +22,31 @@ def require_admin(current_user: User = Depends(get_current_user)):
         raise HTTPException(403, "Admin access required")
     return current_user
 
-@lru_cache(maxsize=256)
-def _cached_list_payments(
-    page: int,
-    limit: int,
-    status: Optional[str],
-    start_date: Optional[str],
-    end_date: Optional[str],
-    search: Optional[str],
-    bucket: int
-):
-    from app.database import get_session
-    from app.models.payment import Payment
-    from app.models.user import User
-    from sqlmodel import select, func
 
-    with next(get_session()) as session:
-        query = select(Payment, User).join(User, User.id == Payment.user_id)
-
-        if status and status.lower() != "all":
-            status = status.lower()
-            if status == "completed":
-                query = query.where(Payment.status.in_(["success", "paid"]))
-            elif status == "pending":
-                query = query.where(Payment.status == "pending")
-            elif status == "failed":
-                query = query.where(Payment.status == "failed")
-            else:
-                query = query.where(Payment.status == status)
-
-        if start_date:
-            query = query.where(func.date(Payment.created_at) >= start_date)
-        if end_date:
-            query = query.where(func.date(Payment.created_at) <= end_date)
-
-        if search:
-            s = f"%{search}%"
-            query = query.where(
-                (User.first_name.ilike(s)) |
-                (User.last_name.ilike(s)) |
-                (Payment.txn_id.ilike(s)) |
-                (Payment.order_id.cast(str).ilike(s))
-            )
-
-        total = session.exec(
-            select(func.count()).select_from(query.subquery())
-        ).one()
-
-        results = session.exec(
-            query.order_by(Payment.created_at.desc())
-            .offset((page - 1) * limit)
-            .limit(limit)
-        ).all()
-
-        return {
-            "total_items": total,
-            "total_pages": (total + limit - 1) // limit,
-            "current_page": page,
-            "results": [
-                {
-                    "payment_id": p.id,
-                    "txn_id": p.txn_id,
-                    "order_id": p.order_id,
-                    "amount": p.amount,
-                    "status": p.status,
-                    "method": p.method,
-                    "customer_name": f"{u.first_name} {u.last_name}",
-                    "created_at": p.created_at,
-                }
-                for p, u in results
-            ]
-        }
-
-
-@router.get("")
+@router.get("/payments")
 def list_payments(
-    page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100),
-    status: Optional[str] = Query(None),
-    start_date: Optional[date] = Query(None),
-    end_date: Optional[date] = Query(None),
-    search: Optional[str] = Query(None),
-    admin: User = Depends(require_admin)
+    page: int = 1,
+    limit: int = 10,
+    status: str | None = None,
+    search: str | None = None,
+    session: Session = Depends(get_session),
+    admin: User = Depends(get_current_admin),
 ):
-    return _cached_list_payments(
-        page,
-        limit,
-        status,
-        str(start_date) if start_date else None,
-        str(end_date) if end_date else None,
-        search,
-        _ttl_bucket()
-    )
+    query = select(Payment).join(User)
+
+    if status:
+        query = query.where(Payment.status == status)
+
+    if search:
+        query = query.where(
+            Payment.txn_id.ilike(f"%{search}%") |
+            User.email.ilike(f"%{search}%")
+        )
+
+    query = query.order_by(Payment.created_at.desc())
+
+    return paginate(session=session, query=query, page=page, limit=limit)
+
 
 @lru_cache(maxsize=512)
 def _cached_payment_details(payment_id: int, bucket: int):
@@ -235,7 +169,7 @@ def create_offline_payment(
     session.add(payment)
     session.commit()
     session.refresh(payment)
-    _cached_list_payments.cache_clear()
+   
     _cached_payment_details.cache_clear()
     _cached_payment_receipt.cache_clear()
 
