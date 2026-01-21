@@ -254,15 +254,16 @@ def _cached_cart_details(user_id: int, bucket: int):
             item_list.append({
                 "book_id": item.book_id,
                 "book_title": item.book_title,
-                "price": item.price,
+                "price": item.price,   # ✅ single source
+                "cover_image": book.cover_image,
                 "cover_image_url": to_presigned_url(book.cover_image)
                 if book.cover_image else None,
                 "quantity": item.quantity,
                 "total": line_total
             })
 
-        shipping = 0 if subtotal > 500 else 150
-        tax = round(subtotal * 0.05, 2)
+        shipping = 0 if subtotal >= 500 else 150
+        tax = 0
         total = subtotal + shipping + tax
 
         return {
