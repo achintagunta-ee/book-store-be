@@ -63,7 +63,7 @@ app = FastAPI(
     lifespan=lifespan,
     servers=[
         {
-            "url": "https://hbn-be.efficientengineering.com",
+            "url": "https://hbn-be.efficientemengineering.com",
             "description": "Production server",
         }
     ],
