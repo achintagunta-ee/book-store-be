@@ -79,7 +79,7 @@
 
           // 🔹 3️⃣ Verify payment on backend
           const verifyRes = await fetch(
-            `http://localhost:8000/ebooks/${purchaseId}/verify-razorpay-payment`
+            `https://hbn-be.efficientemengineering.com/ebooks/${purchaseId}/verify-razorpay-payment`
 ,
             {
               method: "POST",
