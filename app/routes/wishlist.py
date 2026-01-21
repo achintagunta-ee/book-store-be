@@ -8,7 +8,7 @@ from app.utils.token import get_current_user
 from functools import lru_cache
 import time
 
-router = APIRouter(prefix="/wishlist", tags=["Wishlist"])
+router = APIRouter()
 
 CACHE_TTL = 60 * 60  # 60 minutes
 
