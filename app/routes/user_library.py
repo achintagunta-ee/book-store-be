@@ -8,35 +8,51 @@ from app.services.r2_helper import to_presigned_url
 from app.utils.token import get_current_user
 from datetime import datetime
 from app.services.r2_client import s3_client, R2_BUCKET_NAME
+from functools import lru_cache
+import time
 
 router= APIRouter()
+CACHE_TTL = 60 * 60  # 60 minutes
 
-@router.get("/library")
-def my_library(
-    session: Session = Depends(get_session),
+def _ttl_bucket() -> int:
+    """
+    Changes every 60 minutes → auto cache expiry
+    """
+    return int(time.time() // CACHE_TTL)
+
+@lru_cache(maxsize=512)
+def _cached_my_ebooks(user_id: int, bucket: int):
+    from app.database import get_session
+    from app.models.ebook_purchase import EbookPurchase
+    from app.models.book import Book
+    from sqlmodel import select
+
+    with next(get_session()) as session:
+        purchases = session.exec(
+            select(EbookPurchase)
+            .where(EbookPurchase.user_id == user_id)
+            .where(EbookPurchase.status == "paid")
+        ).all()
+
+        result = []
+        for p in purchases:
+            book = session.get(Book, p.book_id)
+            result.append({
+                "purchase_id": p.id,
+                "book_id": book.id,
+                "title": book.title,
+                "author": book.author,
+                "cover_image_url": to_presigned_url(book.cover_image)
+            })
+
+        return result
+
+
+@router.get("/my-library")
+def my_ebook_library(
     current_user: User = Depends(get_current_user)
 ):
-    books = session.exec(
-        select(Book, EbookPurchase)
-        .join(EbookPurchase)
-        .where(EbookPurchase.user_id == current_user.id)
-        .where(EbookPurchase.status == "paid")
-    ).all()
-
-    return [
-        {
-            "book_id": book.id,
-            "title": book.title,
-            "cover_image": book.cover_image,
-            "cover_image_url": (
-                to_presigned_url(book.cover_image)
-                if book.cover_image else None
-            ),
-            "purchased_at": purchase.created_at,
-            "expires_at": purchase.access_expires_at
-        }
-        for book, purchase in books
-    ]
+    return _cached_my_ebooks(current_user.id, _ttl_bucket())
 
 
 

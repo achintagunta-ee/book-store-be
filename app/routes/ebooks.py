@@ -10,6 +10,8 @@ from app.models.book import Book
 from app.models.notifications import NotificationChannel, RecipientRole
 from app.models.user import User
 from app.notifications import OrderEvent, dispatch_order_event
+from app.routes.ebooks_admin import _cached_ebook_payments, _cached_ebook_purchases
+from app.routes.user_library import _cached_my_ebooks
 from app.schemas.user_schemas import RazorpayPaymentVerifySchema
 from app.utils.token import get_current_user
 from app.services.notification_service import create_notification
@@ -18,6 +20,8 @@ from datetime import timedelta
 from uuid import uuid4
 from app.models.payment import Payment
 from app.config import settings
+from functools import lru_cache
+import time
 
 router = APIRouter()
 razorpay_client = razorpay.Client(
@@ -29,6 +33,16 @@ class RazorpayPaymentEbookVerifySchema(BaseModel):
     razorpay_order_id: str
     razorpay_payment_id: str
     razorpay_signature: str
+
+
+
+CACHE_TTL = 60 * 60  # 60 minutes
+
+def _ttl_bucket() -> int:
+    """
+    Changes every 60 minutes → auto cache expiry
+    """
+    return int(time.time() // CACHE_TTL)
 
 
 @router.post("/purchase")
@@ -247,6 +261,9 @@ def verify_ebook_razorpay_payment(
     )
     session.add(payment)
     session.commit()
+    _cached_ebook_purchases.cache_clear()
+    _cached_ebook_payments.cache_clear()
+    _cached_my_ebooks.cache_clear()
 
     book = session.get(Book, purchase.book_id)
 
