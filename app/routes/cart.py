@@ -267,12 +267,15 @@ def _cached_cart_details(user_id: int, bucket: int):
         total = subtotal + shipping + tax
 
         return {
-            "items": item_list,
-            "subtotal": subtotal,
-            "shipping": shipping,
-            "tax": tax,
-            "total": total
-        }
+        "items": item_list,
+         "summary": {
+        "subtotal": subtotal,
+        "shipping": shipping,
+        "tax": tax,
+        "total": total
+    }
+}
+
 
 @router.get("/details")
 def get_my_cart(current_user: User = Depends(get_current_user)):
