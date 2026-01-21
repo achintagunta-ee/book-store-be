@@ -204,6 +204,9 @@ def create_ebook_razorpay_order(
     }
 
 
+from sqlmodel import select
+import razorpay
+
 @router.post("/{purchase_id}/verify-razorpay-payment")
 def verify_ebook_razorpay_payment(
     purchase_id: int,
@@ -211,26 +214,44 @@ def verify_ebook_razorpay_payment(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Verify Razorpay payment for eBook"""
-
+    # 1️⃣ Fetch purchase
     purchase = session.get(EbookPurchase, purchase_id)
-    if not purchase or purchase.user_id != current_user.id:
-        raise HTTPException(404, "Purchase not found")
 
-    # 🔒 Idempotency
+    if not purchase:
+        raise HTTPException(404, "Purchase not found")
+    
+    if purchase.user_id != current_user.id:
+        raise HTTPException(403, "This purchase belongs to another user")
+
+    # 2️⃣ Check if already paid (idempotency)
     if purchase.status == "paid":
         return {
             "message": "Payment already processed",
             "purchase_id": purchase.id,
         }
 
+    # 3️⃣ Check for duplicate payment by txn_id
+    existing_payment = session.exec(
+        select(EbookPayment).where(
+            EbookPayment.txn_id == payload.razorpay_payment_id
+        )
+    ).first()
+
+    if existing_payment:
+        return {
+            "message": "Payment already recorded",
+            "purchase_id": purchase.id,
+            "txn_id": existing_payment.txn_id,
+        }
+
+    # 4️⃣ Verify gateway order ID
     if not purchase.gateway_order_id:
         raise HTTPException(400, "Razorpay order not initialized")
 
     if purchase.gateway_order_id != payload.razorpay_order_id:
         raise HTTPException(400, "Order mismatch")
 
-    # 🔐 Verify signature
+    # 5️⃣ Verify Razorpay signature
     try:
         razorpay_client.utility.verify_payment_signature({
             "razorpay_order_id": payload.razorpay_order_id,
@@ -240,17 +261,12 @@ def verify_ebook_razorpay_payment(
     except razorpay.errors.SignatureVerificationError:
         raise HTTPException(400, "Payment verification failed")
 
-    # 🔐 Capture payment
-    razorpay_client.payment.capture(
-        payload.razorpay_payment_id,
-        int(purchase.amount * 100)
-    )
-
-    # ✅ Grant lifetime access
+    # 6️⃣ Update purchase status
     purchase.status = "paid"
     purchase.access_expires_at = None
     purchase.updated_at = datetime.utcnow()
 
+    # 7️⃣ Create payment record
     payment = EbookPayment(
         ebook_purchase_id=purchase.id,
         user_id=current_user.id,
@@ -259,12 +275,19 @@ def verify_ebook_razorpay_payment(
         status="success",
         method="razorpay",
     )
-    session.add(payment)
+
+    # ✅ ADD PAYMENT TO SESSION
+    session.add(purchase)
+    session.add(payment)  # ← THIS WAS MISSING!
     session.commit()
+    session.refresh(payment)  # ← GET THE PAYMENT ID
+
+    # 8️⃣ Clear caches
     _cached_ebook_purchases.cache_clear()
     _cached_ebook_payments.cache_clear()
     _cached_my_ebooks.cache_clear()
 
+    # 9️⃣ Get book details
     book = session.get(Book, purchase.book_id)
 
     # 🔔 USER notification
