@@ -22,7 +22,6 @@ def clear_books_cache():
     _cached_advanced_search.cache_clear()
     _cached_filter_books.cache_clear()
     _cached_featured_books.cache_clear()
-    _cached_book_by_id.cache_clear()
     _cached_paginated_books.cache_clear()
 
 # ---------- SEARCH BOOKS ----------
@@ -206,9 +205,7 @@ def list_books_by_category_id(
 
 # ---------- LIST BOOKS BY CATEGORY NAME ----------
 
-
 @router.get("/category-name/{category_name}")
-
 def list_books_by_category_name(
     category_name: str,
     page: int = Query(1, ge=1),
@@ -259,7 +256,6 @@ def list_books_by_category_name(
 
 
 # ---------- GET SPECIFIC BOOK INSIDE A CATEGORY ----------
-
 
 @router.get("/category/{category_name}/books/{book_name}")
 def get_book_in_category(
@@ -321,20 +317,30 @@ def user_book_list(
 
 
 # ---------- GET BOOK BY ID ----------
-@lru_cache(maxsize=512)
-def _cached_book_by_id(book_id: int, bucket: int):
-    from app.database import get_session
-    from app.models.book import Book
-
-    with next(get_session()) as session:
-        return session.get(Book, book_id)
-
 @router.get("/id/{book_id}")
-def get_book_by_id(book_id: int):
-    book = _cached_book_by_id(book_id, _ttl_bucket())
+def get_book_by_id(
+    book_id: int,
+    session: Session = Depends(get_session),
+):
+    book = session.get(Book, book_id)
+
     if not book:
         raise HTTPException(404, "Book not found")
-    return book
+
+    return {
+        "id": book.id,
+        "title": book.title,
+        "author": book.author,
+        "price": book.price,
+        "discount_price": book.discount_price,
+        "offer_price": book.offer_price,
+        "is_ebook": book.is_ebook,
+        "ebook_price": book.ebook_price,
+        "stock": book.stock,
+        "created_at": book.created_at,
+        "updated_at": book.updated_at,
+    }
+
 
 
 # Generate Public URL on the Fly
