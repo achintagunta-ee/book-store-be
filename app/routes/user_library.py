@@ -55,8 +55,6 @@ def my_library(
     return _cached_my_ebooks(current_user.id, _ttl_bucket())
 
 
-
-
 @router.get("/ebooks/{book_id}/read")
 def read_ebook(
     book_id: int,
