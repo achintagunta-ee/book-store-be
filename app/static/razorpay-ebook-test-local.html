@@ -48,7 +48,7 @@ async function startPayment() {
   try {
     // 1️⃣ Create Razorpay Order
     const orderRes = await fetch(
-      `http://localhost:8000/ebooks/${purchaseId}/create-razorpay-order`,
+      `https://hbn-be.efficientemengineering.com/ebooks/${purchaseId}/create-razorpay-order`,
       {
         method: "POST",
         headers: {
@@ -83,7 +83,7 @@ async function startPayment() {
         try {
           // 3️⃣ Verify payment
           const verifyRes = await fetch(
-            `http://localhost:8000/ebooks/${purchaseId}/verify-razorpay-payment`,
+            `https://hbn-be.efficientemengineering.com/ebooks/${purchaseId}/verify-razorpay-payment`,
             {
               method: "POST",
               headers: {
