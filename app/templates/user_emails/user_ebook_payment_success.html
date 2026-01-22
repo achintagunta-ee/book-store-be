@@ -1,11 +1,77 @@
-<p>Hi {{first_name}},</p>
-
-<p>Your payment for <b>{{book_title}}</b> was successful 🎉</p>
-
-<p>Amount Paid: ₹{{amount}}</p>
-
-<p>You now have <b>lifetime access</b> to this eBook.</p>
-
-<p>You can read it anytime from your library.</p>
-
-<p>Thank you,<br>Hithabodha Store</p>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background: #4CAF50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .content {
+            padding: 20px;
+            background: #f9f9f9;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #4CAF50;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎉 Payment Successful!</h1>
+        </div>
+        
+        <div class="content">
+            <p>Hi {{ first_name }},</p>
+            
+            <p>Your payment for <strong>{{ book_title }}</strong> has been successfully processed!</p>
+            
+            <p><strong>Purchase Details:</strong></p>
+            <ul>
+                <li>eBook: {{ book_title }}</li>
+                <li>Amount: ₹{{ amount }}</li>
+                <li>Purchase ID: {{ purchase_id }}</li>
+                <li>Access: Lifetime</li>
+            </ul>
+            
+            <p>You can now read your eBook anytime from your library.</p>
+            
+            <a href="https://yourdomain.com/ebooks/my-library" class="button">
+                📚 Go to My Library
+            </a>
+            
+            <p>Thank you for your purchase!</p>
+        </div>
+        
+        <div class="footer">
+            <p>Hithabodha Bookstore</p>
+            <p>This is an automated email. Please do not reply.</p>
+        </div>
+    </div>
+</body>
+</html>
