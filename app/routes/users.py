@@ -345,7 +345,30 @@ def admin_book_list(
 
     return paginate(session=session, query=query, page=page, limit=limit)
 
+@router.get("/notifications")
+def list_customer_notifications(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    notifications = session.exec(
+        select(Notification)
+        .where(
+            Notification.recipient_role == "customer",
+            Notification.user_id == user.id
+        )
+        .order_by(Notification.created_at.desc())
+    ).all()
 
+    return [
+        {
+            "notification_id": n.id,
+            "title": n.title,
+            "content": n.content,
+            "status": n.status,
+            "created_at": n.created_at,
+        }
+        for n in notifications
+    ]
 @router.get("/notifications/{notification_id}")
 def get_notification_detail(
     notification_id: int,
