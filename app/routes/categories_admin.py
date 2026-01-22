@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session, select
 from app.database import get_session
+from app.models import book
 from app.models.category import Category
 from app.models.user import User
 from app.routes.books_public import clear_books_cache
@@ -167,40 +168,50 @@ def get_books_by_category(category_id: int):
         raise HTTPException(404, "Category not found")
     return data
 
-@lru_cache(maxsize=256)
-def _cached_books_by_category_name(category_name: str, bucket: int):
-    from app.database import get_session
-    from app.models.category import Category
-    from app.models.book import Book
-    from sqlmodel import select
-
-    with next(get_session()) as session:
-        category = session.exec(
-            select(Category).where(Category.name.ilike(category_name))
-        ).first()
-
-        if not category:
-            return None
-
-        books = session.exec(
-            select(Book).where(Book.category_id == category.id)
-        ).all()
-
-        return {
-            "category": category.name,
-            "category_id": category.id,
-            "total_books": len(books),
-            "books": books
-        }
-
-
-
 @router.get("/categories/{category_name}/list")
-def list_books_by_category_name(category_name: str):
-    data = _cached_books_by_category_name(category_name, _ttl_bucket())
-    if not data:
+def list_books_by_category_name(
+    category_name: str,
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=50),
+    session: Session = Depends(get_session),
+):
+    category = session.exec(
+        select(Category)
+        .where(Category.name.ilike(f"%{category_name}%"))
+    ).first()
+
+    if not category:
         raise HTTPException(404, f"Category '{category_name}' not found")
-    return data
+
+    query = (
+        select(Book)
+        .where(Book.category_id == category.id)
+        .order_by(Book.created_at.desc())
+    )
+
+    data = paginate(session=session, query=query, page=page, limit=limit)
+
+    return {
+        "category": category.name,
+        "category_id": category.id,
+        "total_books": data["total_items"],
+        "page": data["current_page"],
+        "total_pages": data["total_pages"],
+        "books": [
+            {
+                "book_id": book.id,
+                "book_title": book.title,
+                "author": book.author,
+                "price": book.price,
+                "discount_price": book.discount_price,
+                "offer_price": book.offer_price,
+                "is_ebook": book.is_ebook,
+                "stock": book.stock,
+                "cover_image": book.cover_image,
+            }
+            for book in data["results"]
+        ]
+    }
 
 @lru_cache(maxsize=512)
 def _cached_book_in_category(category_name: str, book_name: str, bucket: int):

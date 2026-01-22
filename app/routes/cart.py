@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException 
 from sqlmodel import Session, select
 from app.database import get_session
 from app.models import book
@@ -10,21 +10,9 @@ from app.services.r2_helper import to_presigned_url
 from app.utils.token import get_current_user  # JWT dependency
 from app.models.cart import CartItem 
 from datetime import datetime
-from app.utils.cache_helpers import cached_address_and_cart, cached_addresses
-from functools import lru_cache
-import time
+
 
 router = APIRouter()
-CACHE_TTL = 60 * 60  # 60 minutes
-
-def _ttl_bucket() -> int:
-    """
-    Changes every 60 minutes → forces cache refresh
-    """
-    return int(time.time() // CACHE_TTL)
-def clear_cart_cache():
-    _cached_cart.cache_clear()
- 
 
 # Add to Cart 
 
@@ -70,9 +58,6 @@ def add_to_cart(
             added_items.append(new_item)
 
     session.commit()
-    cached_addresses.cache_clear()
-    cached_address_and_cart.cache_clear()
-    clear_cart_cache()
     return {
         "message": "Books added to cart",
     }
@@ -80,71 +65,67 @@ def add_to_cart(
 
 
 # View Cart 
-@lru_cache(maxsize=512)
-def _cached_cart(user_id: int, bucket: int):
-    from app.database import get_session
-    from app.models.cart import CartItem
-    from app.models.book import Book
-    from app.services.r2_helper import to_presigned_url
-    from sqlmodel import select
-
-    with next(get_session()) as session:
-        cart_items = session.exec(
-            select(CartItem, Book)
-            .join(Book, CartItem.book_id == Book.id)
-            .where(CartItem.user_id == user_id)
-        ).all()
-
-        items_response = []
-        subtotal = 0
-
-        for cart_item, book in cart_items:
-            effective_price = (
-                book.offer_price
-                if book.offer_price
-                else book.discount_price
-                if book.discount_price
-                else book.price
-            )
-
-            subtotal += effective_price * cart_item.quantity
-
-            items_response.append({
-                "item_id": cart_item.id,
-                "book_id": book.id,
-                "book_name": book.title,
-                "cover_image": book.cover_image,
-                "slug": book.slug,
-                "cover_image_url": to_presigned_url(book.cover_image)
-                if book.cover_image else None,
-                "price": book.price,
-                "discount_price": book.discount_price,
-                "offer_price": book.offer_price,
-                "effective_price": effective_price,
-                "quantity": cart_item.quantity,
-                "stock": book.stock,
-                "in_stock": book.in_stock,
-                "total": effective_price * cart_item.quantity
-            })
-
-        shipping = 0 if subtotal >= 500 else 150
-        tax = 0
-        final_total = subtotal + tax + shipping
-
-        return {
-            "items": items_response,
-            "summary": {
-                "subtotal": subtotal,
-                "shipping": shipping,
-                "tax": tax,
-                "final_total": final_total
-            }
-        }
 
 @router.get("/")
-def get_cart(current_user: User = Depends(get_current_user)):
-    return _cached_cart(current_user.id, _ttl_bucket())
+def get_cart(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    cart_items = session.exec(
+        select(CartItem, Book)
+        .join(Book, CartItem.book_id == Book.id)
+        .where(CartItem.user_id == current_user.id)
+    ).all()
 
+    items_response = []
+    subtotal = 0
+
+    for cart_item, book in cart_items:
+        # Determine best price
+        effective_price = (
+            book.offer_price 
+            if book.offer_price 
+            else book.discount_price 
+            if book.discount_price 
+            else book.price
+        )
+
+        subtotal += effective_price * cart_item.quantity
+
+        items_response.append({
+            "item_id": cart_item.id,
+            "book_id": book.id,
+            "book_name": book.title,
+            "slug": book.slug,
+            "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None,
+            "price": book.price,
+            "discount_price": book.discount_price,
+            "offer_price": book.offer_price,
+            "effective_price": effective_price,
+            "quantity": cart_item.quantity,
+            "stock": book.stock,
+            "in_stock": book.in_stock,
+            "total": effective_price * cart_item.quantity
+        })
+
+    # SHIPPING RULE
+    shipping = 0 if subtotal >= 500 else 150
+    
+    tax_rate = 0.08  # 8%
+    tax = round(subtotal * tax_rate, 2)
+
+
+    final_total = subtotal  + tax + shipping
+
+    return {
+        "items": items_response,
+        "summary": {
+            "subtotal": subtotal,
+            "shipping": shipping,
+            "tax":"tax",
+            "final_total": final_total
+        }
+    }
 
 # Update Cart 
 @router.put("/update/{item_id}")
@@ -169,9 +150,6 @@ def update_cart_item(
     session.commit()
     session.refresh(item)
 
-    cached_addresses.cache_clear()
-    cached_address_and_cart.cache_clear()
-    clear_cart_cache()
     return {"message": "Quantity updated", "item": item}
 
 # Remove Cart 
@@ -189,9 +167,6 @@ def remove_item(
 
     session.delete(item)
     session.commit()
-    cached_addresses.cache_clear()
-    cached_address_and_cart.cache_clear()
-    clear_cart_cache()
 
     return {"message": "Item removed from cart"}
 
@@ -213,70 +188,57 @@ def clear_cart_endpoint(
     current_user: User = Depends(get_current_user)
 ):
     clear_cart(session, current_user.id)
-    cached_addresses.cache_clear()
-    cached_address_and_cart.cache_clear()
-    clear_cart_cache()
-
     return {"message": "Cart cleared"}
 
 
-@lru_cache(maxsize=512)
-def _cached_cart_details(user_id: int, bucket: int):
-    from app.database import get_session
-    from app.models.cart import CartItem
-    from app.models.book import Book
-    from app.services.r2_helper import to_presigned_url
-    from sqlmodel import select
 
-    with next(get_session()) as session:
-        items = session.exec(
-            select(CartItem, Book)
-            .join(Book, CartItem.book_id == Book.id)
-            .where(CartItem.user_id == user_id)
-        ).all()
+@router.get("/details", response_model=None)
+def get_my_cart(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    items = session.exec(
+    select(CartItem, Book)
+    .join(Book, CartItem.book_id == Book.id)
+    .where(CartItem.user_id == current_user.id)
+).all()
 
-        if not items:
-            return {
-                "items": [],
-                "subtotal": 0,
-                "shipping": 0,
-                "tax": 0,
-                "total": 0
-            }
 
-        item_list = []
-        subtotal = 0
-
-        for item, book in items:
-            line_total = item.price * item.quantity
-            subtotal += line_total
-
-            item_list.append({
-                "book_id": item.book_id,
-                "book_title": item.book_title,
-                "price": item.price,   # ✅ single source
-                "cover_image": book.cover_image,
-                "cover_image_url": to_presigned_url(book.cover_image)
-                if book.cover_image else None,
-                "quantity": item.quantity,
-                "total": line_total
-            })
-
-        shipping = 0 if subtotal >= 500 else 150
-        tax = 0
-        total = subtotal + shipping + tax
-
+    if not items:
         return {
+            "items": [],
+            "subtotal": 0,
+            "shipping": 0,
+            "tax": 0,
+            "total": 0
+        }
+
+    item_list = []
+    subtotal = 0
+
+    for item ,book in items:
+        line_total = item.price * item.quantity
+        subtotal += line_total
+
+        item_list.append({
+            "book_id": item.book_id,
+            "book_title": item.book_title,
+            "price": item.price,
+            "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None,
+            "quantity": item.quantity,
+            "total": line_total
+        })
+
+    # Example logic
+    shipping = 0 if subtotal > 500 else 150
+    tax = round(subtotal * 0.05, 2)   # 5% GST example
+    total = subtotal + shipping + tax
+
+    return {
         "items": item_list,
-         "summary": {
         "subtotal": subtotal,
         "shipping": shipping,
         "tax": tax,
         "total": total
     }
-}
 
-
-@router.get("/details")
-def get_my_cart(current_user: User = Depends(get_current_user)):
-    return _cached_cart_details(current_user.id, _ttl_bucket())
