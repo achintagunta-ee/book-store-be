@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, File, UploadFile, HTTPException
+from fastapi import APIRouter, Depends, Form, File, Query, UploadFile, HTTPException
 from typing import Optional
 from sqlmodel import Session, select
 from app.database import get_session
@@ -9,12 +9,13 @@ from app.models.order_item import OrderItem
 from app.models.user import User
 from app.models.order import Order
 from app.models.address import Address
-from app.utils.token import get_current_user
+from app.utils.token import get_current_admin, get_current_user
 import os
 from app.schemas.address_schemas import AddressCreate
 from app.services.r2_helper import upload_profile_image, delete_r2_file
 from functools import lru_cache
 import time
+from app.utils.pagination import paginate
 
 router = APIRouter()
 CACHE_TTL = 60 * 60  # 60 minutes
@@ -196,32 +197,6 @@ def _cached_home(bucket: int):
             "categories": session.exec(select(Category)).all()
         }
 
-@lru_cache(maxsize=512)
-def _cached_notifications(user_id: int, bucket: int):
-    from app.database import get_session
-    from app.models.notifications import Notification
-    from sqlmodel import select
-
-    with next(get_session()) as session:
-        notes = session.exec(
-            select(Notification)
-            .where(
-                Notification.user_id == user_id,
-                Notification.recipient_role == "customer"
-            )
-            .order_by(Notification.created_at.desc())
-        ).all()
-
-        return [
-            {
-                "notification_id": n.id,
-                "title": n.title,
-                "content": n.content,
-                "status": n.status,
-                "created_at": n.created_at,
-            }
-            for n in notes
-        ]
 
 # -------- USER DASHBOARD --------
 
@@ -353,11 +328,23 @@ def _cached_notification_detail(user_id: int, notification_id: int, bucket: int)
 
 
 
-@router.get("/notifications")
-def list_customer_notifications(
-    user: User = Depends(get_current_user),
+@router.get("/admin/books")
+def admin_book_list(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, le=100),
+    search: str | None = None,
+    session: Session = Depends(get_session),
+    admin: User = Depends(get_current_admin),
 ):
-    return _cached_notifications(user.id, _ttl_bucket())
+    query = select(Book)
+
+    if search:
+        query = query.where(Book.title.ilike(f"%{search}%"))
+
+    query = query.order_by(Book.updated_at.desc())
+
+    return paginate(session=session, query=query, page=page, limit=limit)
+
 
 @router.get("/notifications/{notification_id}")
 def get_notification_detail(

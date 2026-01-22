@@ -25,6 +25,7 @@ from enum import Enum
 from sqlalchemy import String, cast
 from functools import lru_cache
 import time
+from app.utils.pagination import paginate
 
 router = APIRouter()
 
@@ -34,50 +35,50 @@ def _ttl_bucket() -> int:
     """Changes every 60 minutes → automatic cache expiry"""
     return int(time.time() // CACHE_TTL)
 
-@lru_cache(maxsize=256)
-def _cached_admin_notifications(
-    trigger_source: str | None,
-    bucket: int
-):
-    from app.database import get_session
-    from app.models.notifications import Notification
-    from sqlmodel import select
-
-    with next(get_session()) as session:
-        query = select(Notification).where(
-            Notification.recipient_role == "admin"
-        )
-
-        if trigger_source:
-            query = query.where(Notification.trigger_source == trigger_source)
-
-        notifications = session.exec(
-            query.order_by(Notification.created_at.desc())
-        ).all()
-
-        return [
-            {
-                "notification_id": n.id,
-                "title": n.title,
-                "content": n.content,
-                "trigger_source": n.trigger_source,
-                "related_id": n.related_id,
-                "status": n.status,
-                "created_at": n.created_at,
-            }
-            for n in notifications
-        ]
-
-
 @router.get("")
 def list_admin_notifications(
-    trigger_source: str | None = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    trigger_source: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    session: Session = Depends(get_session),
     admin: User = Depends(get_current_admin),
 ):
-    return _cached_admin_notifications(
-        trigger_source,
-        _ttl_bucket()
+    query = select(Notification).where(
+        Notification.recipient_role == "admin"
     )
+
+    if trigger_source:
+        query = query.where(Notification.trigger_source == trigger_source)
+
+    if status:
+        query = query.where(Notification.status == status)
+
+    query = query.order_by(Notification.created_at.desc())
+
+    paginated = paginate(
+        session=session,
+        query=query,
+        page=page,
+        limit=limit,
+    )
+
+    # 🔹 Serialize (important: do NOT return ORM directly)
+    paginated["results"] = [
+        {
+            "notification_id": n.id,
+            "title": n.title,
+            "content": n.content,
+            "trigger_source": n.trigger_source,
+            "related_id": n.related_id,
+            "status": n.status,
+            "created_at": n.created_at,
+        }
+        for n in paginated["results"]
+    ]
+
+    return paginated
+
 
 @lru_cache(maxsize=512)
 def _cached_admin_notification_detail(
@@ -137,7 +138,7 @@ def resend_notification(
     session.add(notification)
     session.commit()
     session.refresh(notification)
-    _cached_admin_notifications.cache_clear()
+    
     _cached_admin_notification_detail.cache_clear()
     clear_admin_cache()
     

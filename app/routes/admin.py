@@ -20,6 +20,7 @@ from app.services.notification_service import create_notification
 from app.services.r2_helper import delete_r2_file, to_presigned_url, upload_profile_image, upload_site_logo
 from app.utils.cache_helpers import clear_user_caches
 from app.utils.hash import verify_password, hash_password
+from app.utils.pagination import paginate
 from app.utils.token import get_current_admin, get_current_user
 import os
 import uuid
@@ -214,36 +215,6 @@ def admin_search(
 
 # -------- ADMIN NOTIFICATIONS --------
 
-
-@router.get("/orders/notifications")
-def list_admin_notifications(
-    trigger_source: str | None = None ,
-    session: Session = Depends(get_session),
-    admin: User = Depends(get_current_admin),
-):
-    query = select(Notification).where(
-    Notification.recipient_role == RecipientRole.admin
-)
-
-    if trigger_source:
-      query = query.where(Notification.trigger_source == trigger_source)
-
-    notifications = session.exec(
-    query.order_by(Notification.created_at.desc())
-).all()
-
-    return [
-        {
-            "notification_id": n.id,
-            "title": n.title,
-            "content": n.content,
-            "trigger_source": n.trigger_source,
-            "related_id": n.related_id,
-            "status": n.status,
-            "created_at": n.created_at
-        }
-        for n in notifications
-    ]
 
 
 @router.get("/orders/notifications/{notification_id}")

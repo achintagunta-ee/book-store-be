@@ -9,7 +9,6 @@ from app.models.book import Book
 from app.models.notifications import NotificationChannel, RecipientRole
 from app.models.user import User
 from app.notifications import OrderEvent, dispatch_order_event
-from app.routes.ebooks_admin import _cached_ebook_payments, _cached_ebook_purchases
 from app.routes.user_library import _cached_my_ebooks
 from app.utils.token import get_current_user
 from app.services.notification_service import create_notification
@@ -279,8 +278,7 @@ def verify_ebook_razorpay_payment(
     session.refresh(payment)  # ← GET THE PAYMENT ID
 
     # 8️⃣ Clear caches
-    _cached_ebook_purchases.cache_clear()
-    _cached_ebook_payments.cache_clear()
+    
     _cached_my_ebooks.cache_clear()
 
     # 9️⃣ Get book details

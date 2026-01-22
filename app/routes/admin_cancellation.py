@@ -14,7 +14,7 @@ from app.models.cancellation import CancellationRequest, CancellationStatus
 from app.models.user import User
 from app.notifications import OrderEvent, dispatch_order_event
 from app.routes.admin import clear_admin_cache
-from app.routes.admin_orders import _cached_invoice_view, _cached_list_orders, _cached_order_details
+from app.routes.admin_orders import _cached_invoice_view, _cached_order_details
 from app.routes.order_cancellation import _cached_cancellation_status
 from app.routes.users import _cached_order_detail, _cached_order_history
 from app.utils.token import get_current_admin
@@ -382,7 +382,6 @@ async def process_refund(
     _cached_cancellation_stats.cache_clear()
     _cached_cancellation_status.cache_clear()
     clear_admin_cache()
-    _cached_list_orders.cache_clear()
     _cached_order_details.cache_clear()
     _cached_invoice_view.cache_clear()
 
