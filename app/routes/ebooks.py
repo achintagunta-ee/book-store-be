@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
 import razorpay
-from requests import session
 from sqlmodel import Session
 from datetime import datetime
 from app.database import get_session
@@ -12,16 +11,13 @@ from app.models.user import User
 from app.notifications import OrderEvent, dispatch_order_event
 from app.routes.ebooks_admin import _cached_ebook_payments, _cached_ebook_purchases
 from app.routes.user_library import _cached_my_ebooks
-from app.schemas.user_schemas import RazorpayPaymentVerifySchema
 from app.utils.token import get_current_user
 from app.services.notification_service import create_notification
-from app.services.email_service import send_email
 from datetime import timedelta
 from uuid import uuid4
-from app.models.payment import Payment
 from app.config import settings
-from functools import lru_cache
 import time
+from app.services.order_email_service import send_ebook_payment_success_email
 
 router = APIRouter()
 razorpay_client = razorpay.Client(
@@ -289,6 +285,8 @@ def verify_ebook_razorpay_payment(
 
     # 9️⃣ Get book details
     book = session.get(Book, purchase.book_id)
+    
+    send_ebook_payment_success_email(purchase, current_user)
 
     # 🔔 USER notification
     create_notification(
@@ -320,9 +318,9 @@ def verify_ebook_razorpay_payment(
         user=current_user,
         session=session,
         extra={
-            "user_template": "user_emails/ebook_payment_success.html",
+            "user_template": "user_emails/user_ebook_payment_success.html",
             "user_subject": "eBook payment successful",
-            "admin_template": "admin_emails/ebook_payment_success.html",
+            "admin_template": "admin_emails/admin_ebook_payment_success.html",
             "admin_subject": "eBook payment completed",
             "book_title": book.title,
             "amount": purchase.amount,

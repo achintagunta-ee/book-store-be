@@ -81,3 +81,60 @@ def send_payment_success_email(
     except Exception as e:
         # Never let email errors crash payment
         print(f"⚠️ Email failed for order {order.id}: {e}")
+
+def send_ebook_payment_success_email(
+    purchase,  # EbookPurchase object
+    user: Optional[User] = None,
+):
+    """
+    Send eBook payment success email.
+    - NEVER crashes payment flow
+    """
+
+    # Validate user and email
+    if not user:
+        print(f"⚠️ No user provided for eBook purchase {purchase.id}, skipping email")
+        return
+
+    to_email = user.email
+
+    # ✅ VALIDATE EMAIL
+    if not to_email or "@" not in to_email:
+        print(f"⚠️ Invalid email '{to_email}' for eBook purchase {purchase.id}, skipping email")
+        return
+
+    # Get book details (you'll need to query this)
+    from app.models.book import Book
+    from app.database import get_session
+    
+    with next(get_session()) as session:
+        book = session.get(Book, purchase.book_id)
+        if not book:
+            print(f"⚠️ Book not found for purchase {purchase.id}")
+            return
+
+        subject = f"eBook Payment Successful – {book.title}"
+        template = "user_emails/ebook_payment_success.html"
+
+        context = {
+            "user": user,
+            "purchase": purchase,
+            "book": book,
+            "first_name": user.first_name,
+            "book_title": book.title,
+            "amount": purchase.amount,
+            "purchase_id": purchase.id,
+        }
+
+        # Send email (with retry)
+        try:
+            send_email_with_retry(
+                to_email=to_email,
+                subject=subject,
+                html=render_template(template, **context),
+                attachments=None,
+            )
+            print(f"✅ eBook payment email sent to {to_email}")
+        except Exception as e:
+            # Never let email errors crash payment
+            print(f"⚠️ Email failed for eBook purchase {purchase.id}: {e}")
