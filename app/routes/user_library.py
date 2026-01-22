@@ -56,7 +56,7 @@ def my_library(
 
 
 
-@router.get("/library/books/{book_id}/read")
+@router.get("/ebooks/{book_id}/read")
 def read_ebook(
     book_id: int,
     session: Session = Depends(get_session),
