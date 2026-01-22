@@ -84,8 +84,6 @@ async function startPayment() {
           // 3️⃣ Verify payment
           const verifyRes = await fetch(
 
-            `https://hbn-be.efficientemengineering.com/ebooks/${purchaseId}/verify-razorpay-payment`
-,
             `https://hbn-be.efficientemengineering.com/ebooks/${purchaseId}/verify-razorpay-payment`,
             {
               method: "POST",
