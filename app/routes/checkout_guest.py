@@ -9,6 +9,7 @@ from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.address import Address
 from app.routes.admin import create_notification
+from app.services.order_expiry_service import PAYMENT_EXPIRY_DAYS
 from app.utils.cache_helpers import (
     cached_address_and_cart,
     cached_addresses,
@@ -127,7 +128,8 @@ def guest_checkout(
         subtotal=subtotal,
         shipping=shipping,
         tax=0,
-        total=total
+        total=total,
+        payment_expires_at=datetime.utcnow() + timedelta(days=7),
     )
 
     session.add(order)
@@ -194,6 +196,14 @@ def verify_guest_payment(
 
     if not order or order.placed_by != "guest":
         raise HTTPException(status_code=404, detail="Order not found")
+    
+    if datetime.utcnow() > order.created_at + timedelta(PAYMENT_EXPIRY_DAYS):
+        order.status = "expired"
+        session.commit()
+        raise HTTPException(
+        status_code=400,
+        detail="Payment session expired. Please place a new order."
+    )
 
     # 2️⃣ 🔒 Idempotency guard (VERY IMPORTANT)
     if order.status == "paid":
@@ -201,6 +211,9 @@ def verify_guest_payment(
             "message": "Payment already processed",
             "order_id": order.id,
         }
+    if order.payment_expires_at and datetime.utcnow() > order.payment_expires_at:
+         raise HTTPException(400, "Payment expired. Please create a new order.")
+
 
     # 3️⃣ Verify Razorpay signature
     try:

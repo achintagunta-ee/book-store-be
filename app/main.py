@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 from app.config import settings
-from app.jobs.order_expiry import expire_unpaid_orders
 from app.middleware.r2_public_url import R2PublicURLMiddleware
 import app.models
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -39,6 +38,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 
+from app.services.order_expiry_service import expire_unpaid_ebooks, expire_unpaid_orders
+from app.services.payment_remainders import send_ebook_payment_reminders, send_payment_reminders
+
 
 
 @asynccontextmanager
@@ -47,8 +49,34 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(
         expire_unpaid_orders,
         trigger="interval",
-        minutes=5,  # run every 5 minutes
+        hours=1,
         id="expire_unpaid_orders",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
+        expire_unpaid_ebooks,
+        trigger="interval",
+        hours=1,
+        id="expire_unpaid_ebooks",
+        replace_existing=True,
+    )
+
+    # Send physical order payment reminders
+    scheduler.add_job(
+        send_payment_reminders,
+        trigger="interval",
+        hours=1,
+        id="send_payment_reminders",
+        replace_existing=True,
+    )
+
+    # Send ebook payment reminders
+    scheduler.add_job(
+        send_ebook_payment_reminders,
+        trigger="interval",
+        hours=1,
+        id="send_ebook_payment_reminders",
         replace_existing=True,
     )
     scheduler.start()

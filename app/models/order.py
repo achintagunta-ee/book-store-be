@@ -51,6 +51,11 @@ class Order(SQLModel, table=True):
     gateway_payment_id: Optional[str] = Field(default=None)
     gateway_signature: Optional[str] = Field(default=None)
 
+    # ============ ⏳ Payment Expiry & Reminder ============
+    payment_expires_at: Optional[datetime] = Field(default=None, nullable=True)
+    reminder_24h_sent: bool = Field(default=False)
+    reminder_final_sent: bool = Field(default=False)
+
     # ============ Timestamps ============
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

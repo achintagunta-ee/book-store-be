@@ -17,3 +17,10 @@ class EbookPurchase(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     gateway_order_id: Optional[str] = Field(default=None, index=True)
+
+    # ============ 💳 Payment Expiry & Reminder Tracking ============
+    purchase_expires_at: Optional[datetime] = Field(default=None, nullable=True)
+
+    reminder_24h_sent: bool = Field(default=False)
+    reminder_final_sent: bool = Field(default=False)
+

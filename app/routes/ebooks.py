@@ -58,7 +58,8 @@ def create_ebook_purchase(
         user_id=current_user.id,
         book_id=book_id,
         amount=book.ebook_price,   # ✅ CORRECT
-        status="pending"
+        status="pending",
+        purchase_expires_at=datetime.utcnow() + timedelta(days=7)
     )
 
     session.add(purchase)
@@ -141,6 +142,8 @@ def create_ebook_razorpay_order(
         "message": "Razorpay order already created"
     }
         
+    
+
 
     book = session.get(Book, purchase.book_id)
 
@@ -245,6 +248,10 @@ def verify_ebook_razorpay_payment(
 
     if purchase.gateway_order_id != payload.razorpay_order_id:
         raise HTTPException(400, "Order mismatch")
+    
+    if purchase.purchase_expires_at and datetime.utcnow() > purchase.purchase_expires_at:
+        raise HTTPException(400, "Payment expired. Please create a new order.")
+
 
     # 5️⃣ Verify Razorpay signature
     try:
@@ -269,6 +276,7 @@ def verify_ebook_razorpay_payment(
         amount=purchase.amount,
         status="success",
         method="razorpay",
+        purchase_expires_at=datetime.utcnow() + timedelta(days=7)
     )
 
     # ✅ ADD PAYMENT TO SESSION
@@ -340,10 +348,9 @@ def verify_ebook_razorpay_payment(
     }
 
 
+PAYMENT_EXPIRY_DAYS = 7
 
 
-PAYMENT_EXPIRY_MINUTES = 15
-ACCESS_DAYS = 30
 
 #@router.post("/{purchase_id}/payment-complete")
 def complete_ebook_payment(
@@ -360,14 +367,13 @@ def complete_ebook_payment(
         raise HTTPException(400, "Already paid")
 
     # Payment expiry check
-    if datetime.utcnow() > purchase.created_at + timedelta(minutes=PAYMENT_EXPIRY_MINUTES):
+    if datetime.utcnow() > purchase.created_at + timedelta(days=PAYMENT_EXPIRY_DAYS):
         purchase.status = "expired"
         session.commit()
         raise HTTPException(400, "Payment session expired")
 
     # Mark as paid
     purchase.status = "paid"
-    purchase.access_expires_at = datetime.utcnow() + timedelta(days=ACCESS_DAYS)
     purchase.updated_at = datetime.utcnow()
 
     ebook_payment = EbookPayment(
@@ -383,7 +389,10 @@ def complete_ebook_payment(
 
 
     purchase.status = "paid"
-    purchase.access_expires_at = datetime.utcnow() + timedelta(days=30)
+    purchase.access_expires_at = None
+    purchase.purchase_expires_at = None
+    purchase.updated_at = datetime.utcnow()
+
 
     session.commit()
 

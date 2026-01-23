@@ -16,6 +16,7 @@ from app.schemas.user_schemas import RazorpayPaymentVerifySchema
 from app.services.email_service import send_order_confirmation
 from app.services.inventory_service import reduce_inventory
 from app.services.email_service import send_email
+from app.services.order_expiry_service import PAYMENT_EXPIRY_DAYS
 from app.services.payment_service import finalize_payment
 from app.utils.template import render_template
 from app.utils.token import get_current_user
@@ -44,6 +45,8 @@ from app.utils.cache_helpers import (
     _ttl_bucket,
 
 )
+
+
 
 
 # Initialize Razorpay client
@@ -338,7 +341,10 @@ def create_razorpay_order(
         shipping=shipping,
         tax=0,
         total=total,
-        status="pending"
+        status="pending",
+        payment_mode="online",
+        placed_by="user",
+        payment_expires_at=datetime.utcnow() + timedelta(days=7),
     )
     session.add(order)
     session.commit()
@@ -373,6 +379,8 @@ def create_razorpay_order(
     )
     order.gateway_order_id = razorpay_order["id"]   # 🔥 REQUIRED
     session.commit()
+
+    order.payment_expires_at = datetime.utcnow() + timedelta(days=7)
 
     popup_data = dispatch_order_event(
         event=OrderEvent.ORDER_PLACED,
@@ -439,7 +447,14 @@ def verify_razorpay_payment(
     if not order or order.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    
+    if datetime.utcnow() > order.created_at + timedelta(PAYMENT_EXPIRY_DAYS):
+        order.status = "expired"
+        session.commit()
+        raise HTTPException(
+        status_code=400,
+        detail="Payment session expired. Please place a new order."
+    )
+
 
     # 2️⃣ 🔒 Idempotency guard
     if order.status == "paid":
@@ -460,6 +475,8 @@ def verify_razorpay_payment(
         detail="Razorpay order mismatch"
     )
     
+    if order.payment_expires_at and datetime.utcnow() > order.payment_expires_at:
+        raise HTTPException(400, "Payment expired. Please create a new order.")
 
 
     # 3️⃣ Verify Razorpay signature
@@ -720,7 +737,7 @@ def complete_payment(
     if order.status == "paid":
         raise HTTPException(400, "Order already paid")
     
-    if datetime.utcnow() > order.created_at + timedelta(minutes=15):
+    if datetime.utcnow() > order.created_at + timedelta(PAYMENT_EXPIRY_DAYS):
         order.status = "expired"
         session.commit()
         raise HTTPException(
