@@ -63,7 +63,7 @@ def create_review(
     session.add(review)
     session.commit()
     session.refresh(review)
-    _cached_book_reviews.cache_clear()
+  
     clear_book_detail_cache()
 
     return {
@@ -78,37 +78,6 @@ def create_review(
             "updated_at": review.updated_at
         }
     }
-
-@lru_cache(maxsize=512)
-def _cached_book_reviews(slug: str, bucket: int):
-    from app.database import get_session
-    from app.models.book import Book
-    from app.models.review import Review
-    from sqlmodel import select
-
-    with next(get_session()) as session:
-        book = session.exec(
-            select(Book).where(Book.slug == slug)
-        ).first()
-
-        if not book:
-            return None
-
-        reviews = session.exec(
-            select(Review).where(Review.book_id == book.id)
-        ).all()
-
-        avg_rating = (
-            sum(r.rating for r in reviews) / len(reviews)
-            if reviews else 0
-        )
-
-        return {
-            "book_slug": slug,
-            "average_rating": avg_rating,
-            "total_reviews": len(reviews),
-            "reviews": reviews,
-        }
 
 
 
@@ -173,7 +142,7 @@ def update_review(
     session.add(review)
     session.commit()
     session.refresh(review)
-    _cached_book_reviews.cache_clear()
+   
     
     clear_book_detail_cache()
 
@@ -196,7 +165,6 @@ def delete_review(
 
     session.delete(review)
     session.commit()
-    _cached_book_reviews.cache_clear()
     
     clear_book_detail_cache()
 

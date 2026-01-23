@@ -19,6 +19,7 @@ from app.services.r2_client import  s3_client, R2_BUCKET_NAME
 from app.services.r2_helper import  delete_r2_file , upload_book_cover
 from functools import lru_cache
 import time
+from fastapi import Query
 from app.utils.pagination import paginate
 
 router = APIRouter()
@@ -33,11 +34,8 @@ def _ttl_bucket() -> int:
     """
     return int(time.time() // CACHE_TTL)
 
-def clear_admin_books_cache():
-    _cached_admin_filter_books.cache_clear()
-    
+def clear_admin_books_cache():  
     _cached_admin_book.cache_clear()
-    _cached_fix_placeholder.cache_clear()
 
 
 
@@ -116,57 +114,6 @@ def create_book(
 
     return book
 
-@lru_cache(maxsize=256)
-def _cached_admin_filter_books(key: str, bucket: int):
-    from app.database import get_session
-    from app.models.book import Book
-    from app.models.category import Category
-    from sqlmodel import select
-
-    filters = eval(key)
-
-    with next(get_session()) as session:
-        query = select(Book)
-
-        if filters.get("title"):
-            query = query.where(Book.title.ilike(f"%{filters['title']}%"))
-
-        if filters.get("category"):
-            category = session.exec(
-                select(Category).where(
-                    Category.name.ilike(f"%{filters['category']}%")
-                )
-            ).first()
-            if not category:
-                return {"total_books": 0, "results": []}
-            query = query.where(Book.category_id == category.id)
-
-        if filters.get("author"):
-            query = query.where(Book.author.ilike(f"%{filters['author']}%"))
-
-        if filters.get("min_price") is not None:
-            query = query.where(Book.price >= filters["min_price"])
-
-        if filters.get("max_price") is not None:
-            query = query.where(Book.price <= filters["max_price"])
-
-        if filters.get("rating") is not None:
-            query = query.where(Book.rating >= filters["rating"])
-
-        if filters.get("is_featured") is not None:
-            query = query.where(Book.is_featured == filters["is_featured"])
-
-        if filters.get("is_featured_author") is not None:
-            query = query.where(
-                Book.is_featured_author == filters["is_featured_author"]
-            )
-
-        results = session.exec(query).all()
-
-        return {
-            "total_books": len(results),
-            "results": results
-        }
 
 
 @router.get("/filter")
@@ -179,13 +126,91 @@ def filter_books_admin(
     rating: float | None = None,
     is_featured: bool | None = None,
     is_featured_author: bool | None = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=50),
+    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
     if current_user.role != "admin":
         raise HTTPException(403, "Admin access required")
 
-    key = repr(locals())
-    return _cached_admin_filter_books(key, _ttl_bucket())
+    query = select(Book)
+
+    # 🔎 Title Search
+    if title:
+        query = query.where(Book.title.ilike(f"%{title}%"))
+
+    # 🔎 Category Filter
+    if category:
+        category_obj = session.exec(
+            select(Category).where(Category.name.ilike(f"%{category}%"))
+        ).first()
+
+        if not category_obj:
+            return {
+                "total_books": 0,
+                "results": [],
+                "page": page,
+                "total_pages": 0
+            }
+
+        query = query.where(Book.category_id == category_obj.id)
+
+    # 🔎 Author Search
+    if author:
+        query = query.where(Book.author.ilike(f"%{author}%"))
+
+    # 💰 Price Filters
+    if min_price is not None:
+        query = query.where(Book.price >= min_price)
+
+    if max_price is not None:
+        query = query.where(Book.price <= max_price)
+
+    # ⭐ Rating Filter
+    if rating is not None:
+        query = query.where(Book.rating >= rating)
+
+    # 🎯 Feature Flags
+    if is_featured is not None:
+        query = query.where(Book.is_featured == is_featured)
+
+    if is_featured_author is not None:
+        query = query.where(Book.is_featured_author == is_featured_author)
+
+    # Sort newest first
+    query = query.order_by(Book.updated_at.desc())
+
+    # ✅ Pagination
+    data = paginate(session=session, query=query, page=page, limit=limit)
+
+    return {
+        "total_books": data["total_items"],
+        "page": data["current_page"],
+        "total_pages": data["total_pages"],
+        "limit": data["limit"],
+        "results": [
+            {
+                "book_id": b.id,
+                "title": b.title,
+                "author": b.author,
+                "price": b.price,
+                "discount_price": b.discount_price,
+                "offer_price": b.offer_price,
+                "rating": b.rating,
+                "category_id": b.category_id,
+                "is_featured": b.is_featured,
+                "is_featured_author": b.is_featured_author,
+                "stock": b.stock,
+                "is_ebook": b.is_ebook,
+                "updated_at": b.updated_at,
+            }
+            for b in data["results"]
+        ]
+    }
+
+
+
 
 @router.get("/admin/books")
 def admin_book_list(
@@ -397,30 +422,15 @@ def upload_ebook_pdf(
         "is_ebook": book.is_ebook
     }
 
-@lru_cache(maxsize=1)
-def _cached_fix_placeholder(bucket: int):
-    from app.database import get_session
-    from app.models.book import Book
-    from sqlmodel import select
-
-    placeholder = (
-        "https://a047bce5cc9e171db6a84417a1d8c8b4.r2.cloudflarestorage.com/"
-        "placeholders/book_cover_placeholder.jpg"
-    )
-
-    with next(get_session()) as session:
-        books = session.exec(
-            select(Book).where(Book.cover_image == None)
-        ).all()
-
-        for book in books:
-            book.cover_image = placeholder
-            session.add(book)
-
-        session.commit()
-        return {"updated": len(books)}
-
 @router.get("/fix-book-placeholder")
-def fix_book_placeholder():
-    return _cached_fix_placeholder(_ttl_bucket())
+def fix_book_placeholder(session: Session = Depends(get_session)):
+    placeholder = "https://a047bce5cc9e171db6a84417a1d8c8b4.r2.cloudflarestorage.com//placeholders/book_cover_placeholder.jpg"
 
+    books = session.exec(select(Book).where(Book.cover_image == None)).all()
+
+    for book in books:
+        book.cover_image = placeholder
+        session.add(book)
+
+    session.commit()
+    return {"updated": len(books)}

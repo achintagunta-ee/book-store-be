@@ -14,48 +14,9 @@ from app.schemas.cancellation_schemas import (
     CancellationRequestCreate,
     CancellationStatusResponse
 )
-from functools import lru_cache
-import time
 router = APIRouter()
-CACHE_TTL = 60 * 60  # 60 minutes
 
-def _ttl_bucket() -> int:
-    """
-    Changes every 60 minutes → auto cache expiry
-    """
-    return int(time.time() // CACHE_TTL)
 
-@lru_cache(maxsize=512)
-def _cached_cancellation_status(order_id: int, user_id: int, bucket: int):
-    from app.database import get_session
-    from app.models.order import Order
-    from app.models.cancellation import CancellationRequest
-    from sqlmodel import select
-
-    with next(get_session()) as session:
-        # Verify order
-        order = session.get(Order, order_id)
-        if not order or order.user_id != user_id:
-            return None
-
-        cancellation = session.exec(
-            select(CancellationRequest)
-            .where(CancellationRequest.order_id == order_id)
-            .order_by(CancellationRequest.created_at.desc())
-        ).first()
-
-        if not cancellation:
-            return None
-
-        return {
-            "request_id": cancellation.id,
-            "status": cancellation.status,
-            "reason": cancellation.reason,
-            "requested_at": cancellation.requested_at,
-            "refund_amount": cancellation.refund_amount,
-            "refund_reference": cancellation.refund_reference,
-            "admin_notes": cancellation.admin_notes,
-        }
 
 @router.post("/{order_id}/request-cancellation", status_code=status.HTTP_201_CREATED)
 def request_order_cancellation(
@@ -123,7 +84,7 @@ def request_order_cancellation(
     }
 )
     session.commit()
-    _cached_cancellation_status.cache_clear()
+
     return {
         "message": "Cancellation request submitted",
         "request_id": cancellation.id,
@@ -134,15 +95,30 @@ def request_order_cancellation(
 @router.get("/{order_id}/cancellation-status")
 def get_cancellation_status(
     order_id: int,
+    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    data = _cached_cancellation_status(
-        order_id,
-        current_user.id,
-        _ttl_bucket()
-    )
+    order = session.get(Order, order_id)
 
-    if not data:
+    if not order or order.user_id != current_user.id:
+        raise HTTPException(404, "Order not found")
+
+    cancellation = session.exec(
+        select(CancellationRequest)
+        .where(CancellationRequest.order_id == order_id)
+        .order_by(CancellationRequest.created_at.desc())
+    ).first()
+
+    if not cancellation:
         raise HTTPException(404, "No cancellation request found")
 
-    return data
+    return {
+        "request_id": cancellation.id,
+        "status": cancellation.status,
+        "reason": cancellation.reason,
+        "requested_at": cancellation.requested_at,
+        "refund_amount": cancellation.refund_amount,
+        "refund_reference": cancellation.refund_reference,
+        "admin_notes": cancellation.admin_notes,
+    }
+

@@ -15,10 +15,8 @@ from app.utils.cache_helpers import (
     cached_my_payments,
     cached_payment_detail,
     _ttl_bucket,
-    clear_user_caches,
+    
 )
-
-from app.routes.user_orders import _cached_invoice, _cached_track_order
 from app.schemas.guest_checkout import GuestCheckoutSchema, GuestPaymentVerifySchema
 from app.services.email_service import send_order_confirmation
 from app.services.inventory_service import reduce_inventory
@@ -162,14 +160,13 @@ def guest_checkout(
     # 🔐 Store gateway order id
     order.gateway_order_id = razorpay_order["id"]
     session.commit()
-    _cached_track_order.cache_clear()
-    _cached_invoice.cache_clear()
-    cached_address_and_cart(order.user_id, _ttl_bucket())
-    cached_addresses(order.user_id, _ttl_bucket())
 
-    cached_my_payments(order.user_id, _ttl_bucket())
+    if order.user_id:
+     cached_address_and_cart(order.user_id, _ttl_bucket())
+     cached_addresses(order.user_id, _ttl_bucket())
+     cached_my_payments(order.user_id, _ttl_bucket())
 
-    clear_user_caches()
+
 
     return {
         "order_id": order.id,
@@ -262,10 +259,13 @@ def verify_guest_payment(
         title="Guest Order Paid",
         content=f"Guest order #{order.id} paid by {order.guest_email}",
     )
-    _cached_track_order.cache_clear()
-    _cached_invoice.cache_clear()
+
     _cached_guest_order.cache_clear()
-    clear_user_caches()
+    if order.user_id:
+     cached_address_and_cart(order.user_id, _ttl_bucket())
+     cached_addresses(order.user_id, _ttl_bucket())
+     cached_my_payments(order.user_id, _ttl_bucket())
+
 
     return {
         "message": "Payment successful",
@@ -273,3 +273,123 @@ def verify_guest_payment(
         "payment_id": payment.id,
         "amount": payment.amount,
     }
+
+@router.get("/{order_id}/invoice")
+def guest_invoice_view(
+    order_id: int,
+    session: Session = Depends(get_session),
+):
+    order = session.get(Order, order_id)
+
+    if not order or order.placed_by != "guest":
+        raise HTTPException(404, "Guest order not found")
+
+    payment = session.exec(
+        select(Payment).where(Payment.order_id == order.id)
+    ).first()
+
+    items = session.exec(
+        select(OrderItem).where(OrderItem.order_id == order.id)
+    ).all()
+
+    return {
+        "invoice_id": f"GUEST-INV-{order.id}",
+        "order_id": order.id,
+        "guest": {
+            "name": order.guest_name,
+            "email": order.guest_email,
+            "phone": order.guest_phone,
+        },
+        "payment": {
+            "txn_id": payment.txn_id if payment else None,
+            "method": payment.method if payment else None,
+            "status": payment.status if payment else "unpaid",
+            "amount": payment.amount if payment else order.total,
+        },
+        "order_status": order.status,
+        "date": order.created_at,
+        "summary": {
+            "subtotal": order.subtotal,
+            "shipping": order.shipping,
+            "tax": order.tax,
+            "total": order.total,
+        },
+        "items": [
+            {
+                "title": i.book_title,
+                "price": i.price,
+                "quantity": i.quantity,
+                "total": i.price * i.quantity,
+            }
+            for i in items
+        ],
+    }
+
+@router.get("/{order_id}/invoice/download")
+def download_guest_invoice(
+    order_id: int,
+    session: Session = Depends(get_session),
+):
+    order = session.get(Order, order_id)
+
+    if not order or order.placed_by != "guest":
+        raise HTTPException(404, "Guest order not found")
+
+    os.makedirs("guest_invoices", exist_ok=True)
+    file_path = f"guest_invoices/invoice_{order.id}.pdf"
+
+    if not os.path.exists(file_path):
+        from reportlab.lib.pagesizes import letter
+        from reportlab.pdfgen import canvas
+
+        c = canvas.Canvas(file_path, pagesize=letter)
+        width, height = letter
+        y = height - 50
+
+        c.setFont("Helvetica-Bold", 18)
+        c.drawString(50, y, f"Guest Invoice — Order #{order.id}")
+        y -= 30
+
+        c.setFont("Helvetica", 12)
+        c.drawString(50, y, f"Guest Name: {order.guest_name}")
+        y -= 20
+        c.drawString(50, y, f"Email: {order.guest_email}")
+        y -= 20
+        c.drawString(50, y, f"Date: {order.created_at.strftime('%Y-%m-%d')}")
+        y -= 20
+        c.drawString(50, y, f"Status: {order.status}")
+        y -= 30
+
+        # Order items
+        items = session.exec(
+            select(OrderItem).where(OrderItem.order_id == order.id)
+        ).all()
+
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(50, y, "Items:")
+        y -= 20
+
+        c.setFont("Helvetica", 11)
+        for item in items:
+            c.drawString(
+                50,
+                y,
+                f"{item.book_title} — {item.quantity} × ₹{item.price} = ₹{item.quantity * item.price}"
+            )
+            y -= 18
+
+        y -= 20
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(50, y, f"Subtotal: ₹{order.subtotal}")
+        y -= 15
+        c.drawString(50, y, f"Shipping: ₹{order.shipping}")
+        y -= 15
+        c.drawString(50, y, f"Total: ₹{order.total}")
+
+        c.save()
+
+    return FileResponse(
+        file_path,
+        filename=f"guest_invoice_{order.id}.pdf",
+        media_type="application/pdf"
+    )

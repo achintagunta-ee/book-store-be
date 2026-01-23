@@ -5,7 +5,6 @@ from app.database import get_session
 from app.models.cart import CartItem
 from app.models.address import Address
 from app.models.payment import Payment
-from app.routes.users import _cached_notification_detail, _cached_order_detail, _cached_order_history
 
 CACHE_TTL = 60 * 60  # 60 minutes
 
@@ -75,7 +74,3 @@ def cached_payment_detail(payment_id: int, user_id: int, bucket: int):
             },
             "created_at": payment.created_at,
         }
-def clear_user_caches():
-    _cached_order_history.cache_clear()
-    _cached_order_detail.cache_clear()
-    _cached_notification_detail.cache_clear()

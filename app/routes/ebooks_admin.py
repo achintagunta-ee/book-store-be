@@ -16,6 +16,9 @@ from app.utils.token import get_current_admin
 from functools import lru_cache
 import time
 from app.utils.pagination import paginate
+from functools import lru_cache
+from app.utils.cache_helpers import _ttl_bucket
+
 
 router = APIRouter()
 
@@ -71,84 +74,27 @@ def list_ebook_purchases(
 # -------------------------------
 # 💳 List all Ebook Payments
 # -------------------------------
-@lru_cache(maxsize=256)
-def _cached_ebook_payments(bucket: int):
-    from app.database import get_session
-    from app.models.ebook_payment import EbookPayment
-    from sqlmodel import select
-
-    with next(get_session()) as session:
-        return session.exec(select(EbookPayment)).all()
-
-
 @router.get("/payments-list")
 def list_ebook_payments(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    session: Session = Depends(get_session),
     admin: User = Depends(get_current_admin),
 ):
-    return _cached_ebook_payments(_ttl_bucket())
+    query = select(EbookPayment).order_by(EbookPayment.created_at.desc())
 
-@lru_cache(maxsize=256)
-def _cached_admin_ebooks(bucket: int):
-    from app.database import get_session
-    from app.models.book import Book
-    from sqlmodel import select
+    data = paginate(session=session, query=query, page=page, limit=limit)
 
-    with next(get_session()) as session:
-        ebooks = session.exec(
-            select(Book)
-            .where(Book.is_ebook == True)
-            .order_by(Book.updated_at.desc())
-        ).all()
+    return data
 
-        return [
-            {
-                "book_id": b.id,
-                "title": b.title,
-                "author": b.author,
-                "ebook_price": b.ebook_price,
-                "pdf_uploaded": bool(b.pdf_key),
-                "is_ebook": b.is_ebook,
-                "created_at": b.created_at,
-                "updated_at": b.updated_at,
-            }
-            for b in ebooks
-        ]
-from functools import lru_cache
-from app.utils.cache_helpers import _ttl_bucket
 
-@lru_cache(maxsize=128)
-def _cached_admin_ebooks(page: int, limit: int, bucket: int):
-    from app.database import get_session
-    from app.models.book import Book
-    from sqlmodel import select
-    from sqlalchemy import func
 
-    offset = (page - 1) * limit
 
-    with next(get_session()) as session:
-        total = session.exec(
-            select(func.count()).where(Book.is_ebook == True)
-        ).one()
 
-        ebooks = session.exec(
-            select(Book)
-            .where(Book.is_ebook == True)
-            .order_by(Book.updated_at.desc())
-            .offset(offset)
-            .limit(limit)
-        ).all()
-
-        return {
-            "total_items": total,
-            "total_pages": (total + limit - 1) // limit,
-            "current_page": page,
-            "limit": limit,
-            "results": ebooks,
-        }
 @router.get("/list")
 def list_admin_ebooks(
-    page: int = 1,
-    limit: int = 10,
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
     search: str | None = None,
     session: Session = Depends(get_session),
     admin: User = Depends(get_current_admin),
@@ -156,23 +102,32 @@ def list_admin_ebooks(
     query = select(Book).where(Book.is_ebook == True)
 
     if search:
+        like = f"%{search.lower()}%"
         query = query.where(
-            Book.title.ilike(f"%{search}%") |
-            Book.author.ilike(f"%{search}%")
+            Book.title.ilike(like) |
+            Book.author.ilike(like)
         )
 
     query = query.order_by(Book.updated_at.desc())
 
-    # Cache ONLY when no search
-    if not search:
-        return _cached_admin_ebooks(page, limit, _ttl_bucket())
+    data = paginate(session=session, query=query, page=page, limit=limit)
 
-    return paginate(
-        session=session,
-        query=query,
-        page=page,
-        limit=limit,
-    )
+    data["results"] = [
+        {
+            "book_id": b.id,
+            "title": b.title,
+            "author": b.author,
+            "ebook_price": b.ebook_price,
+            "pdf_uploaded": bool(b.pdf_key),
+            "is_ebook": b.is_ebook,
+            "created_at": b.created_at,
+            "updated_at": b.updated_at,
+        }
+        for b in data["results"]
+    ]
+
+    return data
+
 
 # -------------------------------
 # 🔓 Grant Ebook Access Manually
@@ -277,7 +232,7 @@ def set_ebook_price(
     session.add(book)
     session.commit()
     
-    _cached_admin_ebooks.cache_clear()
+   
 
     return {
         "message": "Ebook price updated",
@@ -307,7 +262,7 @@ def toggle_ebook(
     session.commit()
 
     
-    _cached_admin_ebooks.cache_clear()
+   
     return {
         "message": f"Ebook {'enabled' if enabled else 'disabled'}",
         "book_id": book.id,

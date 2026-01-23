@@ -144,51 +144,82 @@ async def upload_multiple_files(files: List[UploadFile] = File(...)):
 async def download_file(file_key: str):
     """Download a file from R2 storage"""
     try:
-        # Get object from R2
-        response = s3_client.get_object(Bucket=R2_BUCKET_NAME, Key=file_key)
-        
-        # Stream the file
+        response = s3_client.get_object(
+            Bucket=R2_BUCKET_NAME,
+            Key=file_key
+        )
+
         return StreamingResponse(
-            io.BytesIO(response['Body'].read()),
-            media_type=response.get('ContentType', 'application/octet-stream'),
+            response["Body"],
+            media_type=response.get("ContentType", "application/octet-stream"),
             headers={
-                "Content-Disposition": f"attachment; filename={file_key.split('/')[-1]}"
+                "Content-Disposition": f'attachment; filename="{file_key.split("/")[-1]}"'
             }
         )
-    
+
     except ClientError as e:
-        if e.response['Error']['Code'] == 'NoSuchKey':
-            raise HTTPException(status_code=404, detail="File not found")
-        raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
+        if e.response["Error"]["Code"] == "NoSuchKey":
+            raise HTTPException(404, "File not found")
 
+        raise HTTPException(500, f"Download failed: {str(e)}")
 
-    
-
-    files = []
-    if "Contents" in response:
-        for obj in response["Contents"]:
-            files.append({
-                "key": obj["Key"],
-                "size": obj["Size"],
-                "last_modified": obj["LastModified"].isoformat()
-            })
-
-    return {
-        "files": files,
-        "count": len(files)
-    }
 
 
 @router.get("/list")
 def list_files(
     page: int = Query(1, ge=1),
     limit: int = Query(20, le=100),
-    session: Session = Depends(get_session),
+    folder: str = "",
+    search: str | None = None,
     admin: User = Depends(get_current_admin),
 ):
-    query = select(File).order_by(File.created_at.desc())
+    prefix = folder.strip("/")
+    if prefix and not prefix.endswith("/"):
+        prefix += "/"
 
-    return paginate(session=session, query=query, page=page, limit=limit)
+    response = s3_client.list_objects_v2(
+        Bucket=R2_BUCKET_NAME,
+        Prefix=prefix,
+    )
+
+    files = []
+    if "Contents" in response:
+        for obj in response["Contents"]:
+            files.append({
+                "key": obj["Key"],
+                "filename": obj["Key"].split("/")[-1],
+                "size": obj["Size"],
+                "last_modified": obj["LastModified"].isoformat()
+            })
+
+    # 🔍 SEARCH FILTER
+    if search:
+        search_lower = search.lower()
+        files = [
+            f for f in files
+            if search_lower in f["key"].lower()
+            or search_lower in f["filename"].lower()
+        ]
+
+    # 🕒 Sort newest first
+    files.sort(key=lambda x: x["last_modified"], reverse=True)
+
+    # 📄 Pagination
+    total_items = len(files)
+    start = (page - 1) * limit
+    end = start + limit
+    paginated = files[start:end]
+
+    return {
+        "total_items": total_items,
+        "total_pages": (total_items + limit - 1) // limit,
+        "current_page": page,
+        "limit": limit,
+        "search": search,
+        "folder": folder or "root",
+        "results": paginated
+    }
+
 
 
 

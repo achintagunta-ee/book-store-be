@@ -25,77 +25,29 @@ def _ttl_bucket() -> int:
     Changes every 60 minutes → forces cache refresh
     """
     return int(time.time() // CACHE_TTL)
-@lru_cache(maxsize=1024)
-def _cached_my_profile(user_id: int, bucket: int):
-    from app.database import get_session
-    from app.models.user import User
 
-    with next(get_session()) as session:
-        user = session.get(User, user_id)
-        return {
-            "id": user.id,
-            "email": user.email,
-            "username": user.username,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "profile_image": user.profile_image,
-            "role": user.role,
-            "client": user.client,
-            "created_at": user.created_at,
-        }
 
-@lru_cache(maxsize=512)
-def _cached_order_history(user_id: int, bucket: int):
-    from app.database import get_session
-    from app.models.order import Order
-    from sqlmodel import select
 
-    with next(get_session()) as session:
-        orders = session.exec(
-            select(Order)
-            .where(Order.user_id == user_id)
-            .order_by(Order.created_at.desc())
-        ).all()
-
-        return [
-            {
-                "order_id": f"#{o.id}",
-                "raw_id": o.id,
-                "date": o.created_at.strftime("%B %d, %Y"),
-                "total": o.total,
-                "status": o.status,
-                "details_url": f"/checkout/order/{o.id}"
-            }
-            for o in orders
-        ]
-@lru_cache(maxsize=512)
-def _cached_addresses(user_id: int, bucket: int):
-    from app.database import get_session
-    from app.models.address import Address
-    from sqlmodel import select
-
-    with next(get_session()) as session:
-        addresses = session.exec(
-            select(Address).where(Address.user_id == user_id)
-        ).all()
-
-        return [
-            {
-                "id": a.id,
-                "full_name": f"{a.first_name} {a.last_name}",
-                "address": a.address,
-                "city": a.city,
-                "state": a.state,
-                "zip_code": a.zip_code
-            }
-            for a in addresses
-        ]
 
 # -------- USER PROFILE --------
 
 @router.get("/me")
-def get_my_profile(current_user: User = Depends(get_current_user)):
-    return _cached_my_profile(current_user.id, _ttl_bucket())
+def get_my_profile(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    user = session.get(User, current_user.id)
+
+    return {
+        "id": user.id,
+        "email": user.email,
+        "username": user.username,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "profile_image": user.profile_image,
+        "role": user.role,
+        "created_at": user.created_at,
+    }
 
 
 
@@ -136,30 +88,14 @@ def update_user_profile(
     session.add(current_user)
     session.commit()
     session.refresh(current_user)
-    _cached_my_profile.cache_clear()
+
 
     return {
         "message": "Profile updated successfully",
         "user": current_user
     }
 
-@lru_cache(maxsize=512)
-def _cached_order_detail(order_id: int, user_id: int, bucket: int):
-    from app.database import get_session
-    from app.models.order import Order
-    from app.models.order_item import OrderItem
-    from sqlmodel import select
 
-    with next(get_session()) as session:
-        order = session.get(Order, order_id)
-        if not order or order.user_id != user_id:
-            return None
-
-        items = session.exec(
-            select(OrderItem).where(OrderItem.order_id == order_id)
-        ).all()
-
-        return {"order": order, "items": items}
 
 @lru_cache(maxsize=128)
 def _cached_home(bucket: int):
@@ -209,15 +145,62 @@ def free_dashboard(current_user: User = Depends(get_current_user)):
     }
 
 @router.get("/profile/orders/history")
-def get_order_history(current_user: User = Depends(get_current_user)):
-    return _cached_order_history(current_user.id, _ttl_bucket())
+def get_order_history(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, le=50),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    query = (
+        select(Order)
+        .where(Order.user_id == current_user.id)
+        .order_by(Order.created_at.desc())
+    )
+
+    data = paginate(session, query, page, limit)
+
+    data["results"] = [
+        {
+            "order_id": f"#{o.id}",
+            "raw_id": o.id,
+            "date": o.created_at.strftime("%B %d, %Y"),
+            "total": o.total,
+            "status": o.status,
+            "details_url": f"/profile/orders/{o.id}"
+        }
+        for o in data["results"]
+    ]
+
+    return data
+
 
 
 # GET ALL ADDRESSES
-
 @router.get("/profile/addresses")
-def get_user_addresses(current_user: User = Depends(get_current_user)):
-    return _cached_addresses(current_user.id, _ttl_bucket())
+def get_user_addresses(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, le=50),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    query = select(Address).where(Address.user_id == current_user.id)
+
+    data = paginate(session, query, page, limit)
+
+    data["results"] = [
+        {
+            "id": a.id,
+            "full_name": f"{a.first_name} {a.last_name}",
+            "address": a.address,
+            "city": a.city,
+            "state": a.state,
+            "zip_code": a.zip_code
+        }
+        for a in data["results"]
+    ]
+
+    return data
+
 
 # Add Address (Profile version)
 
@@ -232,8 +215,8 @@ def add_profile_address(
     session.add(address)
     session.commit()
     session.refresh(address)
-    _cached_addresses.cache_clear()
-    _cached_my_profile.cache_clear()
+    
+    
 
 
     return {"message": "Address added", "address_id": address.id}
@@ -258,8 +241,8 @@ def update_address(
 
     session.commit()
     session.refresh(address)
-    _cached_addresses.cache_clear()
-    _cached_my_profile.cache_clear()
+    
+
 
 
     return {"message": "Address updated", "address": address}
@@ -286,8 +269,6 @@ def delete_address(address_id: int, session: Session = Depends(get_session), cur
     session.delete(address)
     session.commit()
 
-    _cached_addresses.cache_clear()
-    _cached_my_profile.cache_clear()
 
     return {"message": "Address deleted"}
 
@@ -295,14 +276,22 @@ def delete_address(address_id: int, session: Session = Depends(get_session), cur
 @router.get("/profile/orders/{order_id}")
 def get_order_details(
     order_id: int,
+    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    data = _cached_order_detail(order_id, current_user.id, _ttl_bucket())
-    if not data:
+    order = session.get(Order, order_id)
+
+    if not order or order.user_id != current_user.id:
         raise HTTPException(404, "Order not found")
-    return data
 
+    items = session.exec(
+        select(OrderItem).where(OrderItem.order_id == order_id)
+    ).all()
 
+    return {
+        "order": order,
+        "items": items
+    }
 
 
 
@@ -310,56 +299,32 @@ def get_order_details(
 def home_page():
     return _cached_home(_ttl_bucket())
 
-@lru_cache(maxsize=2048)
-def _cached_notification_detail(user_id: int, notification_id: int, bucket: int):
-    from app.database import get_session
-    from app.models.notifications import Notification
-
-    session = next(get_session())
-    try:
-        notification = session.get(Notification, notification_id)
-
-        if not notification or notification.user_id != user_id:
-            return None
-
-        return notification
-    finally:
-        session.close()
-
-
-
-@router.get("/admin/books")
-def admin_book_list(
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, le=100),
-    search: str | None = None,
-    session: Session = Depends(get_session),
-    admin: User = Depends(get_current_admin),
-):
-    query = select(Book)
-
-    if search:
-        query = query.where(Book.title.ilike(f"%{search}%"))
-
-    query = query.order_by(Book.updated_at.desc())
-
-    return paginate(session=session, query=query, page=page, limit=limit)
 
 @router.get("/notifications")
 def list_customer_notifications(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, le=50),
+    search: str | None = None,
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    notifications = session.exec(
-        select(Notification)
-        .where(
-            Notification.recipient_role == "customer",
-            Notification.user_id == user.id
-        )
-        .order_by(Notification.created_at.desc())
-    ).all()
+    query = select(Notification).where(
+        Notification.recipient_role == "customer",
+        Notification.user_id == user.id
+    )
 
-    return [
+    if search:
+        like = f"%{search}%"
+        query = query.where(
+            Notification.title.ilike(like) |
+            Notification.content.ilike(like)
+        )
+
+    query = query.order_by(Notification.created_at.desc())
+
+    data = paginate(session, query, page, limit)
+
+    data["results"] = [
         {
             "notification_id": n.id,
             "title": n.title,
@@ -367,18 +332,19 @@ def list_customer_notifications(
             "status": n.status,
             "created_at": n.created_at,
         }
-        for n in notifications
+        for n in data["results"]
     ]
+
+    return data
 @router.get("/notifications/{notification_id}")
 def get_notification_detail(
     notification_id: int,
+    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    data = _cached_notification_detail(current_user.id, notification_id, _ttl_bucket())
+    notification = session.get(Notification, notification_id)
 
-    if not data:
-        raise HTTPException(status_code=404, detail="Notification not found")
+    if not notification or notification.user_id != current_user.id:
+        raise HTTPException(404, "Notification not found")
 
-    return data
-
-
+    return notification

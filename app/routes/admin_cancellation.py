@@ -14,9 +14,8 @@ from app.models.cancellation import CancellationRequest, CancellationStatus
 from app.models.user import User
 from app.notifications import OrderEvent, dispatch_order_event
 from app.routes.admin import clear_admin_cache
-from app.routes.admin_orders import _cached_invoice_view, _cached_order_details
-from app.routes.order_cancellation import _cached_cancellation_status
-from app.routes.users import _cached_order_detail, _cached_order_history
+
+from app.utils.pagination import paginate
 from app.utils.token import get_current_admin
 from app.schemas.cancellation_schemas import (
     RefundProcessRequest,
@@ -43,65 +42,6 @@ CACHE_TTL = 60 * 60  # 60 minutes
 def _ttl_bucket() -> int:
     return int(time.time() // CACHE_TTL)
 
-@lru_cache(maxsize=256)
-def _cached_cancellation_requests(
-    status: str | None,
-    page: int,
-    limit: int,
-    bucket: int,
-):
-    from app.database import get_session
-    from sqlmodel import select, func
-    from app.models.cancellation import CancellationRequest
-    from app.models.order import Order
-    from app.models.user import User
-
-    with next(get_session()) as session:
-        query = select(CancellationRequest).order_by(
-            CancellationRequest.requested_at.desc()
-        )
-
-        if status:
-            query = query.where(CancellationRequest.status == status.lower())
-
-        offset = (page - 1) * limit
-        cancellations = session.exec(
-            query.offset(offset).limit(limit)
-        ).all()
-
-        requests = []
-        for c in cancellations:
-            order = session.get(Order, c.order_id)
-            user = session.get(User, c.user_id)
-
-            requests.append({
-                "request_id": c.id,
-                "order_id": c.order_id,
-                "customer_name": f"{user.first_name} {user.last_name}",
-                "customer_email": user.email,
-                "order_total": order.total,
-                "order_status": order.status,
-                "requested_at": c.requested_at,
-                "reason": c.reason,
-                "additional_notes": c.additional_notes,
-                "status": c.status,
-            })
-
-        count_query = select(func.count()).select_from(CancellationRequest)
-        if status:
-            count_query = count_query.where(
-                CancellationRequest.status == status.lower()
-            )
-
-        total = session.exec(count_query).one()
-
-        return {
-            "requests": requests,
-            "total": total,
-            "page": page,
-            "limit": limit,
-            "total_pages": (total + limit - 1) // limit,
-        }
 
 
 @lru_cache(maxsize=64)
@@ -179,18 +119,46 @@ def _cached_cancellation_status(
         }
 
 @router.get("/cancellation-requests")
-def get_cancellation_requests(
-    status: Optional[str] = Query(None),
+def list_cancellation_requests(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
+    status: str | None = None,
+    search: str | None = None,
+    session: Session = Depends(get_session),
     admin: User = Depends(get_current_admin),
 ):
-    return _cached_cancellation_requests(
-        status,
-        page,
-        limit,
-        _ttl_bucket()
-    )
+    query = select(CancellationRequest)
+
+    if status:
+        query = query.where(CancellationRequest.status == status.lower())
+
+    if search:
+        like = f"%{search.lower()}%"
+        query = query.where(
+            CancellationRequest.reason.ilike(like) |
+            CancellationRequest.additional_notes.ilike(like)
+        )
+
+    query = query.order_by(CancellationRequest.requested_at.desc())
+
+    data = paginate(session=session, query=query, page=page, limit=limit)
+
+    data["results"] = [
+        {
+            "request_id": c.id,
+            "order_id": c.order_id,
+            "user_id": c.user_id,
+            "reason": c.reason,
+            "additional_notes": c.additional_notes,
+            "status": c.status,
+            "requested_at": c.requested_at,
+            "processed_at": c.processed_at,
+            "refund_amount": c.refund_amount,
+        }
+        for c in data["results"]
+    ]
+
+    return data
 
 @router.post("/{request_id}/approve")
 def approve_cancellation(
@@ -241,9 +209,7 @@ def approve_cancellation(
         },
     )
     _cached_cancellation_status.cache_clear()
-    _cached_order_history.cache_clear()
-    _cached_order_detail.cache_clear()
-    _cached_cancellation_requests.cache_clear()
+   
     _cached_cancellation_stats.cache_clear()
     _cached_cancellation_status.cache_clear()
 
@@ -375,15 +341,10 @@ async def process_refund(
             "refund_reference": refund_result["reference_id"],
         },
     )
-    _cached_cancellation_status.cache_clear()
-    _cached_order_history.cache_clear()
-    _cached_order_detail.cache_clear()
-    _cached_cancellation_requests.cache_clear()
+    
     _cached_cancellation_stats.cache_clear()
-    _cached_cancellation_status.cache_clear()
     clear_admin_cache()
-    _cached_order_details.cache_clear()
-    _cached_invoice_view.cache_clear()
+
 
 
 
@@ -442,10 +403,7 @@ def reject_cancellation(
     }
 )
     session.commit()
-    _cached_cancellation_status.cache_clear()
-    _cached_cancellation_requests.cache_clear()
     _cached_cancellation_stats.cache_clear()
-    _cached_cancellation_status.cache_clear()
 
     
     return {

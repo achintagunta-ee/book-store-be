@@ -18,7 +18,6 @@ from app.models.category import Category
 from app.constants.order_status import ALLOWED_TRANSITIONS
 from app.services.notification_service import create_notification
 from app.services.r2_helper import delete_r2_file, to_presigned_url, upload_profile_image, upload_site_logo
-from app.utils.cache_helpers import clear_user_caches
 from app.utils.hash import verify_password, hash_password
 from app.utils.pagination import paginate
 from app.utils.token import get_current_admin, get_current_user
@@ -50,7 +49,6 @@ def require_admin(current_user: User = Depends(get_current_user)):
 
 def clear_admin_cache():
     _cached_admin_dashboard.cache_clear()
-    _cached_admin_search.cache_clear()
 
 @lru_cache(maxsize=32)
 def _cached_admin_dashboard(bucket: int):
@@ -78,52 +76,32 @@ def _cached_admin_dashboard(bucket: int):
             "total_revenue": float(total_revenue),
             "low_stock": low_stock
         }
-@lru_cache(maxsize=128)
-def _cached_admin_search(q: str, bucket: int):
-    from app.database import get_session
-    from app.models.book import Book
-    from app.models.user import User
-    from app.models.order import Order
-    from sqlmodel import select
-
-    with next(get_session()) as session:
-        books = session.exec(
-            select(Book).where(Book.title.ilike(f"%{q}%"))
-        ).all()
-
-        users = session.exec(
-            select(User).where(
-                (User.username.ilike(f"%{q}%")) |
-                (User.email.ilike(f"%{q}%"))
-            )
-        ).all()
-
-        orders = []
-        if q.isdigit():
-            orders = session.exec(
-                select(Order).where(Order.id == int(q))
-            ).all()
-
-        return {
-            "books": books,
-            "users": users,
-            "orders": orders
-        }
 
 
 # -------- ADMIN PROFILE --------
 
+@lru_cache(maxsize=128)
+def _cached_admin_profile(admin_id: int, bucket: int):
+    from app.database import get_session
+    from app.models.user import User
+
+    with next(get_session()) as session:
+        admin = session.get(User, admin_id)
+
+        return {
+            "id": admin.id,
+            "email": admin.email,
+            "username": admin.username,
+            "first_name": admin.first_name,
+            "last_name": admin.last_name,
+            "profile_image": admin.profile_image,
+            "role": admin.role,
+        }
+
+
 @router.get("/profile")
 def get_admin_profile(current_admin: User = Depends(require_admin)):
-    return {
-        "id": current_admin.id,
-        "email": current_admin.email,
-        "username": current_admin.username,
-        "first_name": current_admin.first_name,
-        "last_name": current_admin.last_name,
-        "profile_image": current_admin.profile_image,
-        "role": current_admin.role
-    }
+    return _cached_admin_profile(current_admin.id, _ttl_bucket())
 
 
 @router.put("/update-profile")
@@ -208,9 +186,95 @@ def admin_dashboard(
 @router.get("/search")
 def admin_search(
     q: str,
-    admin: User = Depends(require_admin)
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=50),
+    session: Session = Depends(get_session),
+    admin: User = Depends(require_admin),
 ):
-    return _cached_admin_search(q, _ttl_bucket())
+    like = f"%{q.lower()}%"
+
+    # ---------------- BOOK SEARCH ----------------
+    book_query = select(Book).where(
+        Book.title.ilike(like)
+    )
+
+    books_data = paginate(
+        session=session,
+        query=book_query,
+        page=page,
+        limit=limit,
+    )
+
+    books_data["results"] = [
+        {
+            "book_id": b.id,
+            "title": b.title,
+            "author": b.author,
+            "price": b.price,
+            "is_ebook": b.is_ebook,
+        }
+        for b in books_data["results"]
+    ]
+
+    # ---------------- USER SEARCH ----------------
+    user_query = select(User).where(
+        User.username.ilike(like) |
+        User.email.ilike(like)
+    )
+
+    users_data = paginate(
+        session=session,
+        query=user_query,
+        page=page,
+        limit=limit,
+    )
+
+    users_data["results"] = [
+        {
+            "user_id": u.id,
+            "username": u.username,
+            "email": u.email,
+            "is_active": u.is_active,
+        }
+        for u in users_data["results"]
+    ]
+
+    # ---------------- ORDER SEARCH ----------------
+    orders_data = {
+        "total_items": 0,
+        "total_pages": 0,
+        "current_page": page,
+        "limit": limit,
+        "results": [],
+    }
+
+    if q.isdigit():
+        order_query = select(Order).where(Order.id == int(q))
+
+        orders_data = paginate(
+            session=session,
+            query=order_query,
+            page=page,
+            limit=limit,
+        )
+
+        orders_data["results"] = [
+            {
+                "order_id": o.id,
+                "user_id": o.user_id,
+                "total": o.total,
+                "status": o.status,
+                "created_at": o.created_at,
+            }
+            for o in orders_data["results"]
+        ]
+
+    return {
+        "query": q,
+        "books": books_data,
+        "users": users_data,
+        "orders": orders_data,
+    }
 
 
 # -------- ADMIN NOTIFICATIONS --------
@@ -269,7 +333,6 @@ def notify_customer(
     )
 
     session.commit()
-    clear_user_caches()
     return {"message": "Customer notified"}
 
 
