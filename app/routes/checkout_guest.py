@@ -287,7 +287,7 @@ def verify_guest_payment(
         "amount": payment.amount,
     }
 
-@router.get("/{order_id}/invoice")
+@router.get("/{order_id}/view-invoice")
 def guest_invoice_view(
     order_id: int,
     session: Session = Depends(get_session),
