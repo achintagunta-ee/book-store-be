@@ -5,7 +5,7 @@ from app.models import book
 from app.models.category import Category
 from app.models.user import User
 from app.routes.books_public import clear_books_cache
-from app.routes.categories_public import  _cached_list_categories, _cached_search_category
+from app.routes.categories_public import  _cached_list_categories
 from app.utils.token import get_current_user
 from app.models.book import Book
 from functools import lru_cache
@@ -41,7 +41,6 @@ def create_category(
     session.commit()
     session.refresh(category)
     _cached_list_categories.cache_clear()
-    _cached_search_category.cache_clear()
     _cached_category_by_id.cache_clear()
     
     return category
@@ -103,7 +102,6 @@ def update_category(
     session.commit()
     session.refresh(category)
     _cached_list_categories.cache_clear()
-    _cached_search_category.cache_clear()
     _cached_category_by_id.cache_clear()
     clear_books_cache()
 
@@ -131,63 +129,81 @@ def delete_category(
     session.delete(category)
     session.commit()
     _cached_list_categories.cache_clear()
-    _cached_search_category.cache_clear()
     _cached_category_by_id.cache_clear()
 
 
     return {"message": "Category deleted"}
 
-@lru_cache(maxsize=256)
-def _cached_books_by_category_id(category_id: int, bucket: int):
-    from app.database import get_session
-    from app.models.category import Category
-    from app.models.book import Book
-    from sqlmodel import select
 
-    with next(get_session()) as session:
-        category = session.get(Category, category_id)
-        if not category:
-            return None
-
-        books = session.exec(
-            select(Book).where(Book.category_id == category_id)
-        ).all()
-
-        return {
-            "category_id": category_id,
-            "category_name": category.name,
-            "total_books": len(books),
-            "books": books
-        }
 
 
 @router.get("/{category_id}/list-of-books")
-def get_books_by_category(category_id: int):
-    data = _cached_books_by_category_id(category_id, _ttl_bucket())
-    if not data:
+def get_books_by_category(
+    category_id: int,
+    page: int = Query(1, ge=1),
+    limit: int = Query(12, ge=1, le=50),
+    search: str | None = Query(None),
+    session: Session = Depends(get_session),
+):
+    category = session.get(Category, category_id)
+    if not category:
         raise HTTPException(404, "Category not found")
-    return data
+
+    query = select(Book).where(Book.category_id == category_id)
+
+    # 🔍 Optional search
+    if search:
+        query = query.where(Book.title.ilike(f"%{search}%"))
+
+    query = query.order_by(Book.created_at.desc())
+
+    data = paginate(session=session, query=query, page=page, limit=limit)
+
+    return {
+        "category_id": category.id,
+        "category_name": category.name,
+        "total_books": data["total_items"],
+        "page": data["current_page"],
+        "total_pages": data["total_pages"],
+        "books": [
+            {
+                "book_id": book.id,
+                "title": book.title,
+                "author": book.author,
+                "price": book.price,
+                "discount_price": book.discount_price,
+                "offer_price": book.offer_price,
+                "is_ebook": book.is_ebook,
+                "stock": book.stock,
+                "cover_image": book.cover_image,
+            }
+            for book in data["results"]
+        ]
+    }
+
 
 @router.get("/categories/{category_name}/list")
 def list_books_by_category_name(
     category_name: str,
     page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=50),
+    limit: int = Query(12, ge=1, le=50),
+    search: str | None = Query(None),
     session: Session = Depends(get_session),
 ):
     category = session.exec(
-        select(Category)
-        .where(Category.name.ilike(f"%{category_name}%"))
+        select(Category).where(Category.name.ilike(f"%{category_name}%"))
     ).first()
 
     if not category:
         raise HTTPException(404, f"Category '{category_name}' not found")
 
-    query = (
-        select(Book)
-        .where(Book.category_id == category.id)
-        .order_by(Book.created_at.desc())
-    )
+    query = select(Book).where(Book.category_id == category.id)
+
+    # 🔍 Optional search
+    if search:
+        query = query.where(Book.title.ilike(f"%{search}%"))
+
+    query = query.order_by(Book.created_at.desc())
 
     data = paginate(session=session, query=query, page=page, limit=limit)
 
@@ -200,7 +216,7 @@ def list_books_by_category_name(
         "books": [
             {
                 "book_id": book.id,
-                "book_title": book.title,
+                "title": book.title,
                 "author": book.author,
                 "price": book.price,
                 "discount_price": book.discount_price,
@@ -212,6 +228,7 @@ def list_books_by_category_name(
             for book in data["results"]
         ]
     }
+
 
 @lru_cache(maxsize=512)
 def _cached_book_in_category(category_name: str, book_name: str, bucket: int):

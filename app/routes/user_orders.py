@@ -52,131 +52,112 @@ def _ttl_bucket() -> int:
     """
     return int(time.time() // CACHE_TTL)
 
-@lru_cache(maxsize=512)
-def _cached_track_order(order_id: int, user_id: int, bucket: int):
-    from app.database import get_session
-    from app.models.order import Order
-    from app.models.order_item import OrderItem
-    from app.models.payment import Payment
-    from sqlmodel import select
-
-    with next(get_session()) as session:
-        order = session.get(Order, order_id)
-
-        if not order or order.user_id != user_id:
-            return None
-
-        items = session.exec(
-            select(OrderItem).where(OrderItem.order_id == order.id)
-        ).all()
-
-        payment = session.exec(
-            select(Payment).where(Payment.order_id == order_id)
-        ).first()
-
-        tracking_available = bool(order.tracking_id and order.tracking_url)
-
-        return {
-            "order_id": f"#{order.id}",
-            "status": order.status,
-            "created_at": order.created_at,
-            "updated_at": order.updated_at,
-            "payment": {
-                "status": payment.status if payment else "unpaid",
-                "method": payment.method if payment else None,
-                "txn_id": payment.txn_id if payment else None,
-                "amount": order.total,
-                "paid_at": payment.created_at if payment else None
-            },
-            "tracking": {
-                "available": tracking_available,
-                "tracking_id": order.tracking_id,
-                "tracking_url": order.tracking_url,
-                "message": None if tracking_available
-                else "Tracking will be available once your order is shipped"
-            },
-            "books": [
-                {
-                    "book_id": i.book_id,
-                    "title": i.book_title,
-                    "quantity": i.quantity,
-                    "price": i.price,
-                    "total": i.price * i.quantity
-                }
-                for i in items
-            ]
-        }
 
 # Track Orders
 
 @router.get("/{order_id}/track")
 def track_order(
     order_id: int,
+    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    data = _cached_track_order(order_id, current_user.id, _ttl_bucket())
-    if not data:
+    order = session.get(Order, order_id)
+
+    if not order or order.user_id != current_user.id:
         raise HTTPException(404, "Order not found")
-    return data
 
-@lru_cache(maxsize=512)
-def _cached_invoice(order_id: int, user_id: int, bucket: int):
-    from app.database import get_session
-    from app.models.order import Order
-    from app.models.order_item import OrderItem
-    from app.models.payment import Payment
-    from sqlmodel import select
+    items = session.exec(
+        select(OrderItem).where(OrderItem.order_id == order.id)
+    ).all()
 
-    with next(get_session()) as session:
-        order = session.get(Order, order_id)
-        if not order or order.user_id != user_id:
-            return None
+    payment = session.exec(
+        select(Payment).where(Payment.order_id == order_id)
+    ).first()
 
-        payment = session.exec(
-            select(Payment).where(Payment.order_id == order_id)
-        ).first()
+    tracking_available = bool(order.tracking_id and order.tracking_url)
 
-        items = session.exec(
-            select(OrderItem).where(OrderItem.order_id == order_id)
-        ).all()
+    return {
+        "order_id": f"#{order.id}",
+        "status": order.status,
+        "created_at": order.created_at,
+        "updated_at": order.updated_at,
+        "payment": {
+            "status": payment.status if payment else "unpaid",
+            "method": payment.method if payment else None,
+            "txn_id": payment.txn_id if payment else None,
+            "amount": order.total,
+            "paid_at": payment.created_at if payment else None
+        },
+        "tracking": {
+            "available": tracking_available,
+            "tracking_id": order.tracking_id,
+            "tracking_url": order.tracking_url,
+            "message": None if tracking_available else
+                "Tracking will be available once shipped"
+        },
+        "books": [
+            {
+                "book_id": i.book_id,
+                "title": i.book_title,
+                "quantity": i.quantity,
+                "price": i.price,
+                "total": i.price * i.quantity
+            }
+            for i in items
+        ]
+    }
 
-        return {
-            "invoice_id": f"INV-{order.id}",
-            "order_id": order.id,
-            "customer": {
-                "name": f"{order.user.first_name} {order.user.last_name}",
-                "email": order.user.email
-            },
-            "payment": {
-                "txn_id": payment.txn_id if payment else None,
-                "method": payment.method if payment else None,
-                "status": payment.status if payment else "unpaid",
-                "amount": payment.amount if payment else order.total,
-                "payment_id": payment.id if payment else None
-            },
-            "date": order.created_at,
-            "total": order.total,
-            "items": [
-                {
-                    "title": i.book_title,
-                    "price": i.price,
-                    "qty": i.quantity,
-                    "total": i.price * i.quantity
-                }
-                for i in items
-            ]
-        }
+
 
 #View Invoice 
 @router.get("/{order_id}/invoice")
+@router.get("/{order_id}/invoice")
 def get_invoice(
     order_id: int,
+    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    data = _cached_invoice(order_id, current_user.id, _ttl_bucket())
-    if not data:
+    order = session.get(Order, order_id)
+
+    if not order or order.user_id != current_user.id:
         raise HTTPException(404, "Order not found")
-    return data
+
+    payment = session.exec(
+        select(Payment).where(Payment.order_id == order_id)
+    ).first()
+
+    items = session.exec(
+        select(OrderItem).where(OrderItem.order_id == order_id)
+    ).all()
+
+    user = session.get(User, order.user_id)
+
+    return {
+        "invoice_id": f"INV-{order.id}",
+        "order_id": order.id,
+        "customer": {
+            "name": f"{user.first_name} {user.last_name}",
+            "email": user.email
+        },
+        "payment": {
+            "txn_id": payment.txn_id if payment else None,
+            "method": payment.method if payment else None,
+            "status": payment.status if payment else "unpaid",
+            "amount": payment.amount if payment else order.total,
+            "payment_id": payment.id if payment else None
+        },
+        "date": order.created_at,
+        "total": order.total,
+        "items": [
+            {
+                "title": i.book_title,
+                "price": i.price,
+                "qty": i.quantity,
+                "total": i.price * i.quantity
+            }
+            for i in items
+        ]
+    }
 
 
 
@@ -186,50 +167,62 @@ def download_invoice_user(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    User download invoice as PDF
-    """
     order = session.get(Order, order_id)
-    if not order:
+
+    if not order or order.user_id != current_user.id:
         raise HTTPException(404, "Order not found")
-    
-    # Check if user owns this order
-    if order.user_id != current_user.id and current_user.role != "admin":
-        raise HTTPException(403, "Not authorized to download this invoice")
-    
-    # Create invoices directory if it doesn't exist
+
+    items = session.exec(
+        select(OrderItem).where(OrderItem.order_id == order.id)
+    ).all()
+
+    user = session.get(User, order.user_id)
+
     os.makedirs("invoices", exist_ok=True)
-    file_path = f"invoices/invoice_{order.id}.pdf"
-    
-    # Generate PDF if it doesn't exist
-    if not os.path.exists(file_path):
-        # You can reuse the same generate_invoice_pdf function
-        # or create a simpler version for users
-        from reportlab.lib.pagesizes import letter
-        from reportlab.pdfgen import canvas
-        
-        c = canvas.Canvas(file_path, pagesize=letter)
-        width, height = letter
-        y_position = height - 50
-        
-        c.setFont("Helvetica-Bold", 20)
-        c.drawString(100, y_position, f"Invoice for Order #{order.id}")
-        y_position -= 30
-        
-        c.setFont("Helvetica", 12)
-        c.drawString(100, y_position, f"Total: ${order.total:.2f}")
-        y_position -= 20
-        c.drawString(100, y_position, f"Date: {order.created_at}")
-        y_position -= 20
-        c.drawString(100, y_position, f"Status: {order.status}")
-        
-        customer = session.get(User, order.user_id)
-        if customer:
-            y_position -= 30
-            c.drawString(100, y_position, f"Customer: {customer.first_name} {customer.last_name}")
-        
-        c.save()
-    
+    file_path = f"invoices/_{order.id}.pdf"
+
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+
+    c = canvas.Canvas(file_path, pagesize=letter)
+    width, height = letter
+    y = height - 50
+
+    # Title
+    c.setFont("Helvetica-Bold", 18)
+    c.drawString(100, y, f"Invoice #{order.id}")
+    y -= 30
+
+    # Customer Info
+    c.setFont("Helvetica", 12)
+    c.drawString(100, y, f"Customer: {user.first_name} {user.last_name}")
+    y -= 18
+    c.drawString(100, y, f"Email: {user.email}")
+    y -= 18
+    c.drawString(100, y, f"Date: {order.created_at.strftime('%Y-%m-%d')}")
+    y -= 25
+
+    # Items Header
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(100, y, "Items:")
+    y -= 20
+
+    # Items
+    c.setFont("Helvetica", 11)
+    for item in items:
+        line = f"{item.book_title} — ₹{item.price} x {item.quantity} = ₹{item.price * item.quantity}"
+        c.drawString(100, y, line)
+        y -= 15
+
+    # Totals
+    y -= 20
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(100, y, f"Total: ₹{order.total}")
+    y -= 20
+    c.drawString(100, y, f"Status: {order.status}")
+
+    c.save()
+
     return FileResponse(
         file_path,
         filename=f"invoice_{order.id}.pdf",

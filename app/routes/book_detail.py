@@ -16,14 +16,12 @@ from app.models.user import User
 from app.config import settings
 from app.notifications import OrderEvent, dispatch_order_event
 from app.routes.cart import clear_cart
-from app.routes.user_orders import _cached_invoice, _cached_track_order
-from app.routes.users import _cached_order_detail, _cached_order_history
 from app.schemas.buynow_schemas import BuyNowRequest, BuyNowVerifySchema
 from app.services.inventory_service import reduce_inventory
 from app.services.notification_service import create_notification
 from app.services.order_email_service import send_payment_success_email
 from app.services.payment_service import finalize_payment
-from app.utils.cache_helpers import cached_address_and_cart, cached_my_payments, cached_payment_detail, clear_user_caches
+from app.utils.cache_helpers import cached_address_and_cart, cached_my_payments, cached_payment_detail
 from app.utils.token import get_current_user  # If review model exists
 from functools import lru_cache
 import time
@@ -278,13 +276,11 @@ def buy_now_create_razorpay_order(
         }
     )
 
-    _cached_order_history.cache_clear()
-    _cached_order_detail.cache_clear()
     cached_payment_detail.cache_clear()
 
     cached_address_and_cart(current_user.id, _ttl_bucket())
     cached_my_payments(current_user.id, _ttl_bucket())
-    clear_user_caches()
+
     
 
     return {
@@ -430,13 +426,11 @@ def buy_now_verify_payment(
             "first_name": current_user.first_name,
         }
     )
-    _cached_track_order.cache_clear()
-    _cached_invoice.cache_clear()
+
     cached_payment_detail.cache_clear()
     cached_address_and_cart(current_user.id, _ttl_bucket())
     cached_my_payments(current_user.id, _ttl_bucket())
     clear_book_detail_cache()
-    clear_user_caches()
     return {
         "message": "Thank you for your order! Payment successful.",
         "order_id": order.id,

@@ -15,10 +15,8 @@ from app.models.notifications import Notification, RecipientRole
 from app.constants.order_status import ALLOWED_TRANSITIONS
 from app.notifications import OrderEvent, dispatch_order_event
 from app.routes.admin import clear_admin_cache
-from app.routes.order_cancellation import _cached_cancellation_status
 from app.schemas.offline_order_schemas import OfflineOrderCreate
 from app.services.notification_service import create_notification
-from app.utils.cache_helpers import clear_user_caches
 from app.utils.pagination import paginate
 from app.utils.token import get_current_admin, get_current_user
 from app.services.email_service import send_email
@@ -131,72 +129,61 @@ def get_order_details(
     return data
 
 
-@lru_cache(maxsize=512)
-def _cached_invoice_view(order_id: int, bucket: int):
-    from app.database import get_session
-    from app.models.order import Order
-    from app.models.order_item import OrderItem
-    from app.models.payment import Payment
-    from app.models.user import User
-    from sqlmodel import select
-
-    with next(get_session()) as session:
-        order = session.get(Order, order_id)
-        if not order:
-            return None
-
-        customer = session.get(User, order.user_id)
-        payment = session.exec(
-            select(Payment).where(Payment.order_id == order_id)
-        ).first()
-
-        items = session.exec(
-            select(OrderItem).where(OrderItem.order_id == order_id)
-        ).all()
-
-        return {
-            "invoice_id": f"INV-{order.id}",
-            "order_id": order.id,
-            "customer": {
-                "id": customer.id,
-                "name": f"{customer.first_name} {customer.last_name}",
-                "email": customer.email,
-            },
-            "payment": {
-                "txn_id": payment.txn_id if payment else None,
-                "method": payment.method if payment else None,
-                "status": payment.status if payment else "unpaid",
-                "amount": payment.amount if payment else order.total,
-            },
-            "order_status": order.status,
-            "date": order.created_at,
-            "summary": {
-                "subtotal": order.subtotal,
-                "shipping": order.shipping,
-                "tax": order.tax,
-                "total": order.total,
-            },
-            "items": [
-                {
-                    "title": i.book_title,
-                    "price": i.price,
-                    "quantity": i.quantity,
-                    "total": i.price * i.quantity,
-                }
-                for i in items
-            ],
-        }
 
 # c) View Invoice
 @router.get("/{order_id}/view-invoice")
 def view_invoice(
     order_id: int,
+    session: Session = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
-    data = _cached_invoice_view(order_id, _ttl_bucket())
-    if not data:
+    order = session.get(Order, order_id)
+    if not order:
         raise HTTPException(404, "Order not found")
-    return data
+
+    customer = session.get(User, order.user_id)
+
+    payment = session.exec(
+        select(Payment).where(Payment.order_id == order_id)
+    ).first()
+
+    items = session.exec(
+        select(OrderItem).where(OrderItem.order_id == order_id)
+    ).all()
+
+    return {
+        "invoice_id": f"INV-{order.id}",
+        "order_id": order.id,
+        "customer": {
+            "id": customer.id,
+            "name": f"{customer.first_name} {customer.last_name}",
+            "email": customer.email,
+        },
+        "payment": {
+            "txn_id": payment.txn_id if payment else None,
+            "method": payment.method if payment else None,
+            "status": payment.status if payment else "unpaid",
+            "amount": payment.amount if payment else order.total,
+        },
+        "order_status": order.status,
+        "date": order.created_at,
+        "summary": {
+            "subtotal": order.subtotal,
+            "shipping": order.shipping,
+            "tax": order.tax,
+            "total": order.total,
+        },
+        "items": [
+            {
+                "title": i.book_title,
+                "price": i.price,
+                "quantity": i.quantity,
+                "total": i.price * i.quantity,
+            }
+            for i in items
+        ],
+    }
+
 
 
 # d) Invoice Download
@@ -288,7 +275,6 @@ def notify_customer(
         content=f"Admin sent an update for your order #{order.id}"
     )
     session.commit()
-    clear_user_caches()
 
     return {"message": "Customer notified successfully", "order_id": order.id}
 
@@ -374,10 +360,9 @@ def update_order_status(
                 "customer_email": user.email,
             }
         )
-    _cached_cancellation_status.cache_clear()
     clear_admin_cache()
     _cached_order_details.cache_clear()
-    _cached_invoice_view.cache_clear()
+
     
 
     return {
@@ -440,7 +425,7 @@ def add_tracking_info(
     session.commit()
 
     _cached_order_details.cache_clear()
-    _cached_invoice_view.cache_clear()
+
 
     return {"message": "Tracking added and email sent"}
 
@@ -516,7 +501,6 @@ def create_offline_order(
     session.refresh(order)
    
     _cached_order_details.cache_clear()
-    _cached_invoice_view.cache_clear()
     clear_admin_cache()
 
 

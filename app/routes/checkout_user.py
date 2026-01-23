@@ -12,9 +12,6 @@ from app.models.order_item import OrderItem
 from app.models.address import Address
 from app.routes.admin import create_notification
 from app.routes.book_detail import clear_book_detail_cache
-from app.routes.user_orders import _cached_invoice, _cached_track_order, _cached_track_order
-from app.routes.users import _cached_addresses, _cached_my_profile, _cached_order_detail, _cached_order_history
-from app.routes.users import _cached_my_profile
 from app.schemas.user_schemas import RazorpayPaymentVerifySchema
 from app.services.email_service import send_order_confirmation
 from app.services.inventory_service import reduce_inventory
@@ -45,8 +42,7 @@ from app.utils.cache_helpers import (
     cached_address_and_cart,
     cached_my_payments,
     _ttl_bucket,
-    cached_payment_detail,
-    clear_user_caches,
+
 )
 
 
@@ -76,16 +72,6 @@ def add_address(
     session.add(address)
     session.commit()
     session.refresh(address)
-    
-    _cached_payment_detail.cache_clear()
-    
-    cached_addresses.cache_clear()
-    cached_address_and_cart.cache_clear()
-    cached_address_and_cart(current_user.id, _ttl_bucket())
-    cached_addresses(current_user.id, _ttl_bucket())
-    cached_my_payments(current_user.id, 1, 10, _ttl_bucket())
-
-
 
     return {"message": "Address saved", "address_id": address.id}
 
@@ -113,8 +99,7 @@ def update_address(
     session.add(address)
     session.commit()
     session.refresh(address)
-    _cached_addresses.cache_clear()
-    _cached_my_profile.cache_clear()
+    
     
     cached_address_and_cart(current_user.id, _ttl_bucket())
     cached_addresses(current_user.id, _ttl_bucket())
@@ -165,13 +150,42 @@ def get_address_and_cart(
 
 @router.get("/list-addresses")
 def list_addresses(
+    page: int = 1,
+    limit: int = 10,
+    search: str | None = None,
+    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    return _cached_addresses(
-        current_user.id,
-        _ttl_bucket()
-    )
+    query = select(Address).where(Address.user_id == current_user.id)
 
+    if search:
+        like = f"%{search}%"
+        query = query.where(
+            Address.first_name.ilike(like) |
+            Address.last_name.ilike(like) |
+            Address.city.ilike(like) |
+            Address.phone_number.ilike(like)
+        )
+
+    query = query.order_by(Address.created_at.desc())
+
+    data = paginate(session=session, query=query, page=page, limit=limit)
+
+    data["results"] = [
+        {
+            "id": a.id,
+            "full_name": f"{a.first_name} {a.last_name}",
+            "address": a.address,
+            "city": a.city,
+            "state": a.state,
+            "zip_code": a.zip_code,
+            "phone_number": a.phone_number,
+            "created_at": a.created_at,
+        }
+        for a in data["results"]
+    ]
+
+    return data
 
 
 @router.post("/address-summary")
@@ -225,9 +239,6 @@ def checkout_summary(
     tax = 0
     total = subtotal + shipping
     cached_address_and_cart.cache_clear()
-    _cached_addresses.cache_clear()
-    _cached_order_history.cache_clear()
-    _cached_order_detail.cache_clear()
 
     return {
         "has_address": True,
@@ -393,14 +404,10 @@ def create_razorpay_order(
             "customer_email": current_user.email,
         }
     )
+    if order.user_id:
+        cached_my_payments(order.user_id, 1, 10, _ttl_bucket())
 
-    _cached_order_history.cache_clear()
-    _cached_order_detail.cache_clear()
-    cached_payment_detail.cache_clear()
 
-    cached_address_and_cart(current_user.id, _ttl_bucket())
-    cached_my_payments(current_user.id, _ttl_bucket())
-    clear_user_caches()
     
 
 
@@ -510,13 +517,11 @@ def verify_razorpay_payment(
     )
 
     session.commit()
-    _cached_track_order.cache_clear()
-    _cached_invoice.cache_clear()
-    cached_payment_detail.cache_clear()
-    cached_address_and_cart(current_user.id, _ttl_bucket())
-    cached_my_payments(current_user.id, 1, 10, _ttl_bucket())
     clear_book_detail_cache()
-    clear_user_caches()
+    if order.user_id:
+        cached_my_payments(order.user_id, 1, 10, _ttl_bucket())
+
+    
 
 
     # Dispatch order event
@@ -557,14 +562,9 @@ def verify_razorpay_payment(
         }
     )
     
-    _cached_order_history.cache_clear()
-    _cached_order_detail.cache_clear()
-    cached_payment_detail.cache_clear()
-    cached_address_and_cart.cache_clear()
-    cached_my_payments.cache_clear()
+    if order.user_id:
+        cached_my_payments(order.user_id, 1, 10, _ttl_bucket())
 
-    
-    clear_user_caches()
 
     return {
         "message": "Thank you for your order! A confirmation email has been sent.",
@@ -688,13 +688,9 @@ def place_order(
             "customer_email": current_user.email,
         }
     )
-    _cached_order_history.cache_clear()
-    _cached_order_detail.cache_clear()
-    cached_payment_detail.cache_clear()
-    cached_address_and_cart.cache_clear()
-    cached_my_payments.cache_clear()
 
-    clear_user_caches()
+
+
 
     return {
         **(popup_data or {}),
@@ -754,13 +750,7 @@ def complete_payment(
     session.commit()
 
     clear_cart(session, current_user.id)
-    _cached_track_order.cache_clear()
-    _cached_invoice.cache_clear()
-    cached_payment_detail.cache_clear()
-    cached_address_and_cart(current_user.id, _ttl_bucket())
-    cached_my_payments(current_user.id, 1, 10, _ttl_bucket())
-
-    clear_user_caches()
+    
 
 
     # ✅ delivery dates
@@ -802,10 +792,6 @@ def complete_payment(
     }
 )
     session.commit()
-
-    _cached_order_history.cache_clear()
-    _cached_order_detail.cache_clear()
-        
     return {
         "message": "Thank you for your order! A confirmation email has been sent.",
         "order_id": order.id,
@@ -884,16 +870,24 @@ def user_payment_detail(
 
 
 
-
 @router.get("/my-payments")
 def list_my_payments(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=50),
+
+    # 🔍 SEARCH FILTERS
+    search: str | None = None,
+    status: str | None = None,
+    method: str | None = None,
+    payment_type: str | None = None,  # ebook / physical
+    min_amount: float | None = None,
+    max_amount: float | None = None,
+
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     # -----------------------------
-    # 1️⃣ Physical book payments
+    # 1️⃣ Physical payments
     # -----------------------------
     order_payments = session.exec(
         select(Payment)
@@ -909,7 +903,7 @@ def list_my_payments(
     ).all()
 
     # -----------------------------
-    # 3️⃣ Normalize into one list
+    # 3️⃣ Normalize payments
     # -----------------------------
     combined = []
 
@@ -938,12 +932,40 @@ def list_my_payments(
         })
 
     # -----------------------------
-    # 4️⃣ Sort by date (DESC)
+    # 4️⃣ APPLY SEARCH FILTERS
+    # -----------------------------
+    if search:
+        s = search.lower()
+        combined = [
+            p for p in combined
+            if s in (p["txn_id"] or "").lower()
+            or s in p["status"].lower()
+            or s in p["method"].lower()
+            or s in p["type"].lower()
+        ]
+
+    if status:
+        combined = [p for p in combined if p["status"] == status]
+
+    if method:
+        combined = [p for p in combined if p["method"] == method]
+
+    if payment_type:
+        combined = [p for p in combined if p["type"] == payment_type]
+
+    if min_amount is not None:
+        combined = [p for p in combined if p["amount"] >= min_amount]
+
+    if max_amount is not None:
+        combined = [p for p in combined if p["amount"] <= max_amount]
+
+    # -----------------------------
+    # 5️⃣ Sort DESC by date
     # -----------------------------
     combined.sort(key=lambda x: x["created_at"], reverse=True)
 
     # -----------------------------
-    # 5️⃣ Manual pagination
+    # 6️⃣ Pagination
     # -----------------------------
     total_items = len(combined)
     start = (page - 1) * limit
@@ -955,5 +977,13 @@ def list_my_payments(
         "total_pages": (total_items + limit - 1) // limit,
         "current_page": page,
         "limit": limit,
+        "filters": {
+            "search": search,
+            "status": status,
+            "method": method,
+            "payment_type": payment_type,
+            "min_amount": min_amount,
+            "max_amount": max_amount,
+        },
         "results": paginated,
     }

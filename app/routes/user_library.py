@@ -37,22 +37,27 @@ def _cached_my_ebooks(user_id: int, bucket: int):
         result = []
         for p in purchases:
             book = session.get(Book, p.book_id)
+
             result.append({
                 "purchase_id": p.id,
                 "book_id": book.id,
                 "title": book.title,
                 "author": book.author,
-                "cover_image_url": to_presigned_url(book.cover_image)
+                "cover_image_key": book.cover_image
             })
 
         return result
 
 
 @router.get("")
-def my_ebook_library(
-    current_user: User = Depends(get_current_user)
-):
-    return _cached_my_ebooks(current_user.id, _ttl_bucket())
+def my_ebook_library(current_user: User = Depends(get_current_user)):
+    data = _cached_my_ebooks(current_user.id, _ttl_bucket())
+
+    for item in data:
+        item["cover_image_url"] = to_presigned_url(item["cover_image_key"])
+
+    return data
+
 
 
 
@@ -72,8 +77,9 @@ def read_ebook(
     if not purchase:
         raise HTTPException(403, "You do not own this book")
 
-    if purchase.access_expires_at < datetime.utcnow():
-        raise HTTPException(403, "Your access has expired")
+    if purchase.access_expires_at and purchase.access_expires_at < datetime.utcnow():
+      raise HTTPException(403, "Your access has expired")
+
 
     book = session.get(Book, book_id)
 
