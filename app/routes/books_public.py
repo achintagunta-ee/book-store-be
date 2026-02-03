@@ -1,5 +1,6 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
+import slugify
 from sqlmodel import Session, func, select
 from app.database import get_session
 from app.models.book import Book
@@ -300,9 +301,11 @@ def list_books_by_category_name(
 @router.get("/category/{category_name}/books/{book_name}")
 def get_book_in_category(
     category_name: str,
-    book_slug: str,
+    book_name: str,
     session: Session = Depends(get_session),
 ):
+    slug = slugify(book_name)
+    
     category = session.exec(
         select(Category).where(Category.name.ilike(category_name))
     ).first()
@@ -313,14 +316,14 @@ def get_book_in_category(
     book = session.exec(
         select(Book).where(
             Book.category_id == category.id,
-            Book.slug == book_slug
+            Book.slug == slug
         )
     ).first()
 
     if not book:
         raise HTTPException(
             404,
-            f"Book '{book_slug}' not found in category '{category_name}'"
+            f"Book '{book_name}' not found in category '{category_name}'"
         )
 
     return {

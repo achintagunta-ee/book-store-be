@@ -17,6 +17,11 @@ from app.services.email_service import send_email
 from app.utils.template import render_template
 from app.config import settings
 
+def base_context():
+    return {
+        "current_year": datetime.utcnow().year,
+        "store_name": "Hithabodha Bookstore"
+    }
 
 
 router = APIRouter()
@@ -59,11 +64,11 @@ def register_user(
 
     # ---- Admin email ----
     admin_html = render_template(
-        "emails/admin_new_user.html",
-        {
-            "email": user.email,
-            "name": f"{user.first_name} {user.last_name}"
-        }
+    "admin_emails/admin_new_user.html",
+    **base_context(),
+    email=user.email,
+    name=f"{user.first_name} {user.last_name}",
+    registered_at=user.created_at.strftime("%Y-%m-%d %H:%M UTC")
     )
 
     for admin_email in settings.ADMIN_EMAILS:
