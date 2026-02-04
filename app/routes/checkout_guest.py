@@ -253,7 +253,6 @@ def verify_guest_payment(
         "user_name": order.guest_name,
     }
 )
-    session.commit()
     
 
     # 6️⃣ Admin notification
