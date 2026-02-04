@@ -96,7 +96,7 @@ async function startCheckout() {
 async function verifyPayment(orderId, response) {
     const output = document.getElementById("output");
 
-    const res = await fetch(`${API_BASE}/guest/verify-payment`, {
+    const res = await fetch(`${API_BASE}/verify-payment`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
