@@ -334,7 +334,13 @@ def list_customer_notifications(
 
     query = query.order_by(Notification.created_at.desc())
 
-    data = paginate(session, query, page, limit)
+    data = paginate(
+    session=session,
+    query=query,
+    page=page,
+    limit=limit
+)
+
 
     data["results"] = [
         {
