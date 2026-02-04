@@ -191,7 +191,13 @@ def get_user_addresses(
 ):
     query = select(Address).where(Address.user_id == current_user.id)
 
-    data = paginate(session, query, page, limit)
+    data = paginate(
+    session=session,
+    query=query,
+    page=page,
+    limit=limit
+)
+
 
     data["results"] = [
         {
