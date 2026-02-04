@@ -96,21 +96,35 @@ async function startCheckout() {
 async function verifyPayment(orderId, response) {
     const output = document.getElementById("output");
 
-    const res = await fetch(`${API_BASE}/verify-payment`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            order_id: orderId,
-            razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_order_id: response.razorpay_order_id,
-            razorpay_signature: response.razorpay_signature
-        })
-    });
+    try {
+        const res = await fetch(`${API_BASE}/verify-payment`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                order_id: orderId,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_signature: response.razorpay_signature
+            })
+        });
 
-    const result = await res.json();
-    output.innerText += "\n\n✅ Backend Verification:\n" +
-        JSON.stringify(result, null, 2);
+        // ✅ handle non-200 responses safely
+        if (!res.ok) {
+            const text = await res.text();
+            output.innerText += "\n\n❌ Backend error:\n" + text;
+            return;
+        }
+
+        const result = await res.json();
+
+        output.innerText += "\n\n✅ Backend Verification:\n" +
+            JSON.stringify(result, null, 2);
+
+    } catch (err) {
+        output.innerText += "\n\n❌ Verify failed:\n" + err.message;
+    }
 }
+
 </script>
 
 </body>
