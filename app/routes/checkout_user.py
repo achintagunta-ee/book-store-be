@@ -43,6 +43,7 @@ from app.utils.cache_helpers import (
     _ttl_bucket,
 
 )
+from fastapi import BackgroundTasks
 
 
 
@@ -597,9 +598,11 @@ def verify_razorpay_payment(
 
 @router.post("/order/place-order")
 def place_order(
+    background_tasks: BackgroundTasks,
     address_id: int,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    
 ):
     address = session.get(Address, address_id)
     if not address:

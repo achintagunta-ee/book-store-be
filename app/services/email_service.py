@@ -30,50 +30,42 @@ def send_email(
     html: str,
     attachments: Optional[List[Tuple[str, bytes, str]]] = None,
 ) -> bool:
-    """
-    Send email via Brevo.
-
-    attachments: List of tuples
-        (filename, file_bytes, mime_type)
-    """
-
-    # ✅ Validate email BEFORE calling Brevo
-    # ✅ Normalize emails into a list
-    if isinstance(to, list):
-        valid_emails = [e for e in to if is_valid_email(e)]
-    else:
-        valid_emails = [to] if is_valid_email(to) else []
-
-    if not valid_emails:
-        logger.warning(f"No valid emails found: {to}")
-        return False
-    
-    payload = {
-        "sender": {
-            "email": settings.MAIL_FROM,
-            "name": settings.STORE_NAME,
-        },
-        "to": [{"email": to}],
-        "subject": subject,
-        "htmlContent": html,
-    }
-
-    # ✅ Attach files if provided
-    if attachments:
-        payload["attachment"] = [
-            {
-                "name": filename,
-                "content": base64.b64encode(file_bytes).decode("utf-8"),
-            }
-            for filename, file_bytes, mime_type in attachments
-        ]
-
-    headers = {
-        "api-key": settings.BREVO_API_KEY,
-        "Content-Type": "application/json",
-    }
 
     try:
+        # ✅ Validate emails
+        if isinstance(to, list):
+            valid_emails = [e for e in to if is_valid_email(e)]
+        else:
+            valid_emails = [to] if is_valid_email(to) else []
+
+        if not valid_emails:
+            logger.warning(f"Skipped invalid email(s): {to}")
+            return False
+
+        payload = {
+            "sender": {
+                "email": settings.MAIL_FROM,
+                "name": settings.STORE_NAME,
+            },
+            "to": [{"email": e} for e in valid_emails],
+            "subject": subject,
+            "htmlContent": html,
+        }
+
+        if attachments:
+            payload["attachment"] = [
+                {
+                    "name": filename,
+                    "content": base64.b64encode(file_bytes).decode("utf-8"),
+                }
+                for filename, file_bytes, mime_type in attachments
+            ]
+
+        headers = {
+            "api-key": settings.BREVO_API_KEY,
+            "Content-Type": "application/json",
+        }
+
         response = requests.post(
             BREVO_API_URL,
             json=payload,
@@ -87,12 +79,13 @@ def send_email(
             )
             return False
 
-        logger.info(f"Brevo email sent to {valid_emails}")
+        logger.info(f"Email sent to {valid_emails}")
         return True
 
-    except Exception:
-        logger.exception("Brevo email exception")
+    except Exception as e:
+        logger.exception(f"Email exception: {e}")
         return False
+
 
 
 def send_order_confirmation(order: Order, user: User, session: Session):
