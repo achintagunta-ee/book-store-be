@@ -346,7 +346,7 @@ def user_book_list(
     search: str | None = None,
     session: Session = Depends(get_session),
 ):
-    query = select(Book).where(Book.is_active == True)
+    query = select(Book)
 
     if search:
         query = query.where(Book.title.ilike(f"%{search}%"))
