@@ -167,21 +167,35 @@ def dispatch_order_event(
     # USER EMAIL
     # -------------------------
     if notify_user and rules.get(Channel.EMAIL_USER):
-        send_user_email(
-            template=extra["user_template"],
-            subject=extra["user_subject"],
-            user=user,
-            **extra,
-        )
+        try:
+            if user:
+                send_user_email(
+                    template=extra["user_template"],
+                    subject=extra["user_subject"],
+                    user=user,
+                    **extra,
+                )
+            else:
+                send_email(
+                    to=extra.get("user_email"),
+                    subject=extra["user_subject"],
+                    template=extra["user_template"],
+                    context=extra,
+                )
+        except Exception as e:
+            print("User email failed:", e)
 
     # -------------------------
     # ADMIN EMAIL
     # -------------------------
     if notify_admin and rules.get(Channel.EMAIL_ADMIN):
-        send_admin_email(
-            template=extra["admin_template"],
-            subject=extra["admin_subject"],
-            **extra,
-        )
+        try:
+            send_admin_email(
+                template=extra["admin_template"],
+                subject=extra["admin_subject"],
+                **extra,
+            )
+        except Exception as e:
+            print("Admin email failed:", e)
 
     return response_popup

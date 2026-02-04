@@ -108,11 +108,19 @@ async function verifyPayment(orderId, response) {
             })
         });
 
-        // ✅ handle non-200 responses safely
+        // ✅ handle non-200 safely
         if (!res.ok) {
             const text = await res.text();
-            output.innerText += "\n\n❌ Backend error:\n" + text;
-            return;
+
+            try {
+                const json = JSON.parse(text);
+                output.innerText += "\nServer error JSON:\n" +
+                    JSON.stringify(json, null, 2);
+            } catch {
+                output.innerText += "\nServer error text:\n" + text;
+            }
+
+            return; // stop here
         }
 
         const result = await res.json();

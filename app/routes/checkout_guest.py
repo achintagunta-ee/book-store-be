@@ -255,7 +255,6 @@ def verify_guest_payment(
 )
     session.commit()
     
-    reduce_inventory(session, order.id)
 
     # 6️⃣ Admin notification
     create_notification(

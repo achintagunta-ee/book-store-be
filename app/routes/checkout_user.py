@@ -763,9 +763,6 @@ def complete_payment(
     order.status = "paid"
     session.commit()
 
-    reduce_inventory(session, order.id)
-    session.commit()
-
     clear_cart(session, current_user.id)
     
 
