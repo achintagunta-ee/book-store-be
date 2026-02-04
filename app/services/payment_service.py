@@ -106,6 +106,6 @@ def finalize_payment(
     session.refresh(payment)
 
     # 📧 Email (guest OR user)
-    send_payment_success_email(order, user)
+    # send_payment_success_email(order, user)
 
     return payment

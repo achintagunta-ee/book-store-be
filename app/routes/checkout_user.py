@@ -549,25 +549,25 @@ def verify_razorpay_payment(
         for item in order_items
     ]
 
-    dispatch_order_event(
-        event=OrderEvent.PAYMENT_SUCCESS,
-        order=order,
-        user=current_user,
-        session=session,
-        extra={
-            "popup_message": "Payment successful",
-            "admin_title": "Payment Received",
-            "admin_content": f"Payment for order #{order.id}",
-            "user_template": "user_emails/user_payment_success.html",
-            "user_subject": f"Payment success #{order.id}",
-            "admin_template": "admin_emails/admin_payment_received.html",
-            "admin_subject": f"Payment received #{order.id}",
-            "order_id": order.id,
-            "amount": payment.amount,
-            "txn_id": payment.txn_id,
-            "first_name": current_user.first_name,
-        }
-    )
+    # dispatch_order_event(
+        #event=OrderEvent.PAYMENT_SUCCESS,
+        #order=order,
+        #user=current_user,
+        #session=session,
+        #extra={
+          #  "popup_message": "Payment successful",
+          #  "admin_title": "Payment Received",
+          #  "admin_content": f"Payment for order #{order.id}",
+          #  "user_template": "user_emails/user_payment_success.html",
+          #  "user_subject": f"Payment success #{order.id}",
+          #  "admin_template": "admin_emails/admin_payment_received.html",
+           # "admin_subject": f"Payment received #{order.id}",
+           # "order_id": order.id,
+           # "amount": payment.amount,
+           # "txn_id": payment.txn_id,
+           # "first_name": current_user.first_name,
+      #  } 
+   # )
     
     if order.user_id:
         cached_my_payments.cache_clear()
