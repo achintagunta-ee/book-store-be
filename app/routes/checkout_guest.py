@@ -240,6 +240,7 @@ def verify_guest_payment(
 
     # 5️⃣ Guest confirmation email
     dispatch_order_event(
+    user=None,
     event=OrderEvent.PAYMENT_SUCCESS,
     order=order,
     session=session,
