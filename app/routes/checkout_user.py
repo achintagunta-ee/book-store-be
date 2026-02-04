@@ -413,7 +413,11 @@ def create_razorpay_order(
         }
     )
     if order.user_id:
-        cached_my_payments(order.user_id, 1, 10, _ttl_bucket())
+        cached_my_payments(
+    current_user.id,
+    _ttl_bucket()
+)
+
 
 
     

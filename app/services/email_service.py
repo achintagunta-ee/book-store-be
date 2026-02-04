@@ -1,13 +1,27 @@
 import base64
 import logging
 import requests
+import re
 from typing import List, Optional, Tuple
 
 from app.config import settings
+from app.utils.template import render_template
+from app.models.user import User
+from app.models.order import Order
+from sqlmodel import Session
 
 logger = logging.getLogger(__name__)
 
 BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
+
+def is_valid_email(email):
+    if isinstance(email, list):
+        return all(is_valid_email(e) for e in email)
+
+    if not email:
+        return False
+
+    return re.match(r"[^@]+@[^@]+\.[^@]+", email) is not None
 
 
 def send_email(
@@ -23,6 +37,17 @@ def send_email(
         (filename, file_bytes, mime_type)
     """
 
+    # ✅ Validate email BEFORE calling Brevo
+    # ✅ Normalize emails into a list
+    if isinstance(to, list):
+        valid_emails = [e for e in to if is_valid_email(e)]
+    else:
+        valid_emails = [to] if is_valid_email(to) else []
+
+    if not valid_emails:
+        logger.warning(f"No valid emails found: {to}")
+        return False
+    
     payload = {
         "sender": {
             "email": settings.MAIL_FROM,
@@ -62,17 +87,13 @@ def send_email(
             )
             return False
 
-        logger.info(f"Brevo email sent to {to}")
+        logger.info(f"Brevo email sent to {valid_emails}")
         return True
 
     except Exception:
         logger.exception("Brevo email exception")
         return False
-from app.services.email_service import send_email
-from app.utils.template import render_template
-from app.models.user import User
-from app.models.order import Order
-from sqlmodel import Session
+
 
 def send_order_confirmation(order: Order, user: User, session: Session):
     """Send order confirmation email to customer"""
@@ -90,10 +111,9 @@ def send_order_confirmation(order: Order, user: User, session: Session):
     
     # Send to admin emails (if configured)
     from app.config import settings
-    if hasattr(settings, 'ADMIN_EMAILS'):
-        for admin_email in settings.ADMIN_EMAILS:
-            send_email(
-                to=admin_email,
-                subject=f"New Order Received #{order.id}",
-                html=html
-            )
+    if hasattr(settings, "ADMIN_EMAILS"):
+        send_email(
+        to=settings.ADMIN_EMAILS,
+        subject=f"New Order Received #{order.id}",
+        html=html
+    )
