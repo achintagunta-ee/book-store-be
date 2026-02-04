@@ -197,13 +197,8 @@ def verify_guest_payment(
     if not order or order.placed_by != "guest":
         raise HTTPException(status_code=404, detail="Order not found")
     
-    if datetime.utcnow() > order.created_at + timedelta(PAYMENT_EXPIRY_DAYS):
-        order.status = "expired"
-        session.commit()
-        raise HTTPException(
-        status_code=400,
-        detail="Payment session expired. Please place a new order."
-    )
+    if order.payment_expires_at and datetime.utcnow() > order.payment_expires_at:
+         raise HTTPException(400, "Payment expired. Please create a new order.")
 
     # 2️⃣ 🔒 Idempotency guard (VERY IMPORTANT)
     if order.status == "paid":
@@ -211,8 +206,7 @@ def verify_guest_payment(
             "message": "Payment already processed",
             "order_id": order.id,
         }
-    if order.payment_expires_at and datetime.utcnow() > order.payment_expires_at:
-         raise HTTPException(400, "Payment expired. Please create a new order.")
+    
 
 
     # 3️⃣ Verify Razorpay signature
