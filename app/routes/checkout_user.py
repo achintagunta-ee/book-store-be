@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.temp_pydantic_v1_params import Query
 import razorpay
-from requests import session
 from sqlalchemy import func
 from sqlmodel import Session, select 
 from app.database import get_session
@@ -14,7 +13,6 @@ from app.routes.admin import create_notification
 from app.routes.book_detail import clear_book_detail_cache
 from app.schemas.user_schemas import RazorpayPaymentVerifySchema
 from app.services.email_service import send_order_confirmation
-from app.services.inventory_service import reduce_inventory
 from app.services.email_service import send_email
 from app.services.order_expiry_service import PAYMENT_EXPIRY_DAYS
 from app.services.payment_service import finalize_payment
@@ -57,12 +55,6 @@ razorpay_client = razorpay.Client(
 router = APIRouter()
 CACHE_TTL = 60 * 60  # 60 minutes
 
-def _ttl_bucket() -> int:
-    """
-    Time bucket that changes every 60 minutes.
-    Forces lru_cache expiry.
-    """
-    return int(time.time() // CACHE_TTL)
 
 @router.post("/address")
 def add_address(
@@ -106,7 +98,8 @@ def update_address(
     
     cached_address_and_cart(current_user.id, _ttl_bucket())
     cached_addresses(current_user.id, _ttl_bucket())
-    cached_my_payments(current_user.id, 1, 10, _ttl_bucket())
+    cached_my_payments.cache_clear()
+
 
 
 
@@ -132,7 +125,7 @@ def delete_address(
     cached_address_and_cart.cache_clear()
     cached_address_and_cart(current_user.id, _ttl_bucket())
     cached_addresses(current_user.id, _ttl_bucket())
-    cached_my_payments(current_user.id, 1, 10, _ttl_bucket())
+    cached_my_payments.cache_clear()
 
 
     return {
@@ -413,15 +406,7 @@ def create_razorpay_order(
         }
     )
     if order.user_id:
-        cached_my_payments(
-    current_user.id,
-    _ttl_bucket()
-)
-
-
-
-    
-
+        cached_my_payments.cache_clear()
 
     return {
     **(popup_data or {}),
@@ -540,7 +525,8 @@ def verify_razorpay_payment(
     session.commit()
     clear_book_detail_cache()
     if order.user_id:
-        cached_my_payments(order.user_id, 1, 10, _ttl_bucket())
+        cached_my_payments.cache_clear()
+
 
     
 
@@ -584,7 +570,8 @@ def verify_razorpay_payment(
     )
     
     if order.user_id:
-        cached_my_payments(order.user_id, 1, 10, _ttl_bucket())
+        cached_my_payments.cache_clear()
+
 
 
     return {

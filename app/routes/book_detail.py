@@ -279,7 +279,8 @@ def buy_now_create_razorpay_order(
     cached_payment_detail.cache_clear()
 
     cached_address_and_cart(current_user.id, _ttl_bucket())
-    cached_my_payments(current_user.id, _ttl_bucket())
+    cached_my_payments.cache_clear()
+
 
     
 
@@ -429,7 +430,8 @@ def buy_now_verify_payment(
 
     cached_payment_detail.cache_clear()
     cached_address_and_cart(current_user.id, _ttl_bucket())
-    cached_my_payments(current_user.id, _ttl_bucket())
+    cached_my_payments.cache_clear()
+
     clear_book_detail_cache()
     return {
         "message": "Thank you for your order! Payment successful.",

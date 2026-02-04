@@ -166,7 +166,8 @@ def guest_checkout(
     if order.user_id:
      cached_address_and_cart(order.user_id, _ttl_bucket())
      cached_addresses(order.user_id, _ttl_bucket())
-     cached_my_payments(order.user_id, _ttl_bucket())
+     cached_my_payments.cache_clear()
+
 
 
 
@@ -270,7 +271,8 @@ def verify_guest_payment(
     if order.user_id:
      cached_address_and_cart(order.user_id, _ttl_bucket())
      cached_addresses(order.user_id, _ttl_bucket())
-     cached_my_payments(order.user_id, _ttl_bucket())
+     cached_my_payments.cache_clear()
+
 
 
     return {
