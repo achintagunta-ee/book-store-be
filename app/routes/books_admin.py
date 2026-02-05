@@ -136,6 +136,9 @@ def create_book(
     "slug": book.slug,
     "cover_image": book.cover_image,
     "offer_price":book.offer_price,
+    "discount_price":book.discount_price,
+    "excerpt":book.excerpt,
+    "isbn":book.isbn,
     "category_id":book.category_id,
     "author":book.author,
     "language":book.language,
@@ -144,6 +147,8 @@ def create_book(
     "rating":book.rating,
     "is_featured":book.is_featured,
     "is_featured_author":book.is_featured_author,
+    "published_date":book.published_date,
+    "tags":book.tags,
     "images": [
         {"id": img.id, "url": img.image_url}
         for img in book.images
