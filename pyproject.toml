@@ -25,5 +25,6 @@ dependencies = [
     "jinja2>=3.1.6",
     "apscheduler>=3.11.2",
     "razorpay>=2.0.0",
-    "slowapi>=0.1.9"
+    "slowapi>=0.1.9",
+    "rapidfuzz>=3.14.3",
 ]

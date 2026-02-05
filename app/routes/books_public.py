@@ -10,7 +10,7 @@ from functools import lru_cache
 import time
 from fastapi import Query
 from app.utils.pagination import paginate
-
+from rapidfuzz import fuzz
 router = APIRouter()
 CACHE_TTL = 60 * 60  # 60 minutes
 
@@ -25,6 +25,8 @@ def clear_books_cache():
 
 # ---------- SEARCH BOOKS ----------
 
+
+
 @router.get("/search/query")
 def quick_search_books(
     query: str = Query(...),
@@ -34,20 +36,45 @@ def quick_search_books(
 ):
     like = f"%{query.lower()}%"
 
-    q = select(Book).where(
-        Book.title.ilike(like) |
-        Book.author.ilike(like)
-    )
+    # Step 1 — DB pre-filter
+    books = session.exec(
+        select(Book).where(
+            Book.title.ilike(like) |
+            Book.author.ilike(like)
+        )
+    ).all()
 
-    data = paginate(session=session, query=q, page=page, limit=limit)
+    # Step 2 — fuzzy ranking
+    scored = []
+
+    for book in books:
+        title_score = fuzz.partial_ratio(query.lower(), book.title.lower())
+        author_score = fuzz.partial_ratio(query.lower(), book.author.lower())
+
+        score = max(title_score, author_score)
+
+        if score > 50:  # threshold
+            scored.append((score, book))
+
+    # Step 3 — sort by best match
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    results = [b for _, b in scored]
+
+    # Step 4 — manual pagination
+    total = len(results)
+    start = (page - 1) * limit
+    end = start + limit
+    paginated = results[start:end]
 
     return {
         "query": query,
-        "total_results": data["total_items"],
-        "page": data["current_page"],
-        "total_pages": data["total_pages"],
-        "results": data["results"]
+        "total_results": total,
+        "page": page,
+        "total_pages": (total + limit - 1) // limit,
+        "results": paginated,
     }
+
 
 
 @router.get("/search")
