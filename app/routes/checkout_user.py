@@ -4,6 +4,7 @@ import razorpay
 from sqlalchemy import func
 from sqlmodel import Session, select 
 from app.database import get_session
+from app.models.ebook_purchase import EbookPurchase
 from app.models.notifications import NotificationChannel, RecipientRole
 from app.models.user import User 
 from app.models.order import Order, OrderStatus 
@@ -916,6 +917,22 @@ def list_my_payments(
     combined = []
 
     for p in order_payments:
+
+        order = session.get(Order, p.order_id)
+        books = []
+
+        if order:
+            for item in order.items:  # make sure relationship exists
+                book = session.get(Book, item.book_id)
+                if book:
+                    books.append({
+                        "book_id": book.id,
+                        "title": book.title,
+                        "author": book.author,
+                        "cover_image": book.cover_image,
+                        "type": "ebook" if book.is_ebook else "physical",
+                    })
+
         combined.append({
             "payment_id": p.id,
             "txn_id": p.txn_id,
@@ -925,9 +942,26 @@ def list_my_payments(
             "created_at": p.created_at,
             "type": "physical",
             "reference_id": p.order_id,
+            "books": books,
         })
 
+
     for p in ebook_payments:
+
+        purchase = session.get(EbookPurchase, p.ebook_purchase_id)
+        book_data = None
+
+        if purchase:
+            book = session.get(Book, purchase.book_id)
+            if book:
+                book_data = {
+                    "book_id": book.id,
+                    "title": book.title,
+                    "author": book.author,
+                    "cover_image": book.cover_image,
+                    "type": "ebook" if book.is_ebook else "physical",
+                }
+
         combined.append({
             "payment_id": p.id,
             "txn_id": p.txn_id,
@@ -937,7 +971,9 @@ def list_my_payments(
             "created_at": p.created_at,
             "type": "ebook",
             "reference_id": p.ebook_purchase_id,
+            "book": book_data,
         })
+
 
     # -----------------------------
     # 4️⃣ APPLY SEARCH FILTERS
