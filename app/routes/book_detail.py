@@ -4,7 +4,6 @@ from pydantic import BaseModel
 import razorpay
 from sqlmodel import Session, select
 from app.database import get_session
-from app.models import book
 from app.models.address import Address
 from app.models.book import Book
 from app.models.category import Category
@@ -17,7 +16,6 @@ from app.config import settings
 from app.notifications import OrderEvent, dispatch_order_event
 from app.routes.cart import clear_cart
 from app.schemas.buynow_schemas import BuyNowRequest, BuyNowVerifySchema
-from app.services.inventory_service import reduce_inventory
 from app.services.notification_service import create_notification
 from app.services.order_email_service import send_payment_success_email
 from app.services.payment_service import finalize_payment
@@ -25,6 +23,7 @@ from app.utils.cache_helpers import cached_address_and_cart, cached_my_payments,
 from app.utils.token import get_current_user  # If review model exists
 from functools import lru_cache
 import time
+
 
 razorpay_client = razorpay.Client(
     auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
@@ -126,14 +125,19 @@ def _cached_book_detail(book_id: int, bucket: int):
 
 @router.get("/detail/{slug}")
 def get_book_detail(slug: str):
-    from app.database import get_session
-    from app.models.book import Book
-    from sqlmodel import select
-
+    
     with next(get_session()) as session:
+
+        # 1️⃣ Try exact slug match
         book = session.exec(
             select(Book).where(Book.slug == slug)
         ).first()
+
+        # 2️⃣ Fallback: try title match
+        if not book:
+            book = session.exec(
+                select(Book).where(Book.title.ilike(f"%{slug.replace('-', ' ')}%"))
+            ).first()
 
         if not book:
             raise HTTPException(404, "Book not found")
@@ -149,12 +153,9 @@ def get_book_detail(slug: str):
 # ---------------------------------------------------------
 @router.get("/category/{category_name}/books/detail/{slug}")
 def get_book_detail_by_category(category_name: str, slug: str):
-    from app.database import get_session
-    from app.models.book import Book
-    from app.models.category import Category
-    from sqlmodel import select
 
     with next(get_session()) as session:
+
         category = session.exec(
             select(Category).where(Category.name.ilike(f"%{category_name}%"))
         ).first()
@@ -162,12 +163,22 @@ def get_book_detail_by_category(category_name: str, slug: str):
         if not category:
             raise HTTPException(404, f"Category '{category_name}' not found")
 
+        # 1️⃣ Try slug
         book = session.exec(
             select(Book).where(
                 Book.slug == slug,
                 Book.category_id == category.id
             )
         ).first()
+
+        # 2️⃣ Fallback title match
+        if not book:
+            book = session.exec(
+                select(Book).where(
+                    Book.title.ilike(f"%{slug.replace('-', ' ')}%"),
+                    Book.category_id == category.id
+                )
+            ).first()
 
         if not book:
             raise HTTPException(
