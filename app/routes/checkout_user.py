@@ -924,7 +924,8 @@ def list_my_payments(
             "method": p.method,
             "created_at": p.created_at,
             "type": "physical",
-            "reference_id": p.order_id,
+            "order_id": p.order_id,
+            
         })
 
     for p in ebook_payments:
@@ -936,7 +937,7 @@ def list_my_payments(
             "method": p.method,
             "created_at": p.created_at,
             "type": "ebook",
-            "reference_id": p.ebook_purchase_id,
+            "purchase_id": p.ebook_purchase_id,
         })
 
     # -----------------------------
