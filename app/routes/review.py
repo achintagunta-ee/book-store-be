@@ -36,14 +36,15 @@ from app.models.book import Book
 from app.models.review import Review
 from app.schemas.review_schemas import ReviewCreate
 
-router = APIRouter(prefix="/reviews", tags=["Reviews"])
+router = APIRouter()
 
 
 @router.post("/books/{slug}/reviews")
 def create_review(
     slug: str,
     data: ReviewCreate,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user:User = Depends(get_current_user)
 ):
     # Get book by slug
     book = session.exec(select(Book).where(Book.slug == slug)).first()
@@ -54,6 +55,7 @@ def create_review(
     review = Review(
         book_id=book.id,
         user_name=data.user_name,
+        user_id=current_user.id,
         rating=data.rating,
         comment=data.comment,
         created_at=datetime.utcnow(),
