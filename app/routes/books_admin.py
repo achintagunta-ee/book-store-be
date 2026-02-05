@@ -3,6 +3,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models import book
 from app.models.book import Book
+from app.models.book_image import BookImage
 from app.models.category import Category
 from app.models.user import User
 from app.routes.admin import clear_admin_cache
@@ -16,7 +17,7 @@ from datetime import datetime
 from app.config import settings
 from slugify import slugify
 from app.services.r2_client import  s3_client, R2_BUCKET_NAME
-from app.services.r2_helper import  delete_r2_file , upload_book_cover
+from app.services.r2_helper import  delete_r2_file, to_presigned_url , upload_book_cover
 from functools import lru_cache
 import time
 from fastapi import Query
@@ -59,7 +60,7 @@ def create_book(
     is_featured_author: bool = Form(False),
     tags: str = Form(None),
     category_id: int = Form(...),
-    cover_image: UploadFile = File(None),
+    images: list[UploadFile] = File([]), #Multiple images support
 
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -75,10 +76,6 @@ def create_book(
         slug = slugify(title)
 
 # Upload image to R2
-    r2_key = None
-
-    if cover_image:
-      r2_key = upload_book_cover(cover_image, title)
 
     
     book = Book(
@@ -99,20 +96,60 @@ def create_book(
         is_featured=is_featured,
         is_featured_author=is_featured_author,
         tags=tags,
-        cover_image=r2_key, # Save R2 Key
         category_id=category_id
     )
 
     session.add(book)
     session.commit()
     session.refresh(book)
+     # ✅ Upload gallery images to R2
+    uploaded_images = []
+
+    for i, img in enumerate(images):
+        key = upload_book_cover(img, title)
+
+        image = BookImage(
+            book_id=book.id,
+            image_url=key,
+            sort_order=i
+        )
+
+        session.add(image)
+        uploaded_images.append(key)
+
+    session.commit()
+    # First image becomes thumbnail
+    book.cover_image = uploaded_images[0] if uploaded_images else None
+    session.add(book)
+    session.commit()
+    session.refresh(book)
+
     clear_books_cache()
     clear_admin_books_cache()
     clear_admin_cache()
     clear_inventory_cache()
 
 
-    return book
+    return {
+    "id": book.id,
+    "title": book.title,
+    "slug": book.slug,
+    "cover_image": book.cover_image,
+    "offer_price":book.offer_price,
+    "category_id":book.category_id,
+    "author":book.author,
+    "language":book.language,
+    "description":book.description,
+    "publisher":book.publisher,
+    "rating":book.rating,
+    "is_featured":book.is_featured,
+    "is_featured_author":book.is_featured_author,
+    "images": [
+        {"id": img.id, "url": img.image_url}
+        for img in book.images
+    ]
+}
+
 
 
 

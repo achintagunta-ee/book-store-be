@@ -6,6 +6,8 @@ from app.models.review import Review
 
 if TYPE_CHECKING:
     from .category import Category
+if TYPE_CHECKING:
+    from app.models.book_image import BookImage
 
 class Book(SQLModel, table=True):
     # main info
@@ -57,6 +59,7 @@ class Book(SQLModel, table=True):
 
     # relationships
     reviews: List["Review"] = Relationship(back_populates="book")
+    images: list["BookImage"] = Relationship(back_populates="book")
 
     @property
     def in_stock(self) -> bool:
