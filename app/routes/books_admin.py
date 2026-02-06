@@ -464,7 +464,7 @@ def upload_ebook_pdf(
         "is_ebook": book.is_ebook
     }
 
-@router.post("/{book_id}/images")
+@router.post("/{book_id}/add-images")
 def upload_book_images(
     book_id: int,
     images: list[UploadFile] = File(...),
@@ -554,7 +554,7 @@ def reorder_book_images(
 
     return {"message": "Images reordered"}
 
-@router.get("/{book_id}/images")
+@router.get("/{book_id}/list-images")
 def list_book_images(
     book_id: int,
     session: Session = Depends(get_session)
