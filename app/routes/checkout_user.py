@@ -233,7 +233,6 @@ def checkout_summary(
         })
 
     shipping = 0 if subtotal >= 500 else 150
-    tax = 0
     total = subtotal + shipping
     cached_address_and_cart.cache_clear()
 
@@ -243,7 +242,6 @@ def checkout_summary(
         "summary": {
             "subtotal": subtotal,
             "shipping": shipping,
-            "tax": tax,
             "total": total,
             "items": item_list
         }
@@ -286,7 +284,6 @@ def confirm_order(
         })
 
     shipping = 0 if subtotal >= 500 else 150
-    tax = 0
     total = subtotal + shipping 
 
     return {
@@ -294,7 +291,6 @@ def confirm_order(
         "summary": {
             "subtotal": subtotal,
             "shipping": shipping,
-            "tax": tax,
             "total": total,
         },
         "items": items
@@ -333,7 +329,6 @@ def create_razorpay_order(
         address_id=address_id,
         subtotal=subtotal,
         shipping=shipping,
-        tax=0,
         total=total,
         status="pending",
         payment_mode="online",
@@ -625,7 +620,6 @@ def place_order(
         items.append((book, c, line_total))
 
     shipping = 0 if subtotal >= 500 else 150
-    tax = 0
     total = subtotal + shipping
 
     # -------------------------
@@ -636,7 +630,6 @@ def place_order(
         address_id=address_id,
         subtotal=subtotal,
         shipping=shipping,
-        tax=tax,
         total=total,
         status="pending"
     )
@@ -710,7 +703,6 @@ def place_order(
         "estimated_delivery": f"{start} - {end}",
         "subtotal": order.subtotal,
         "shipping": order.shipping,
-        "tax": 0,
         "total": order.total,
         "address": address,
     }

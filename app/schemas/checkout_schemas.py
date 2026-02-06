@@ -12,6 +12,5 @@ class OrderSummary(BookstoreBase, table=True):  # Different name!
     order_id: int
     subtotal: float
     shipping: float
-    tax: float
     total: float
     created_at: datetime = Field(default_factory=datetime.utcnow)

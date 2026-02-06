@@ -155,6 +155,31 @@ def create_book(
     ]
 }
 
+@router.get("/list")
+def admin_book_list(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, le=100),
+    search: str | None = None,
+    session: Session = Depends(get_session),
+    admin: User = Depends(get_current_admin),
+):
+    query = select(Book)
+
+    if search:
+        query = query.where(Book.title.ilike(f"%{search}%"))
+
+    query = query.order_by(Book.updated_at.desc())
+
+    return paginate(session=session, query=query, page=page, limit=limit)
+
+
+@lru_cache(maxsize=256)
+def _cached_admin_book(book_id: int, bucket: int):
+    from app.database import get_session
+    from app.models.book import Book
+
+    with next(get_session()) as session:
+        return session.get(Book, book_id)
 
 
 
@@ -254,31 +279,7 @@ def filter_books_admin(
 
 
 
-@router.get("/admin/books")
-def admin_book_list(
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, le=100),
-    search: str | None = None,
-    session: Session = Depends(get_session),
-    admin: User = Depends(get_current_admin),
-):
-    query = select(Book)
 
-    if search:
-        query = query.where(Book.title.ilike(f"%{search}%"))
-
-    query = query.order_by(Book.updated_at.desc())
-
-    return paginate(session=session, query=query, page=page, limit=limit)
-
-
-@lru_cache(maxsize=256)
-def _cached_admin_book(book_id: int, bucket: int):
-    from app.database import get_session
-    from app.models.book import Book
-
-    with next(get_session()) as session:
-        return session.get(Book, book_id)
 
 @router.get("/{book_id}")
 def get_book_admin(

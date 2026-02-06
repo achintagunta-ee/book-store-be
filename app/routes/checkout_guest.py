@@ -127,7 +127,6 @@ def guest_checkout(
 
         subtotal=subtotal,
         shipping=shipping,
-        tax=0,
         total=total,
         payment_expires_at=datetime.utcnow() + timedelta(days=7),
     )
@@ -319,7 +318,6 @@ def guest_invoice_view(
         "summary": {
             "subtotal": order.subtotal,
             "shipping": order.shipping,
-            "tax": order.tax,
             "total": order.total,
         },
         "items": [

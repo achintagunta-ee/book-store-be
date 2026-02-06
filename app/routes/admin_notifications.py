@@ -41,6 +41,7 @@ def list_admin_notifications(
     limit: int = Query(10, ge=1, le=100),
     trigger_source: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),   # ✅ add this
     session: Session = Depends(get_session),
     admin: User = Depends(get_current_admin),
 ):
@@ -48,6 +49,21 @@ def list_admin_notifications(
         Notification.recipient_role == "admin"
     )
 
+    # ✅ CATEGORY FILTER (ADD HERE)
+    category_map = {
+        "orders": ["order_placed", "processing" ,"paid","shipped", "delivered","cancelled"],
+        "payments": ["payment","refund"],
+        "inventory": ["stock", "inventory"],
+    }
+
+    if category:
+        triggers = category_map.get(category.lower())
+        if triggers:
+            query = query.where(
+                Notification.trigger_source.in_(triggers)
+            )
+
+    # existing filters
     if trigger_source:
         query = query.where(Notification.trigger_source == trigger_source)
 
@@ -63,21 +79,35 @@ def list_admin_notifications(
         limit=limit,
     )
 
-    # 🔹 Serialize (important: do NOT return ORM directly)
-    paginated["results"] = [
-        {
-            "notification_id": n.id,
-            "title": n.title,
-            "content": n.content,
-            "trigger_source": n.trigger_source,
-            "related_id": n.related_id,
-            "status": n.status,
-            "created_at": n.created_at,
-        }
-        for n in paginated["results"]
-    ]
+    results = []
 
-    return paginated
+    for n in paginated["results"]:
+        order_status = None
+
+        if n.related_id:
+            order = session.get(Order, n.related_id)
+            if order:
+                order_status = order.status
+
+            results.append({
+                "notification_id": n.id,
+                "title": n.title,
+                "content": n.content,
+                "trigger_source": n.trigger_source,
+
+                # 👇 NEW FIELD
+                "order_status": order_status,
+
+                # 👇 notification delivery status
+                "notification_status": n.status,
+
+                "related_id": n.related_id,
+                "created_at": n.created_at,
+            })
+
+            paginated["results"] = results
+
+            return paginated
 
 
 @lru_cache(maxsize=512)
@@ -104,6 +134,71 @@ def _cached_admin_notification_detail(
             "channel": notification.channel,
             "created_at": notification.created_at,
         }
+
+@router.get("/unread-count")
+def unread_count(
+    session: Session = Depends(get_session),
+    admin: User = Depends(get_current_admin),
+):
+    count = session.exec(
+        select(func.count())
+        .where(Notification.recipient_role == RecipientRole.admin)
+        .where(Notification.status == NotificationStatus.sent)
+    ).one()
+
+    return {"unread": count}
+@router.patch("/read-all")
+def mark_all_read(
+    session: Session = Depends(get_session),
+    admin: User = Depends(get_current_admin),
+):
+    session.exec(
+        select(Notification)
+        .where(Notification.recipient_role == RecipientRole.admin)
+        .where(Notification.status == NotificationStatus.sent)
+    )
+
+    session.exec(
+        Notification.__table__.update()
+        .where(Notification.recipient_role == RecipientRole.admin)
+        .values(status=NotificationStatus.read)
+    )
+
+    session.commit()
+
+    return {"message": "All notifications marked as read"}
+
+@router.delete("/clear")
+def clear_notifications(
+    session: Session = Depends(get_session),
+    admin: User = Depends(get_current_admin),
+):
+    session.exec(
+        Notification.__table__.update()
+        .where(Notification.recipient_role == RecipientRole.admin)
+        .values(status=NotificationStatus.cleared)
+    )
+
+    session.commit()
+
+    return {"message": "Notifications cleared"}
+
+
+@router.patch("/{notification_id}/read")
+def mark_notification_read(
+    notification_id: int,
+    session: Session = Depends(get_session),
+    admin: User = Depends(get_current_admin),
+):
+    n = session.get(Notification, notification_id)
+    if not n or n.recipient_role != RecipientRole.admin:
+        raise HTTPException(404, "Notification not found")
+
+    n.status = NotificationStatus.read
+    session.add(n)
+    session.commit()
+
+    return {"message": "Marked as read"}
 
 
 @router.get("/{notification_id}")
@@ -141,9 +236,6 @@ def resend_notification(
     
     _cached_admin_notification_detail.cache_clear()
     clear_admin_cache()
-    
-
-
 
     return {
         "message": "Notification resent",
@@ -151,3 +243,5 @@ def resend_notification(
         "trigger_source": notification.trigger_source,  # ✅ added
         "status": notification.status,
     }
+
+

@@ -12,6 +12,5 @@ class CheckoutSummaryResponse(BaseModel):
     address_id: int
     subtotal: float
     shipping: float 
-    tax: float
     total: float
     items: List[CartItemSummary]

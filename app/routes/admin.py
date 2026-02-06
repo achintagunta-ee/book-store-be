@@ -277,80 +277,9 @@ def admin_search(
     }
 
 
-# -------- ADMIN NOTIFICATIONS --------
 
 
 
-@router.get("/orders/notifications/{notification_id}")
-def view_notification(
-    notification_id: int,
-    session: Session = Depends(get_session),
-    admin: User = Depends(get_current_admin),
-):
-    notification = session.get(Notification, notification_id)
-    if not notification or notification.recipient_role != "admin":
-        raise HTTPException(404, "Notification not found")
-
-    return notification
-
-@router.post("/orders/notifications/{notification_id}/resend")
-def resend_notification(
-    notification_id: int,
-    session: Session = Depends(get_session),
-    admin: User = Depends(get_current_admin),
-):
-    notification = session.get(Notification, notification_id)
-    if not notification:
-        raise HTTPException(404, "Notification not found")
-
-    notification.status = NotificationStatus.sent
-    session.add(notification)
-    session.commit()
-
-    return {
-        "message": "Notification resent",
-        "notification_id": notification.id,
-    }
-
-@router.post("/orders/{order_id}/notify")
-def notify_customer(
-    order_id: int,
-    session: Session = Depends(get_session),
-    admin: User = Depends(get_current_admin),
-):
-    order = session.get(Order, order_id)
-    if not order:
-        raise HTTPException(404, "Order not found")
-
-    create_notification(
-        session=session,
-        recipient_role="customer",
-        user_id=order.user_id,
-        trigger_source="manual",
-        related_id=order.id,
-        title="Order update",
-        content=f"Admin sent an update for your order #{order.id}"
-    )
-
-    session.commit()
-    return {"message": "Customer notified"}
 
 
-@router.get("/orders/{order_id}/status-view")
-def view_order_status(
-    order_id: int,
-    session: Session = Depends(get_session),
-    user: User = Depends(get_current_admin),
-):
-    order = session.get(Order, order_id)
-    if not order:
-        raise HTTPException(404, "Order not found")
 
-    if order.user_id != user.id and user.role != "admin":
-        raise HTTPException(403, "Not allowed")
-
-    return {
-        "order_id": order.id,
-        "status": order.status,
-        "updated_at": order.updated_at
-    }

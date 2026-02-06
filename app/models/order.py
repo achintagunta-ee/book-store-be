@@ -38,7 +38,6 @@ class Order(SQLModel, table=True):
     # ============ Order Amounts ============
     subtotal: float = Field(default=0.0)
     shipping: float = Field(default=0.0)
-    tax: Optional[float] = Field(default=0.0, nullable=True)
     total: float = Field(default=0.0)
 
     # ============ Order Status ============
@@ -86,16 +85,19 @@ class Order(SQLModel, table=True):
     def customer_name(self) -> Optional[str]:
         if self.is_guest_order:
             return self.guest_name
-        return self.user.name if self.user else None
+        if self.user:
+            return f"{self.user.first_name} {self.user.last_name}"
+        return None
 
 
 class OrderStatus:
     PENDING = "pending"
-    COMPLETED = "completed"
+    PAID = "paid"
+    PROCESSING = "processing"
+    SHIPPED = "shipped"
+    DELIVERED = "delivered"
     CANCELLED = "cancelled"
     REFUNDED = "refunded"
     PARTIALLY_REFUNDED = "partially_refunded"
     EXPIRED = "expired"
-    APPROVED = "approved"
-    SHIPPED = "shipped"
-    DELIVERED = "delivered"
+

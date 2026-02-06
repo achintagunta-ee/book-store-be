@@ -258,7 +258,6 @@ def buy_now_create_razorpay_order(
         address_id=address.id,
         subtotal=subtotal,
         shipping=shipping,
-        tax=0,
         total=total,
         status="pending",
         payment_mode="online"

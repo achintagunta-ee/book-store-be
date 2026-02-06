@@ -110,19 +110,15 @@ def get_cart(
 
     # SHIPPING RULE
     shipping = 0 if subtotal >= 500 else 150
-    
-    tax_rate = 0.08  # 8%
-    tax = round(subtotal * tax_rate, 2)
 
 
-    final_total = subtotal  + tax + shipping
+    final_total = subtotal  + shipping
 
     return {
         "items": items_response,
         "summary": {
             "subtotal": subtotal,
             "shipping": shipping,
-            "tax":"tax",
             "final_total": final_total
         }
     }
@@ -209,7 +205,6 @@ def get_my_cart(
             "items": [],
             "subtotal": 0,
             "shipping": 0,
-            "tax": 0,
             "total": 0
         }
 
@@ -231,14 +226,12 @@ def get_my_cart(
 
     # Example logic
     shipping = 0 if subtotal > 500 else 150
-    tax = round(subtotal * 0.05, 2)   # 5% GST example
-    total = subtotal + shipping + tax
+    total = subtotal + shipping
 
     return {
         "items": item_list,
         "subtotal": subtotal,
         "shipping": shipping,
-        "tax": tax,
         "total": total
     }
 

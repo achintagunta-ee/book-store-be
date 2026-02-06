@@ -11,7 +11,6 @@ class OrderSummary(SQLModel, table=True):
     order_id: int = Field(index=True)  # Added index for better querying
     subtotal: float
     shipping: float
-    tax: float
     total: float
     items_json: str  # Store serialized cart items as JSON
     status: str = Field(default="completed")  # pending, completed, failed

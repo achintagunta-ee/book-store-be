@@ -14,7 +14,6 @@ class PlaceOrderResponse(BaseModel):
     items: List[PlacedOrderItem]
     subtotal: float
     shipping: float
-    tax: float
     total: float
     track_order_url: str
     continue_shopping_url: str

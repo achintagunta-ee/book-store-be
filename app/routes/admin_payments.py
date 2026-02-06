@@ -22,38 +22,82 @@ def require_admin(current_user: User = Depends(get_current_user)):
         raise HTTPException(403, "Admin access required")
     return current_user
 
+@lru_cache(maxsize=256)
+def _cached_payments(page, limit, status, search, start_date, end_date, bucket):
+    from app.database import get_session
+    from sqlmodel import select
+    from app.models.payment import Payment
+    from app.models.user import User
+    from app.utils.pagination import paginate
 
-@router.get("/payments")
+    with next(get_session()) as session:
+
+        query = select(Payment, User).join(User, User.id == Payment.user_id)
+
+        if status:
+            query = query.where(Payment.status == status)
+
+        if search:
+            query = query.where(
+                Payment.txn_id.ilike(f"%{search}%") |
+                User.first_name.ilike(f"%{search}%") |
+                User.last_name.ilike(f"%{search}%") |
+                User.email.ilike(f"%{search}%")
+            )
+
+        if start_date:
+            query = query.where(Payment.created_at >= start_date)
+
+        if end_date:
+            query = query.where(Payment.created_at <= end_date)
+
+        query = query.order_by(Payment.created_at.desc())
+
+        data = paginate(session=session, query=query, page=page, limit=limit)
+
+        formatted = []
+
+        for payment, user in data["results"]:
+            formatted.append({
+                "payment_id": payment.id,
+                "order_id": payment.order_id,
+                "customer": f"{user.first_name} {user.last_name}",
+                "date": payment.created_at,
+                "amount": payment.amount,
+                "status": payment.status,
+                "actions": {
+                    "view": f"/admin/payments/{payment.id}",
+                    "receipt": f"/admin/payments/{payment.id}/receipt"
+                }
+            })
+
+        return {
+            "total_items": data["total_items"],
+            "total_pages": data["total_pages"],
+            "current_page": data["current_page"],
+            "limit": data["limit"],
+            "results": formatted
+        }
+
+
+@router.get("")
 def list_payments(
     page: int = 1,
     limit: int = 10,
     status: str | None = None,
     search: str | None = None,
-    session: Session = Depends(get_session),
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
     admin: User = Depends(get_current_admin),
 ):
-    query = select(Payment).join(User)
+    return _cached_payments(
+        page, limit, status, search, start_date, end_date, _ttl_bucket()
+    )
 
-    if status:
-        query = query.where(Payment.status == status)
-
-    if search:
-        query = query.where(
-            Payment.txn_id.ilike(f"%{search}%") |
-            User.email.ilike(f"%{search}%")
-        )
-
-    query = query.order_by(Payment.created_at.desc())
-
-    return paginate(session=session, query=query, page=page, limit=limit)
 
 
 @lru_cache(maxsize=512)
 def _cached_payment_details(payment_id: int, bucket: int):
-    from app.database import get_session
-    from app.models.payment import Payment
-    from app.models.user import User
-    from sqlmodel import select
 
     with next(get_session()) as session:
         result = session.exec(

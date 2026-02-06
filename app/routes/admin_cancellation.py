@@ -1,14 +1,9 @@
 
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select, func
-from datetime import datetime, timedelta
-from typing import Optional
-from decimal import Decimal
-import uuid
-
+from datetime import datetime
 from app.database import get_session
-from app.models import order
-from app.models import payment
 from app.models.order import Order , OrderStatus
 from app.models.cancellation import CancellationRequest, CancellationStatus
 from app.models.user import User
@@ -46,11 +41,7 @@ def _ttl_bucket() -> int:
 
 @lru_cache(maxsize=64)
 def _cached_cancellation_stats(bucket: int):
-    from app.database import get_session
-    from sqlmodel import select, func
-    from app.models.cancellation import CancellationRequest, CancellationStatus
-    from datetime import datetime
-    from decimal import Decimal
+    
 
     with next(get_session()) as session:
         pending = session.exec(
@@ -117,48 +108,69 @@ def _cached_cancellation_status(
             "refund_reference": c.refund_reference,
             "admin_notes": c.admin_notes,
         }
+    
+@lru_cache(maxsize=256)
+def _cached_cancellations(page, limit, status, search, bucket):
+
+    with next(get_session()) as session:
+
+        query = (
+            select(CancellationRequest, Order, User)
+            .join(Order, Order.id == CancellationRequest.order_id)
+            .join(User, User.id == CancellationRequest.user_id)
+        )
+
+        if status:
+            query = query.where(CancellationRequest.status == status)
+
+        if search:
+            query = query.where(
+                User.first_name.ilike(f"%{search}%") |
+                User.last_name.ilike(f"%{search}%") |
+                Order.id.cast(str).ilike(f"%{search}%")
+            )
+
+        query = query.order_by(CancellationRequest.requested_at.desc())
+
+        data = paginate(session=session, query=query, page=page, limit=limit)
+
+        formatted = []
+
+        for c, order, user in data["results"]:
+            formatted.append({
+                "request_id": c.id,
+                "order_id": order.id,
+                "customer": f"{user.first_name} {user.last_name}",
+                "reason": c.reason,
+                "amount": order.total,
+                "status": c.status,
+                "requested_at": c.requested_at,
+                "actions": {
+                    "approve": f"/admin/cancellations/{c.id}/approve",
+                    "reject": f"/admin/cancellations/{c.id}/reject",
+                    "refund": f"/admin/cancellations/{order.id}/process-refund"
+                }
+            })
+
+        return {
+            "total_items": data["total_items"],
+            "total_pages": data["total_pages"],
+            "current_page": data["current_page"],
+            "limit": data["limit"],
+            "results": formatted
+        }
+
 
 @router.get("/cancellation-requests")
 def list_cancellation_requests(
-    page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100),
+    page: int = 1,
+    limit: int = 10,
     status: str | None = None,
     search: str | None = None,
-    session: Session = Depends(get_session),
     admin: User = Depends(get_current_admin),
 ):
-    query = select(CancellationRequest)
+    return _cached_cancellations(page, limit, status, search, _ttl_bucket())
 
-    if status:
-        query = query.where(CancellationRequest.status == status.lower())
-
-    if search:
-        like = f"%{search.lower()}%"
-        query = query.where(
-            CancellationRequest.reason.ilike(like) |
-            CancellationRequest.additional_notes.ilike(like)
-        )
-
-    query = query.order_by(CancellationRequest.requested_at.desc())
-
-    data = paginate(session=session, query=query, page=page, limit=limit)
-
-    data["results"] = [
-        {
-            "request_id": c.id,
-            "order_id": c.order_id,
-            "user_id": c.user_id,
-            "reason": c.reason,
-            "additional_notes": c.additional_notes,
-            "status": c.status,
-            "requested_at": c.requested_at,
-            "processed_at": c.processed_at,
-            "refund_amount": c.refund_amount,
-        }
-        for c in data["results"]
-    ]
-
-    return data
 
 @router.post("/{request_id}/approve")
 def approve_cancellation(
@@ -209,9 +221,10 @@ def approve_cancellation(
         },
     )
     _cached_cancellation_status.cache_clear()
-   
     _cached_cancellation_stats.cache_clear()
-    _cached_cancellation_status.cache_clear()
+    _cached_cancellations.cache_clear()
+   
+
 
 
     return {
@@ -343,6 +356,7 @@ async def process_refund(
     )
     
     _cached_cancellation_stats.cache_clear()
+    _cached_cancellations.cache_clear()
     clear_admin_cache()
 
 
@@ -404,6 +418,7 @@ def reject_cancellation(
 )
     session.commit()
     _cached_cancellation_stats.cache_clear()
+    _cached_cancellations.cache_clear()
 
     
     return {

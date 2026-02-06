@@ -1,4 +1,3 @@
-# app/routes/admin/orders.py
 from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -11,7 +10,7 @@ from app.models.order_item import OrderItem
 from app.models.payment import Payment
 from app.models.user import User
 from app.models.book import Book
-from app.models.notifications import Notification, RecipientRole
+from app.models.notifications import Notification, NotificationStatus, RecipientRole
 from app.constants.order_status import ALLOWED_TRANSITIONS
 from app.notifications import OrderEvent, dispatch_order_event
 from app.routes.admin import clear_admin_cache
@@ -54,23 +53,9 @@ def list_orders(
     limit: int = 10,
     status: str | None = None,
     search: str | None = None,
-    session: Session = Depends(get_session),
     admin: User = Depends(get_current_admin),
 ):
-    query = select(Order).join(User)
-
-    if status:
-        query = query.where(Order.status == status)
-
-    if search:
-        query = query.where(
-            User.email.ilike(f"%{search}%") |
-            Order.id.cast(str).ilike(f"%{search}%")
-        )
-
-    query = query.order_by(Order.created_at.desc())
-
-    return paginate(session=session, query=query, page=page, limit=limit)
+    return _cached_orders(page, limit, status, search, _ttl_bucket())
 
 
 @lru_cache(maxsize=512)
@@ -116,6 +101,81 @@ def _cached_order_details(order_id: int, bucket: int):
             ],
             "invoice_url": f"/admin/orders/{order.id}/invoice",
         }
+
+
+@lru_cache(maxsize=256)
+def _cached_orders(page, limit, status, search, bucket):
+    from app.database import get_session
+    from sqlmodel import select
+    from app.models.order import Order
+    from app.models.user import User
+    from app.utils.pagination import paginate
+
+    with next(get_session()) as session:
+
+        query = select(Order, User).join(User, User.id == Order.user_id)
+
+        if status:
+            query = query.where(Order.status == status)
+
+        if search:
+            query = query.where(
+                User.email.ilike(f"%{search}%") |
+                User.first_name.ilike(f"%{search}%") |
+                Order.id.cast(str).ilike(f"%{search}%")
+            )
+
+        query = query.order_by(Order.created_at.desc())
+
+        data = paginate(session=session, query=query, page=page, limit=limit)
+
+        formatted = []
+
+        for order, user in data["results"]:
+            formatted.append({
+                "order_id": order.id,
+                "customer": f"{user.first_name} {user.last_name}",
+                "email": user.email,
+                "date": order.created_at,
+                "total": order.total,
+                "status": order.status,
+
+                "actions": {
+                    "view": f"/admin/orders/{order.id}",
+                    "notify": f"/admin/orders/{order.id}/notify",
+                    "track": f"/admin/orders/{order.id}/tracking",
+                    "invoice": f"/admin/orders/{order.id}/view-invoice",
+                }
+            })
+
+        return {
+            "total_items": data["total_items"],
+            "total_pages": data["total_pages"],
+            "current_page": data["current_page"],
+            "limit": data["limit"],
+            "results": formatted
+        }
+
+
+    
+@router.get("/{order_id}/status-view")
+def view_order_status(
+    order_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_admin),
+):
+    order = session.get(Order, order_id)
+    if not order:
+        raise HTTPException(404, "Order not found")
+
+    if order.user_id != user.id and user.role != "admin":
+        raise HTTPException(403, "Not allowed")
+
+    return {
+        "order_id": order.id,
+        "status": order.status,
+        "updated_at": order.updated_at
+    }
 
 # b) Order Details
 @router.get("/{order_id}")
@@ -170,7 +230,6 @@ def view_invoice(
         "summary": {
             "subtotal": order.subtotal,
             "shipping": order.shipping,
-            "tax": order.tax,
             "total": order.total,
         },
         "items": [
@@ -362,6 +421,7 @@ def update_order_status(
         )
     clear_admin_cache()
     _cached_order_details.cache_clear()
+    _cached_orders.cache_clear()
 
     
 
@@ -425,6 +485,8 @@ def add_tracking_info(
     session.commit()
 
     _cached_order_details.cache_clear()
+    _cached_orders.cache_clear()
+
 
 
     return {"message": "Tracking added and email sent"}
@@ -480,15 +542,13 @@ def create_offline_order(
         )
 
     shipping = 0
-    tax = round(subtotal * 0.05, 2)
-    total = subtotal + tax + shipping
+    total = subtotal + shipping
 
     order = Order(
         user_id=data.user_id,
         address_id=data.address_id,
         subtotal=subtotal,
         shipping=shipping,
-        tax=tax,
         total=total,
         status="pending",
         placed_by="admin",
@@ -502,6 +562,8 @@ def create_offline_order(
    
     _cached_order_details.cache_clear()
     clear_admin_cache()
+    _cached_orders.cache_clear()
+
 
 
 
@@ -526,7 +588,6 @@ def create_offline_order(
         },
         "summary": {
             "subtotal": subtotal,
-            "tax": tax,
             "shipping": shipping,
             "total": total
         }
