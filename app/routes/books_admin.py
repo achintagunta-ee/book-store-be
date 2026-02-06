@@ -464,6 +464,124 @@ def upload_ebook_pdf(
         "is_ebook": book.is_ebook
     }
 
+@router.post("/{book_id}/images")
+def upload_book_images(
+    book_id: int,
+    images: list[UploadFile] = File(...),
+    session: Session = Depends(get_session),
+):
+    book = session.get(Book, book_id)
+    if not book:
+        raise HTTPException(404, "Book not found")
+
+    # find current max order
+    last = session.exec(
+        select(BookImage)
+        .where(BookImage.book_id == book_id)
+        .order_by(BookImage.sort_order.desc())
+    ).first()
+
+    start_order = last.sort_order + 1 if last else 0
+
+    uploaded = []
+
+    for i, img in enumerate(images):
+        url = upload_book_cover(img, book.title)  # returns R2 URL
+
+        image = BookImage(
+            book_id=book_id,
+            image_url=url,
+            sort_order=start_order + i,
+            created_at=datetime.utcnow()
+        )
+
+        session.add(image)
+        uploaded.append(image)
+
+    session.commit()
+    clear_book_detail_cache()
+    return {
+        "message": "Images uploaded",
+        "images": [
+            {"id": img.id, "url": img.image_url}
+            for img in uploaded
+        ]
+    }
+@router.delete("/images/{image_id}")
+def delete_book_image(
+    image_id: int,
+    session: Session = Depends(get_session),
+):
+    image = session.get(BookImage, image_id)
+
+    if not image:
+        raise HTTPException(404, "Image not found")
+
+    # optional: delete from R2
+    # delete_from_r2(image.image_url)
+
+    session.delete(image)
+    session.commit()
+    clear_book_detail_cache()
+    return {"message": "Image deleted"}
+
+from pydantic import BaseModel
+
+class ImageReorderRequest(BaseModel):
+    order: list[int]
+
+@router.patch("/{book_id}/images/reorder")
+def reorder_book_images(
+    book_id: int,
+    data: ImageReorderRequest,
+    session: Session = Depends(get_session),
+):
+    images = session.exec(
+        select(BookImage).where(BookImage.book_id == book_id)
+    ).all()
+
+    image_map = {img.id: img for img in images}
+
+    if set(data.order) != set(image_map.keys()):
+        raise HTTPException(400, "Invalid image list")
+
+    for index, image_id in enumerate(data.order):
+        image_map[image_id].sort_order = index
+        session.add(image_map[image_id])
+
+    session.commit()
+    clear_book_detail_cache()
+
+    return {"message": "Images reordered"}
+
+@router.get("/{book_id}/images")
+def list_book_images(
+    book_id: int,
+    session: Session = Depends(get_session)
+):
+    images = session.exec(
+        select(BookImage)
+        .where(BookImage.book_id == book_id)
+        .order_by(BookImage.sort_order)
+    ).all()
+
+    if not images:
+        return {"images": []}
+
+    return {
+        "book_id": book_id,
+        "images": [
+            {
+                "id": img.id,
+                "url": img.image_url,
+                "sort_order": img.sort_order,
+                "created_at": img.created_at
+            }
+            for img in images
+        ]
+    }
+
+
 @router.get("/fix-book-placeholder")
 def fix_book_placeholder(session: Session = Depends(get_session)):
     placeholder = "https://a047bce5cc9e171db6a84417a1d8c8b4.r2.cloudflarestorage.com//placeholders/book_cover_placeholder.jpg"

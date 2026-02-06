@@ -23,6 +23,7 @@ from app.utils.cache_helpers import cached_address_and_cart, cached_my_payments,
 from app.utils.token import get_current_user  # If review model exists
 from functools import lru_cache
 import time
+from sqlalchemy.orm import selectinload
 
 
 razorpay_client = razorpay.Client(
@@ -30,7 +31,7 @@ razorpay_client = razorpay.Client(
 )
 
 router = APIRouter()
-CACHE_TTL = 60 * 60  # 60 minutes
+CACHE_TTL = 60   # 60 minutes
 
 def _ttl_bucket() -> int:
     """
@@ -84,14 +85,13 @@ def build_book_detail(book: Book, session: Session):
 # ---------------------------------------------------------
 @lru_cache(maxsize=512)
 def _cached_book_detail(book_id: int, bucket: int):
-    from app.database import get_session
-    from app.models.book import Book
-    from app.models.category import Category
-    from app.models.review import Review
-    from sqlmodel import select
 
     with next(get_session()) as session:
-        book = session.get(Book, book_id)
+        book = session.exec(
+            select(Book)
+            .where(Book.id == book_id)
+            .options(selectinload(Book.images))  # ⭐ THIS LINE
+        ).first()
         if not book:
             return None
 
@@ -114,13 +114,22 @@ def _cached_book_detail(book_id: int, bucket: int):
         )
 
         return {
-            "book": book,
+            "book": book.model_dump(),
             "category": category.name if category else None,
             "category_id": category.id if category else None,
+             "images": [
+                {
+                    "id": img.id,
+                    "url": img.image_url,
+                    "sort_order": img.sort_order
+                }
+                for img in sorted(book.images, key=lambda x: x.sort_order)
+            ],
             "related_books": related_books,
             "average_rating": avg_rating,
             "total_reviews": len(reviews),
             "reviews": reviews,
+           
         }
 
 @router.get("/detail/{slug}")
