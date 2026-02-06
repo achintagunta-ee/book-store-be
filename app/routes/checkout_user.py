@@ -16,6 +16,7 @@ from app.services.email_service import send_order_confirmation
 from app.services.email_service import send_email
 from app.services.order_expiry_service import PAYMENT_EXPIRY_DAYS
 from app.services.payment_service import finalize_payment
+from app.services.r2_helper import to_presigned_url
 from app.utils.template import render_template
 from app.utils.token import get_current_user
 from app.schemas.address_schemas import AddressCreate
@@ -229,6 +230,7 @@ def checkout_summary(
             "book_title": book.title,
             "price": book.price,
             "quantity": item.quantity,
+            "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None,
             "total": line_total
         })
 
