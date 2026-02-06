@@ -503,7 +503,7 @@ def upload_book_images(
     return {
         "message": "Images uploaded",
         "images": [
-            {"id": img.id, "url": img.image_url}
+            {"image_id": img.id, "url": img.image_url}
             for img in uploaded
         ]
     }
@@ -572,7 +572,7 @@ def list_book_images(
         "book_id": book_id,
         "images": [
             {
-                "id": img.id,
+                "image_id": img.id,
                 "url": img.image_url,
                 "sort_order": img.sort_order,
                 "created_at": img.created_at
