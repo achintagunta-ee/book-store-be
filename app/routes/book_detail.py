@@ -90,8 +90,9 @@ def _cached_book_detail(book_id: int, bucket: int):
         book = session.exec(
             select(Book)
             .where(Book.id == book_id)
-            .options(selectinload(Book.images))  # ⭐ THIS LINE
+            .options(selectinload(Book.images))
         ).first()
+
         if not book:
             return None
 
@@ -114,32 +115,61 @@ def _cached_book_detail(book_id: int, bucket: int):
         )
 
         return {
-            "book": book.model_dump(),
-            "category": category.name if category else None,
-            "category_id": category.id if category else None,
-             "images": [
+            "book": {
+                "id": book.id,
+                "title": book.title,
+                "slug": book.slug,
+                "price": book.price,
+                "cover_image": book.cover_image,
+                "images": [
+                    {
+                        "id": img.id,
+                        "url": img.image_url,
+                        "sort_order": img.sort_order
+                    }
+                    for img in sorted(book.images, key=lambda x: x.sort_order)
+                ]
+            },
+
+            "category": {
+                "id": category.id if category else None,
+                "name": category.name if category else None
+            },
+
+            "related_books": [
                 {
-                    "id": img.id,
-                    "url": img.image_url,
-                    "sort_order": img.sort_order
+                    "id": b.id,
+                    "title": b.title,
+                    "slug": b.slug,
+                    "price": b.price,
+                    "cover_image": b.cover_image
                 }
-                for img in sorted(book.images, key=lambda x: x.sort_order)
+                for b in related_books
             ],
-            "related_books": related_books,
+
+            "reviews": [
+                {
+                    "id": r.id,
+                    "rating": r.rating,
+                    "comment": r.comment,
+                    "user_name": r.user_name,
+                    "created_at": r.created_at
+                }
+                for r in reviews
+            ],
+
             "average_rating": avg_rating,
             "total_reviews": len(reviews),
-            "reviews": reviews,
-           
         }
 
 @router.get("/detail/{slug}")
 def get_book_detail(slug: str):
     
     with next(get_session()) as session:
-
-        # 1️⃣ Try exact slug match
         book = session.exec(
-            select(Book).where(Book.slug == slug)
+            select(Book)
+            .where(Book.slug == slug)
+            .options(selectinload(Book.images))
         ).first()
 
         # 2️⃣ Fallback: try title match
