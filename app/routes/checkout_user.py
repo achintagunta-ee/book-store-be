@@ -294,6 +294,7 @@ def confirm_order(
             "subtotal": subtotal,
             "shipping": shipping,
             "total": total,
+            "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None,
         },
         "items": items
     }

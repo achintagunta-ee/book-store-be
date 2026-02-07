@@ -16,6 +16,7 @@ from app.notifications import OrderEvent, dispatch_order_event
 from app.routes.admin import clear_admin_cache
 from app.schemas.offline_order_schemas import OfflineOrderCreate
 from app.services.notification_service import create_notification
+from app.services.r2_helper import to_presigned_url
 from app.utils.pagination import paginate
 from app.utils.token import get_current_admin, get_current_user
 from app.services.email_service import send_email
@@ -589,6 +590,7 @@ def create_offline_order(
         "summary": {
             "subtotal": subtotal,
             "shipping": shipping,
+            "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None,
             "total": total
         }
     }
