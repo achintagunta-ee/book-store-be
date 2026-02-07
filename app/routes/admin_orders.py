@@ -316,26 +316,26 @@ def notify_customer(
     session: Session = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
-    """
-    Send notification to customer about order update
-    """
     order = session.get(Order, order_id)
     if not order:
         raise HTTPException(404, "Order not found")
 
-    # Create notification
+    user = session.get(User, order.user_id)
+
+    # Manual fallback notification
     create_notification(
         session=session,
         recipient_role=RecipientRole.customer,
-        user_id=order.user_id,
-        trigger_source="manual",
+        user_id=user.id,
+        trigger_source="manual_resend",
         related_id=order.id,
-        title="Order update",
-        content=f"Admin sent an update for your order #{order.id}"
+        title="Admin Reminder",
+        content=f"Admin resent notification for order #{order.id}",
     )
+
     session.commit()
 
-    return {"message": "Customer notified successfully", "order_id": order.id}
+    return {"message": "Manual reminder sent", "order_id": order.id}
 
 # 42) Admin Order Updates - Status changes
 @router.patch("/{order_id}/status")

@@ -28,3 +28,4 @@ def create_notification(
         status=NotificationStatus.sent,
     )
     session.add(notification)
+    session.flush()

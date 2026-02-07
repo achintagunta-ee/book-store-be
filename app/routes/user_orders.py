@@ -8,7 +8,6 @@ from app.models.user import User
 from app.models.order import Order 
 from app.models.order_item import OrderItem
 from app.models.address import Address
-from app.routes.admin import create_notification
 from app.schemas.guest_checkout import GuestCheckoutSchema, GuestPaymentVerifySchema
 from app.services.email_service import send_order_confirmation
 from app.services.inventory_service import reduce_inventory

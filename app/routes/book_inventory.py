@@ -5,12 +5,14 @@ from fastapi.temp_pydantic_v1_params import Query
 from sqlmodel import Session, func, select
 from app.database import get_session
 from app.models.book import Book
+from app.models.notifications import RecipientRole
 from app.models.user import User
-from app.routes.admin import create_notification
 from app.utils.token import get_current_admin, get_current_user
 from functools import lru_cache
 import time
 from app.utils.pagination import paginate
+from app.services.notification_service import create_notification
+
 
 def require_admin(current_user: User = Depends(get_current_user)):
     if current_user.role != "admin":
@@ -66,7 +68,8 @@ def inventory_list(
     session: Session = Depends(get_session),
     admin: User = Depends(get_current_admin),
 ):
-    query = select(Book)
+    query = select(Book).where(Book.is_deleted == False)
+
 
     if search:
         query = query.where(Book.title.ilike(f"%{search}%"))
@@ -108,7 +111,7 @@ def update_book_inventory(
     if book.stock <= 5:
         create_notification(
             session=session,
-            recipient_role="admin",
+            recipient_role=RecipientRole.admin,
             user_id=admin.id,
             trigger_source="inventory",
             related_id=book.id,

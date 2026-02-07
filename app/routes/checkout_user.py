@@ -9,7 +9,6 @@ from app.models.user import User
 from app.models.order import Order, OrderStatus 
 from app.models.order_item import OrderItem
 from app.models.address import Address
-from app.routes.admin import create_notification
 from app.routes.book_detail import clear_book_detail_cache
 from app.schemas.user_schemas import RazorpayPaymentVerifySchema
 from app.services.email_service import send_order_confirmation
@@ -497,37 +496,9 @@ def verify_razorpay_payment(
     # Clear cart
     clear_cart(session, current_user.id)
     session.commit()
-    # 🔔 USER NOTIFICATION
-    create_notification(
-        session=session,
-        recipient_role=RecipientRole.customer,
-        user_id=current_user.id,
-        trigger_source="payment",
-        related_id=order.id,
-        title="Payment Successful",
-        content=f"Payment received for Order #{order.id}",
-        channel=NotificationChannel.email,
-    )
-
-    # 🔔 ADMIN NOTIFICATION
-    create_notification(
-        session=session,
-        recipient_role=RecipientRole.admin,
-        user_id=None,
-        trigger_source="payment",
-        related_id=order.id,
-        title="Payment Received",
-        content=f"Order #{order.id} payment completed by {current_user.email}",
-    )
-
-    session.commit()
     clear_book_detail_cache()
     if order.user_id:
         cached_my_payments.cache_clear()
-
-
-    
-
 
     # Dispatch order event
     start = (datetime.utcnow() + timedelta(days=3)).strftime("%B %d, %Y")

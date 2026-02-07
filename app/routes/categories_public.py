@@ -103,7 +103,11 @@ def list_books_by_category_id(
     if not category:
         raise HTTPException(404, "Category not found")
 
-    query = select(Book).where(Book.category_id == category_id)
+    query = select(Book).where(
+    Book.category_id == category.id,
+    Book.is_deleted == False
+)
+
 
     if search:
         query = query.where(Book.title.ilike(f"%{search}%"))

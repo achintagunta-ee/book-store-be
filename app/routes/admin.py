@@ -16,7 +16,6 @@ from app.models.user import User
 from app.models.book import Book
 from app.models.category import Category
 from app.constants.order_status import ALLOWED_TRANSITIONS
-from app.services.notification_service import create_notification
 from app.services.r2_helper import delete_r2_file, to_presigned_url, upload_profile_image, upload_site_logo
 from app.utils.hash import verify_password, hash_password
 from app.utils.pagination import paginate

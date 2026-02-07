@@ -16,7 +16,6 @@ from app.config import settings
 from app.notifications import OrderEvent, dispatch_order_event
 from app.routes.cart import clear_cart
 from app.schemas.buynow_schemas import BuyNowRequest, BuyNowVerifySchema
-from app.services.notification_service import create_notification
 from app.services.order_email_service import send_payment_success_email
 from app.services.payment_service import finalize_payment
 from app.utils.cache_helpers import cached_address_and_cart, cached_my_payments, cached_payment_detail
@@ -406,29 +405,6 @@ def buy_now_verify_payment(
         user=current_user,
         gateway_order_id=payload.razorpay_order_id,
         gateway_signature=payload.razorpay_signature,
-    )
-
-    # 🔔 USER NOTIFICATION
-    create_notification(
-        session=session,
-        recipient_role=RecipientRole.customer,
-        user_id=current_user.id,
-        trigger_source="payment",
-        related_id=order.id,
-        title="Payment Successful",
-        content=f"Payment received for Order #{order.id}",
-        channel=NotificationChannel.email,
-    )
-
-    # 🔔 ADMIN NOTIFICATION
-    create_notification(
-        session=session,
-        recipient_role=RecipientRole.admin,
-        user_id=None,
-        trigger_source="payment",
-        related_id=order.id,
-        title="Payment Received",
-        content=f"Order #{order.id} payment completed by {current_user.email}",
     )
 
      # Clear cart

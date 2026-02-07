@@ -8,7 +8,6 @@ from app.models.user import User
 from app.models.order import Order 
 from app.models.order_item import OrderItem
 from app.models.address import Address
-from app.routes.admin import create_notification
 from app.services.order_expiry_service import PAYMENT_EXPIRY_DAYS
 from app.utils.cache_helpers import (
     cached_address_and_cart,
@@ -134,6 +133,28 @@ def guest_checkout(
     session.add(order)
     session.commit()
     session.refresh(order)
+    dispatch_order_event(
+    event=OrderEvent.ORDER_PLACED,
+    order=order,
+    user=None,
+    session=session,
+    notify_user=True,
+    notify_admin=True,
+    extra={
+        "popup_message": "Order placed successfully",
+        "user_template": "user_emails/guest_order_placed.html",
+        "user_subject": f"Guest order #{order.id} placed",
+        "admin_template": "admin_emails/admin_new_order.html",
+        "admin_subject": f"New guest order – #{order.id}",
+        "admin_title": "New Guest Order",
+        "admin_content": f"Guest order #{order.id} placed by {guest.email}",
+        "user_email": guest.email,
+        "user_name": guest.name,
+        "order_id": order.id,
+        "total": order.total,
+    }
+)
+
 
     # ✅ Save Order Items
     for book, qty in order_items:
@@ -253,18 +274,6 @@ def verify_guest_payment(
         "user_name": order.guest_name,
     }
 )
-    
-
-    # 6️⃣ Admin notification
-    create_notification(
-        session=session,
-        recipient_role=RecipientRole.admin,
-        user_id=None,
-        trigger_source="guest_payment",
-        related_id=order.id,
-        title="Guest Order Paid",
-        content=f"Guest order #{order.id} paid by {order.guest_email}",
-    )
 
     _cached_guest_order.cache_clear()
     if order.user_id:

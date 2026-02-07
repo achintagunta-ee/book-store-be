@@ -20,7 +20,6 @@ from app.utils.hash import verify_password, hash_password
 from app.utils.token import get_current_admin, get_current_user
 import os
 import uuid
-from reportlab.pdfgen import canvas
 from enum import Enum   
 from sqlalchemy import String, cast
 from functools import lru_cache
@@ -35,80 +34,96 @@ def _ttl_bucket() -> int:
     """Changes every 60 minutes → automatic cache expiry"""
     return int(time.time() // CACHE_TTL)
 
+@lru_cache(maxsize=256)
+def _cached_admin_notifications(page, limit, trigger_source, status, category, bucket):
+
+    from app.database import get_session
+    from sqlmodel import select
+    from app.models.notifications import Notification, RecipientRole
+    from app.models.order import Order
+    from app.utils.pagination import paginate
+
+    with next(get_session()) as session:
+
+        query = select(Notification).where(
+            Notification.recipient_role == RecipientRole.admin
+        )
+
+        category_map = {
+            "orders": ["order_placed", "processing", "paid", "shipped", "delivered", "cancelled"],
+            "payments": ["payment", "refund"],
+            "inventory": ["stock", "inventory"],
+        }
+
+        if category:
+            triggers = category_map.get(category.lower())
+            if triggers:
+                query = query.where(Notification.trigger_source.in_(triggers))
+
+        if trigger_source:
+            query = query.where(Notification.trigger_source == trigger_source)
+
+        if status:
+            query = query.where(Notification.status == status)
+
+        query = query.order_by(Notification.created_at.desc())
+
+        paginated = paginate(
+            session=session,
+            query=query,
+            page=page,
+            limit=limit,
+        )
+
+        results = []
+
+        for n in paginated["results"]:
+            order_status = None
+
+            if n.related_id:
+                order = session.get(Order, n.related_id)
+                if order:
+                    order_status = order.status
+
+            data = {
+            "notification_id": n.id,
+            "title": n.title,
+            "content": n.content,
+            "trigger_source": n.trigger_source,
+            "order_status": order_status,
+            "notification_status": n.status,
+            "created_at": n.created_at,
+            }
+
+            # 👇 map related_id to correct field name
+            if "ebook" in n.trigger_source:
+                data["purchase_id"] = n.related_id
+            else:
+                data["order_id"] = n.related_id
+
+            results.append(data)
+
+
+        paginated["results"] = results
+        return paginated
+
 @router.get("")
 def list_admin_notifications(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
     trigger_source: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
-    category: Optional[str] = Query(None),   # ✅ add this
-    session: Session = Depends(get_session),
+    category: Optional[str] = Query(None),
     admin: User = Depends(get_current_admin),
 ):
-    query = select(Notification).where(
-        Notification.recipient_role == "admin"
+    return _cached_admin_notifications(
+        page,
+        limit,
+        trigger_source,
+        status,
+        category,
+        _ttl_bucket(),
     )
-
-    # ✅ CATEGORY FILTER (ADD HERE)
-    category_map = {
-        "orders": ["order_placed", "processing" ,"paid","shipped", "delivered","cancelled"],
-        "payments": ["payment","refund"],
-        "inventory": ["stock", "inventory"],
-    }
-
-    if category:
-        triggers = category_map.get(category.lower())
-        if triggers:
-            query = query.where(
-                Notification.trigger_source.in_(triggers)
-            )
-
-    # existing filters
-    if trigger_source:
-        query = query.where(Notification.trigger_source == trigger_source)
-
-    if status:
-        query = query.where(Notification.status == status)
-
-    query = query.order_by(Notification.created_at.desc())
-
-    paginated = paginate(
-        session=session,
-        query=query,
-        page=page,
-        limit=limit,
-    )
-
-    results = []
-
-    for n in paginated["results"]:
-        order_status = None
-
-        if n.related_id:
-            order = session.get(Order, n.related_id)
-            if order:
-                order_status = order.status
-
-            results.append({
-                "notification_id": n.id,
-                "title": n.title,
-                "content": n.content,
-                "trigger_source": n.trigger_source,
-
-                # 👇 NEW FIELD
-                "order_status": order_status,
-
-                # 👇 notification delivery status
-                "notification_status": n.status,
-
-                "related_id": n.related_id,
-                "created_at": n.created_at,
-            })
-
-            paginated["results"] = results
-
-            return paginated
-
 
 @lru_cache(maxsize=512)
 def _cached_admin_notification_detail(

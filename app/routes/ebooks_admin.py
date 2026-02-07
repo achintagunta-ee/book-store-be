@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session, select
-
+from sqlmodel import Session,select
 from app.database import get_session
 from app.models.book import Book
 from app.models.ebook_purchase import EbookPurchase
@@ -9,8 +8,6 @@ from app.models.ebook_payment import EbookPayment
 from app.models.user import User
 from app.notifications import OrderEvent, dispatch_order_event
 from app.routes.user_library import _cached_my_ebooks
-from app.services.email_service import send_email
-from app.utils.admin_utils import create_notification
 from app.utils.pagination import paginate
 from app.utils.token import get_current_admin
 from functools import lru_cache
@@ -99,7 +96,11 @@ def list_admin_ebooks(
     session: Session = Depends(get_session),
     admin: User = Depends(get_current_admin),
 ):
-    query = select(Book).where(Book.is_ebook == True)
+    query = select(Book).where(
+    Book.is_ebook == True,
+    Book.is_deleted == False
+)
+
 
     if search:
         like = f"%{search.lower()}%"
@@ -148,37 +149,6 @@ def grant_access(
     session.commit()
     user = session.get(User, purchase.user_id)
     book = session.get(Book, purchase.book_id)
-
-    send_email(
-        to=user.email,
-        subject="eBook Access Granted",
-        template="user_emails/user_ebook_access_granted.html",
-        data={
-            "first_name": user.first_name,
-            "book_title": book.title,
-        }
-    )
-
-    send_email(
-        to="admin@hithabodha.com",
-        subject="Admin Granted eBook Access",
-        template="admin_emails/admin_ebook_access_granted.html",
-        data={
-            "purchase_id": purchase.id,
-            "book_title": book.title,
-        }
-    )
-
-    create_notification(
-        session=session,
-        recipient_role="customer",
-        user_id=user.id,
-        trigger_source="ebook_access_granted",
-        related_id=purchase.id,
-        title="eBook Access Granted",
-        content=f"You now have lifetime access to {book.title}",
-    )
-
     session.commit()
 
    

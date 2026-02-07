@@ -6,17 +6,14 @@ from app.database import get_session
 from app.models.ebook_payment import EbookPayment
 from app.models.ebook_purchase import EbookPurchase
 from app.models.book import Book
-from app.models.notifications import NotificationChannel, RecipientRole
 from app.models.user import User
 from app.notifications import OrderEvent, dispatch_order_event
 from app.routes.user_library import _cached_my_ebooks
 from app.utils.token import get_current_user
-from app.services.notification_service import create_notification
 from datetime import timedelta
 from uuid import uuid4
 from app.config import settings
 import time
-from app.services.order_email_service import send_ebook_payment_success_email
 
 router = APIRouter()
 razorpay_client = razorpay.Client(
@@ -66,19 +63,7 @@ def create_ebook_purchase(
     session.commit()
     session.refresh(purchase)
 
-    
-
     book = session.get(Book, book_id)
-
-    create_notification(
-        session=session,
-        recipient_role="admin",
-        user_id=current_user.id,
-        trigger_source="ebook_purchase",
-        related_id=purchase.id,
-        title="New eBook Purchase Started",
-        content=f"{current_user.email} started purchasing {book.title}",
-    )
 
     dispatch_order_event(
     event=OrderEvent.EBOOK_PURCHASE_CREATED,
@@ -162,17 +147,6 @@ def create_ebook_razorpay_order(
 
     purchase.gateway_order_id = razorpay_order["id"]
     session.commit()
-
-    # 🔔 ADMIN notification
-    create_notification(
-        session=session,
-        recipient_role=RecipientRole.admin,
-        user_id=None,
-        trigger_source="ebook_payment",
-        related_id=purchase.id,
-        title="eBook Payment Initiated",
-        content=f"{current_user.email} started payment for {book.title}",
-    )
 
     # 📩 Event → email + notification pipeline
     dispatch_order_event(
@@ -291,31 +265,7 @@ def verify_ebook_razorpay_payment(
 
     # 9️⃣ Get book details
     book = session.get(Book, purchase.book_id)
-    
-    send_ebook_payment_success_email(purchase, current_user)
 
-    # 🔔 USER notification
-    create_notification(
-        session=session,
-        recipient_role=RecipientRole.customer,
-        user_id=current_user.id,
-        trigger_source="ebook_payment",
-        related_id=purchase.id,
-        title="Payment Successful",
-        content=f"You now own {book.title}",
-        channel=NotificationChannel.email,
-    )
-
-    # 🔔 ADMIN notification
-    create_notification(
-        session=session,
-        recipient_role=RecipientRole.admin,
-        user_id=None,
-        trigger_source="ebook_payment",
-        related_id=purchase.id,
-        title="eBook Payment Completed",
-        content=f"{current_user.email} paid for {book.title}",
-    )
 
     # 📩 Dispatch event (emails + logs)
     dispatch_order_event(
@@ -397,16 +347,6 @@ def complete_ebook_payment(
     session.commit()
 
     book = session.get(Book, purchase.book_id)
-
-    create_notification(
-        session=session,
-        recipient_role="admin",
-        user_id=current_user.id,
-        trigger_source="ebook_payment",
-        related_id=purchase.id,
-        title="eBook Payment Completed",
-        content=f"{current_user.email} paid for {book.title}",
-    )
 
     dispatch_order_event(
     event=OrderEvent.EBOOK_PAYMENT_SUCCESS,

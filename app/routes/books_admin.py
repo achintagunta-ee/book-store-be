@@ -408,14 +408,15 @@ def delete_book(
     if book.cover_image:
         delete_r2_file(book.cover_image)
 
-    session.delete(book)
+    book.is_deleted = True
+    session.add(book)
     session.commit()
     clear_books_cache()
     clear_admin_books_cache()
     clear_admin_cache()
     clear_inventory_cache()
 
-    return {"message": "Book deleted"}
+    return {"message": "Book archived"}
 
 @router.post("/{book_id}/upload-ebook")
 def upload_ebook_pdf(

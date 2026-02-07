@@ -58,9 +58,17 @@ class Book(SQLModel, table=True):
     tags: Optional[str] = None
 
     # relationships
-    reviews: List["Review"] = Relationship(back_populates="book")
+    reviews: list["Review"] = Relationship(
+    back_populates="book",
+    sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+)
+
+
     images: list["BookImage"] = Relationship(back_populates="book")
 
     @property
     def in_stock(self) -> bool:
         return self.stock is not None and self.stock > 0
+    is_deleted: bool = Field(default=False, index=True)
+
+

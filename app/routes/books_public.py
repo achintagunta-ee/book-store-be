@@ -87,7 +87,7 @@ def advanced_search_books(
     limit: int = Query(10, ge=1, le=50),
     session: Session = Depends(get_session),
 ):
-    query = select(Book)
+    query = select(Book).where(Book.is_deleted == False)
 
     # Text Search
     if q:
@@ -152,7 +152,8 @@ def filter_books(
     limit: int = Query(12, ge=1, le=50),
     session: Session = Depends(get_session)
 ):
-    query = select(Book)
+    query = select(Book).where(Book.is_deleted == False)
+
 
     # CATEGORY FILTER
     if category:
@@ -288,7 +289,10 @@ def list_books_by_category_name(
     if not category:
         raise HTTPException(404, f"Category '{category_name}' not found")
 
-    query = select(Book).where(Book.category_id == category.id)
+    query = select(Book).where(
+    Book.category_id == category.id,
+    Book.is_deleted == False
+)
 
     if search:
         query = query.where(Book.title.ilike(f"%{search}%"))
@@ -373,7 +377,8 @@ def user_book_list(
     search: str | None = None,
     session: Session = Depends(get_session),
 ):
-    query = select(Book)
+    query = select(Book).where(Book.is_deleted == False)
+
 
     if search:
         query = query.where(Book.title.ilike(f"%{search}%"))
@@ -489,7 +494,8 @@ def list_books_paginated(
     title: str | None = None,
     session: Session = Depends(get_session)
 ):
-    query = select(Book)
+    query = select(Book).where(Book.is_deleted == False)
+
 
     # FILTERS
     if category_id:

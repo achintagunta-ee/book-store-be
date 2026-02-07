@@ -20,7 +20,10 @@ class NotificationChannel(str, Enum):
 
 class NotificationStatus(str, Enum):
     sent = "sent"
+    read = "read"
+    cleared = "cleared"
     failed = "failed"
+
 
 
 # ---------- MODEL ----------
