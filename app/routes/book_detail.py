@@ -31,7 +31,7 @@ razorpay_client = razorpay.Client(
 )
 
 router = APIRouter()
-CACHE_TTL = 60   # 60 minutes
+CACHE_TTL = 60 * 60 # 60 minutes
 
 def _ttl_bucket() -> int:
     """

@@ -29,6 +29,8 @@ def dispatch_order_event(
 
     rules = NOTIFICATION_RULES.get(event, {})
     extra = extra or {}
+    extra.setdefault("order", order)
+    extra.setdefault("user", user)
 
     response_popup = None
 
@@ -58,16 +60,28 @@ def dispatch_order_event(
     # -------------------------
     # USER EMAIL
     # -------------------------
-    if notify_user and rules.get(Channel.EMAIL_USER) and user:
+    if notify_user and rules.get(Channel.EMAIL_USER):
         try:
-            send_user_email(
-                template=extra["user_template"],
-                subject=extra["user_subject"],
-                user=user,
-                **extra,
-            )
+            if user:
+                safe_extra = dict(extra)
+                safe_extra.pop("user", None)  # 🔥 remove duplicate
+
+                send_user_email(
+                    template=extra["user_template"],
+                    subject=extra["user_subject"],
+                    user=user,
+                    **safe_extra,
+                )
+            else:
+                send_user_email(
+                    to=extra.get("user_email"),
+                    subject=extra["user_subject"],
+                    template=extra["user_template"],
+                    context=extra,
+                )
         except Exception as e:
             print("User email failed:", e)
+
 
     # -------------------------
     # ADMIN EMAIL
