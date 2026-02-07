@@ -243,6 +243,7 @@ def checkout_summary(
         "summary": {
             "subtotal": subtotal,
             "shipping": shipping,
+            "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None,
             "total": total,
             "items": item_list
         }

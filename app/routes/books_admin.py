@@ -150,7 +150,7 @@ def create_book(
     "published_date":book.published_date,
     "tags":book.tags,
     "images": [
-        {"id": img.id, "url": img.image_url}
+        {"id": img.id, "url":  to_presigned_url(img.image_url)}
         for img in book.images
     ]
 }
@@ -579,7 +579,7 @@ def list_book_images(
         "images": [
             {
                 "image_id": img.id,
-                "url": img.image_url,
+                "url":  to_presigned_url(img.image_url),
                 "sort_order": img.sort_order,
                 "created_at": img.created_at
             }

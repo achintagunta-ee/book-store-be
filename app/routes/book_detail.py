@@ -18,6 +18,7 @@ from app.routes.cart import clear_cart
 from app.schemas.buynow_schemas import BuyNowRequest, BuyNowVerifySchema
 from app.services.order_email_service import send_payment_success_email
 from app.services.payment_service import finalize_payment
+from app.services.r2_helper import to_presigned_url
 from app.utils.cache_helpers import cached_address_and_cart, cached_my_payments, cached_payment_detail
 from app.utils.token import get_current_user  # If review model exists
 from functools import lru_cache
@@ -123,7 +124,7 @@ def _cached_book_detail(book_id: int, bucket: int):
                 "images": [
                     {
                         "id": img.id,
-                        "url": img.image_url,
+                        "url":  to_presigned_url(img.image_url),
                         "sort_order": img.sort_order
                     }
                     for img in sorted(book.images, key=lambda x: x.sort_order)
