@@ -68,29 +68,71 @@ def inventory_list(
     session: Session = Depends(get_session),
     admin: User = Depends(get_current_admin),
 ):
+    # -------------------------
+    # Base query
+    # -------------------------
     query = select(Book).where(Book.is_deleted == False)
 
-
+    # -------------------------
+    # Search filter
+    # -------------------------
     if search:
-        query = query.where(Book.title.ilike(f"%{search}%"))
+        like = f"%{search}%"
+        query = query.where(
+            Book.title.ilike(like) |
+            Book.author.ilike(like)
+        )
 
+    # -------------------------
+    # Sorting
+    # -------------------------
     query = query.order_by(Book.updated_at.desc())
 
+    # -------------------------
+    # Pagination helper
+    # -------------------------
     data = paginate(session=session, query=query, page=page, limit=limit)
 
-    data["results"] = [
-        {
-            "book_id": b.id,
-            "title": b.title,
-            "stock": b.stock,
-            "in_stock": b.in_stock,
-            "price": b.price,
-            "updated_at": b.updated_at,
-        }
-        for b in data["results"]
-    ]
+    # -------------------------
+    # Format results for UI
+    # -------------------------
+    formatted = []
 
-    return data
+    for b in data["results"]:
+        if b.stock == 0:
+            status = "Out of Stock"
+        elif b.stock <= 5:
+            status = "Low Stock"
+        else:
+            status = "In Stock"
+
+        formatted.append({
+            "id": b.id,
+            "title": b.title,
+            "author": b.author,
+            "stock": b.stock,
+            "price": b.price,
+            "status": status,
+            "updated_at": b.updated_at,
+
+            # Admin UI actions
+            "actions": {
+                "edit": f"/admin/books/{b.id}",
+                "update_stock": f"/admin/inventory/{b.id}",
+                "view": f"/books/{b.slug}" if b.slug else None
+            }
+        })
+
+    # -------------------------
+    # Final response
+    # -------------------------
+    return {
+        "data": formatted,
+        "total": data["total_items"],
+        "total_pages": data["total_pages"],
+        "page": data["current_page"],
+        "limit": data["limit"],
+    }
 
 
 @router.patch("/inventory/{book_id}")
