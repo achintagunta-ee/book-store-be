@@ -56,31 +56,6 @@ razorpay_client = razorpay.Client(
 router = APIRouter()
 CACHE_TTL = 60 * 60  # 60 minutes
 
-@router.get("/test-email")
-def test_email(session: Session = Depends(get_session)):
-    from app.notifications import dispatch_order_event, OrderEvent
-
-    class FakeOrder:
-        id = 999
-
-    dispatch_order_event(
-        event=OrderEvent.PAYMENT_SUCCESS,
-        order=FakeOrder(),
-        user=None,
-        session=session,
-        extra={
-            "admin_template": "admin_emails/admin_payment_received.html",
-            "admin_subject": "TEST ADMIN EMAIL",
-            "admin_title": "Test",
-            "admin_content": "Test content",
-            "user_template": "user_emails/user_payment_success.html",
-            "user_subject": "TEST USER EMAIL",
-            "user_email": "your@email.com",
-        }
-    )
-
-    return {"ok": True}
-
 @router.post("/address")
 def add_address(
     data: AddressCreate,
