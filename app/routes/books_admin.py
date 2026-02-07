@@ -505,7 +505,11 @@ def upload_book_images(
     return {
         "message": "Images uploaded",
         "images": [
-            {"image_id": img.id, "url": img.image_url}
+            {
+                "image_id": img.id, 
+             "url":  to_presigned_url(img.image_url),
+             
+             }
             for img in uploaded
         ]
     }
