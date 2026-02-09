@@ -43,7 +43,8 @@ def _cached_my_ebooks(user_id: int, bucket: int):
                 "book_id": book.id,
                 "title": book.title,
                 "author": book.author,
-                "cover_image_key": book.cover_image
+                "cover_image_key": book.cover_image,
+                "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None
             })
 
         return result

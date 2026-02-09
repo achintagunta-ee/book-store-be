@@ -9,6 +9,7 @@ from app.services.r2_client import s3_client, R2_BUCKET_NAME
 from functools import lru_cache
 import time
 from fastapi import Query
+from app.services.r2_helper import to_presigned_url
 from app.utils.pagination import paginate
 from rapidfuzz import fuzz
 router = APIRouter()
@@ -212,6 +213,7 @@ def filter_books(
                 "offer_price": b.offer_price,
                 "rating": b.rating,
                 "cover_image": b.cover_image,
+                "cover_image_url": to_presigned_url(b.cover_image)if b.cover_image else None
             }
             for b in data["results"]
         ]
@@ -452,6 +454,7 @@ def dynamic_search_books(
                 "title": b.title,
                 "author": b.author,
                 "cover_image": b.cover_image,
+                "cover_image_url": to_presigned_url(b.cover_image)if b.cover_image else None,
                 "price": b.price,
             }
             for b in data["results"]
@@ -498,6 +501,8 @@ def list_books_paginated(
                 "author": b.author,
                 "price": b.price,
                 "discount_price": b.discount_price,
+                "cover_image":b.cover_image,
+                "cover_image_url": to_presigned_url(b.cover_image)if b.cover_image else None,
                 "offer_price": b.offer_price,
                 "rating": b.rating,
                 "category_id": b.category_id,

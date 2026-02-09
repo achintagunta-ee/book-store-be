@@ -4,6 +4,7 @@ from app.database import get_session
 from app.models.wishlist import Wishlist
 from app.models.book import Book
 from app.models.user import User
+from app.services.r2_helper import to_presigned_url
 from app.utils.token import get_current_user
 from functools import lru_cache
 import time
@@ -44,6 +45,7 @@ def _cached_wishlist(user_id: int, bucket: int):
                 "author": book.author,
                 "price": book.price,
                 "cover_image": book.cover_image,
+                "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None
             })
 
         return response

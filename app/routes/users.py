@@ -12,7 +12,7 @@ from app.models.address import Address
 from app.utils.token import get_current_admin, get_current_user
 import os
 from app.schemas.address_schemas import AddressCreate
-from app.services.r2_helper import upload_profile_image, delete_r2_file
+from app.services.r2_helper import to_presigned_url, upload_profile_image, delete_r2_file
 from functools import lru_cache
 import time
 from app.utils.pagination import paginate
@@ -114,6 +114,7 @@ def _cached_home(bucket: int):
                 "discount_price": b.discount_price,
                 "offer_price": b.offer_price,
                 "cover_image": b.cover_image,
+                "cover_image_url": to_presigned_url(b.cover_image)if b.cover_image else None,
                 "rating": b.rating,
             }
 

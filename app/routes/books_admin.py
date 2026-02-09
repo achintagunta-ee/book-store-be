@@ -135,6 +135,7 @@ def create_book(
     "title": book.title,
     "slug": book.slug,
     "cover_image": book.cover_image,
+    "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None,
     "offer_price":book.offer_price,
     "discount_price":book.discount_price,
     "excerpt":book.excerpt,

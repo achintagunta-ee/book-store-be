@@ -6,6 +6,7 @@ from app.models.category import Category
 from app.models.user import User
 from app.routes.books_public import clear_books_cache
 from app.routes.categories_public import  _cached_list_categories
+from app.services.r2_helper import to_presigned_url
 from app.utils.token import get_current_user
 from app.models.book import Book
 from functools import lru_cache
@@ -180,6 +181,7 @@ def get_books_by_category(
                 "is_ebook": book.is_ebook,
                 "stock": book.stock,
                 "cover_image": book.cover_image,
+                "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None
             }
             for book in data["results"]
         ]
@@ -232,6 +234,7 @@ def list_books_by_category_name(
                 "is_ebook": book.is_ebook,
                 "stock": book.stock,
                 "cover_image": book.cover_image,
+                "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None
             }
             for book in data["results"]
         ]

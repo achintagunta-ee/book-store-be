@@ -228,6 +228,7 @@ def checkout_summary(
             "book_title": book.title,
             "price": book.price,
             "quantity": item.quantity,
+            "cover_image":book.cover_image,
             "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None,
             "total": line_total
         })
@@ -242,6 +243,7 @@ def checkout_summary(
         "summary": {
             "subtotal": subtotal,
             "shipping": shipping,
+            "cover_image":book.cover_image,
             "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None,
             "total": total,
             "items": item_list
@@ -293,6 +295,7 @@ def confirm_order(
             "subtotal": subtotal,
             "shipping": shipping,
             "total": total,
+            "cover_image":book.cover_image,
             "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None,
         },
         "items": items

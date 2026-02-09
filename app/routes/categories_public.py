@@ -5,6 +5,7 @@ from app.models.category import Category
 from app.models.book import Book
 from functools import lru_cache
 import time
+from app.services.r2_helper import to_presigned_url
 from app.utils.pagination import paginate
 
 router = APIRouter()
@@ -133,6 +134,7 @@ def list_books_by_category_id(
                 "is_ebook": b.is_ebook,
                 "stock": b.stock,
                 "cover_image": b.cover_image,
+                "cover_image_url": to_presigned_url(b.cover_image)if b.cover_image else None
             }
             for b in data["results"]
         ]

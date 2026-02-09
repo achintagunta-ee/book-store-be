@@ -590,6 +590,7 @@ def create_offline_order(
         "summary": {
             "subtotal": subtotal,
             "shipping": shipping,
+            "cover_image":book.cover_image,
             "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None,
             "total": total
         }
