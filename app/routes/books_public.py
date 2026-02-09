@@ -1,6 +1,6 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
-import slugify
+from slugify import slugify
 from sqlmodel import Session, func, select
 from app.database import get_session
 from app.models.book import Book
@@ -365,32 +365,6 @@ def get_book_in_category(
         "description": book.description,
         "created_at": book.created_at,
     }
-
-
-
-
-# ---------- LIST ALL BOOKS ----------
-@router.get("/")
-def user_book_list(
-    page: int = Query(1, ge=1),
-    limit: int = Query(12, le=50),
-    search: str | None = None,
-    session: Session = Depends(get_session),
-):
-    query = select(Book).where(Book.is_deleted == False)
-
-
-    if search:
-        query = query.where(Book.title.ilike(f"%{search}%"))
-
-    query = query.order_by(Book.created_at.desc())
-
-    return paginate(session=session, query=query, page=page, limit=limit)
-
-
-
-
-
 # ---------- GET BOOK BY ID ----------
 @router.get("/id/{book_id}")
 def get_book_by_id(
@@ -484,7 +458,7 @@ def dynamic_search_books(
         ]
     }
 
-
+# ---------- LIST ALL BOOKS ----------
 @router.get("")
 def list_books_paginated(
     page: int = Query(1, ge=1),
@@ -520,6 +494,7 @@ def list_books_paginated(
             {
                 "book_id": b.id,
                 "title": b.title,
+                "slug": b.slug,
                 "author": b.author,
                 "price": b.price,
                 "discount_price": b.discount_price,

@@ -50,10 +50,29 @@ def _cached_admin_notifications(page, limit, trigger_source, status, category, b
         )
 
         category_map = {
-            "orders": ["order_placed", "processing", "paid", "shipped", "delivered", "cancelled"],
-            "payments": ["payment", "refund"],
-            "inventory": ["stock", "inventory"],
+            "orders": [
+                "order_placed",
+                "shipped",
+                "delivered",
+                "cancel_requested",
+                "cancel_approved",
+                "cancel_rejected",
+            ],
+            "payments": [
+                "payment_success",
+                "refund_processed",
+            ],
+            "ebooks": [
+                "ebook_purchase_created",
+                "ebook_payment_success",
+                "ebook_access_granted",
+            ],
+            "inventory": [
+                "stock",
+                "inventory",
+            ],
         }
+
 
         if category:
             triggers = category_map.get(category.lower())
