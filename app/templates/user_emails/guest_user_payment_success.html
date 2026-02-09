@@ -5,75 +5,95 @@
   <title>Payment Successful</title>
 </head>
 
-<body style="margin:0; padding:0; font-family: Arial, Helvetica, sans-serif; background-color:#f5f5f5;">
-  <table width="100%" cellpadding="0" cellspacing="0">
-    <tr>
-      <td align="center" style="padding:30px 0;">
-        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:6px; border-top:6px solid #e1aa12;">
+<body style="font-family: Arial, sans-serif; background:#f2f4f8; padding:20px;">
 
-          <!-- Header -->
-          <tr>
-            <td style="padding:24px; text-align:center;">
-              <h1 style="color:#013a67; margin:0; font-size:22px;">
-                Payment Successful ✅
-              </h1>
-            </td>
-          </tr>
+<table width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td align="center">
 
-          <!-- Body -->
-          <tr>
-            <td style="padding:0 24px 24px 24px; color:#333;">
+<table width="600" style="background:#ffffff; border-radius:8px; overflow:hidden;">
 
-              <p style="font-size:16px;">
-                Hi <strong>{{ guest_name }}</strong>,
-              </p>
+<!-- Header -->
+<tr>
+<td style="background:#013a67; color:#ffffff; padding:26px; text-align:center;">
+<h2 style="margin:0; font-size:22px;">
+Payment Successful ✅
+</h2>
+</td>
+</tr>
 
-              <p style="font-size:15px;">
-                Thank you for your purchase! We’ve successfully received your payment and your order is now confirmed.
-              </p>
+<!-- Content -->
+<tr>
+<td style="padding:24px; color:#2c3e50;">
 
-              <table width="100%" cellpadding="6" cellspacing="0" style="margin:20px 0; border-collapse:collapse;">
-                <tr>
-                  <td style="background:#f2f2f2; color:#013a67;"><strong>Order ID</strong></td>
-                  <td style="background:#f2f2f2;">#{{ order.id }}</td>
-                </tr>
+<!-- Yellow highlight -->
+<div style="background:#e1aa12; color:#ffffff; padding:14px 16px; border-radius:6px; margin-bottom:18px; font-weight:bold;">
+Thank you! Your payment has been received and your order is confirmed.
+</div>
 
-                <tr>
-                  <td style="color:#013a67;"><strong>Total Paid</strong></td>
-                  <td style="color:#e1aa12; font-weight:bold;">₹{{ order.total }}</td>
-                </tr>
+<p style="font-size:16px;">
+Hi <strong>{{ guest_name }}</strong>,
+</p>
 
-                <tr>
-                  <td style="background:#f2f2f2; color:#013a67;"><strong>Payment Status</strong></td>
-                  <td style="background:#f2f2f2;">Successful</td>
-                </tr>
-              </table>
+<p>
+We’ve successfully received your payment. Your order is now being processed.
+</p>
 
-              <p style="font-size:14px;">
-                Your invoice is attached to this email for your reference.
-              </p>
+<!-- Info card -->
+<table cellpadding="8" width="100%" style="background:#f7f9fc; border-radius:6px; margin-top:12px;">
 
-              <p style="font-size:14px;">
-                We’ll notify you again once your order is shipped.
-              </p>
+<tr>
+<td width="160"><strong style="color:#013a67;">Order ID</strong></td>
+<td>#{{ order.id }}</td>
+</tr>
 
-              <p style="margin-top:20px;">
-                Thank you for shopping with us.<br>
-                <strong>{{ store_name }} Team</strong>
-              </p>
+<tr>
+<td><strong style="color:#013a67;">Total Paid</strong></td>
+<td style="color:#e1aa12; font-weight:bold;">₹{{ order.total }}</td>
+</tr>
 
-              <hr style="margin:24px 0; border:none; border-top:1px solid #e1aa12;">
+<tr>
+<td><strong style="color:#013a67;">Payment Status</strong></td>
+<td>Successful</td>
+</tr>
 
-              <small style="color:#777;">
-                © {{ store_name }}. All rights reserved.
-              </small>
+</table>
 
-            </td>
-          </tr>
+<p style="margin-top:18px;">
+Your invoice is attached to this email for your reference.
+</p>
 
-        </table>
-      </td>
-    </tr>
-  </table>
+<p>
+We’ll notify you again once your order is shipped.
+</p>
+
+<p style="margin-top:18px;">
+Thank you for shopping with us,<br>
+<strong>Hithabodha Bookstore Team</strong>
+</p>
+
+<hr style="margin:24px 0; border:none; border-top:1px solid #e0e4ea;">
+
+<small style="color:#888;">
+This is an automated confirmation email.
+</small>
+
+</td>
+</tr>
+
+<!-- Footer -->
+<tr>
+<td style="background:#f7f9fc; padding:16px; text-align:center; color:#6c757d; font-size:13px;">
+© {{ current_year }}
+<span style="color:#013a67; font-weight:bold;">Hithabodha Bookstore</span>
+</td>
+</tr>
+
+</table>
+
+</td>
+</tr>
+</table>
+
 </body>
 </html>

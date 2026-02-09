@@ -1,5 +1,3 @@
-Subject: Cancellation Request Received – Order #{{ order_id }}
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -7,76 +5,97 @@ Subject: Cancellation Request Received – Order #{{ order_id }}
   <title>Cancellation Request Under Review</title>
 </head>
 
-<body style="margin:0; padding:0; font-family: Arial, Helvetica, sans-serif; background-color:#f5f5f5;">
-  <table width="100%" cellpadding="0" cellspacing="0">
-    <tr>
-      <td align="center" style="padding:30px 0;">
-        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:6px; border-top:6px solid #e1aa12;">
+<body style="font-family: Arial, sans-serif; background:#f2f4f8; padding:20px;">
 
-          <!-- Header -->
-          <tr>
-            <td style="padding:24px;">
-              <h1 style="color:#013a67; margin:0; font-size:22px;">
-                Cancellation Request Under Review
-              </h1>
-            </td>
-          </tr>
+<table width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td align="center">
 
-          <!-- Body -->
-          <tr>
-            <td style="padding:0 24px 24px 24px; color:#333;">
+<table width="600" style="background:#ffffff; border-radius:8px; overflow:hidden;">
 
-              <p style="font-size:16px;">
-                Hi <strong>{{ first_name }}</strong>,
-              </p>
+<!-- Header -->
+<tr>
+<td style="background:#013a67; color:#ffffff; padding:26px; text-align:center;">
+<h2 style="margin:0; font-size:22px;">
+Cancellation Request Received
+</h2>
+</td>
+</tr>
 
-              <p style="font-size:14px;">
-                We’ve received your cancellation request for the following order.
-                Our team is currently reviewing it.
-              </p>
+<!-- Content -->
+<tr>
+<td style="padding:24px; color:#2c3e50;">
 
-              <table width="100%" cellpadding="6" cellspacing="0" style="margin:20px 0; border-collapse:collapse;">
-                <tr>
-                  <td style="background:#f2f2f2; color:#013a67;"><strong>Order ID</strong></td>
-                  <td style="background:#f2f2f2;">#{{ order_id }}</td>
-                </tr>
-                <tr>
-                  <td style="color:#013a67;"><strong>Payment Status</strong></td>
-                  <td>{{ payment_status }}</td>
-                </tr>
-                <tr>
-                  <td style="color:#013a67;"><strong>Order Amount</strong></td>
-                  <td style="color:#e1aa12; font-weight:bold;">₹{{ total }}</td>
-                </tr>
-              </table>
+<!-- Highlight -->
+<div style="background:#e1aa12; color:#ffffff; padding:14px 16px; border-radius:6px; margin-bottom:18px; font-weight:bold;">
+Your cancellation request is currently under review.
+</div>
 
-              <p style="font-size:14px;">
-                🔍 <strong>What happens next?</strong>
-              </p>
+<p style="font-size:16px;">
+Hi <strong>{{ first_name }}</strong>,
+</p>
 
-              <ul style="font-size:14px; margin-top:8px;">
-                <li>Your request will be reviewed by our team</li>
-                <li>You’ll be notified once it’s approved or rejected</li>
-                <li>If approved, refund details will be shared</li>
-              </ul>
+<p>
+We’ve received your cancellation request and our team is reviewing it.
+</p>
 
-              <p style="margin-top:20px;">
-                Thank you for your patience.<br>
-                <strong>{{ store_name or "Hithabodha Bookstore" }} Team</strong>
-              </p>
+<!-- Info card -->
+<table cellpadding="8" width="100%" style="background:#f7f9fc; border-radius:6px; margin-top:12px;">
 
-              <hr style="margin:24px 0; border:none; border-top:1px solid #e1aa12;">
+<tr>
+<td width="150"><strong style="color:#013a67;">Order ID</strong></td>
+<td>#{{ order_id }}</td>
+</tr>
 
-              <small style="color:#777;">
-                © {{ store_name or "Hithabodha Bookstore" }}. All rights reserved.
-              </small>
+<tr>
+<td><strong style="color:#013a67;">Payment Status</strong></td>
+<td>{{ payment_status }}</td>
+</tr>
 
-            </td>
-          </tr>
+<tr>
+<td><strong style="color:#013a67;">Order Amount</strong></td>
+<td style="color:#e1aa12; font-weight:bold;">₹{{ total }}</td>
+</tr>
 
-        </table>
-      </td>
-    </tr>
-  </table>
+</table>
+
+<p style="margin-top:18px;">
+🔍 <strong>What happens next?</strong>
+</p>
+
+<ul style="margin-top:8px; padding-left:18px;">
+<li>Your request will be reviewed by our team</li>
+<li>You’ll be notified once it’s approved or rejected</li>
+<li>If approved, refund details will be shared</li>
+</ul>
+
+<p style="margin-top:18px;">
+Thank you for your patience,<br>
+<strong>{{ store_name or "Hithabodha Bookstore" }} Team</strong>
+</p>
+
+<hr style="margin:24px 0; border:none; border-top:1px solid #e0e4ea;">
+
+<small style="color:#888;">
+Automated cancellation status update
+</small>
+
+</td>
+</tr>
+
+<!-- Footer -->
+<tr>
+<td style="background:#f7f9fc; padding:16px; text-align:center; color:#6c757d; font-size:13px;">
+© {{ current_year }}
+<span style="color:#013a67; font-weight:bold;">Hithabodha Bookstore. All rights reserved.</span>
+</td>
+</tr>
+
+</table>
+
+</td>
+</tr>
+</table>
+
 </body>
 </html>

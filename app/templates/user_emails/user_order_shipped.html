@@ -5,63 +5,91 @@
   <title>Order Shipped</title>
 </head>
 
-<body style="font-family: Arial, sans-serif; background:#f5f5f5; padding:20px;">
-  <table width="100%" cellpadding="0" cellspacing="0">
-    <tr>
-      <td align="center">
-        <table width="600" style="background:#ffffff; padding:24px; border-radius:6px; border-top:6px solid #e1aa12;">
-          <tr>
-            <td>
+<body style="font-family: Arial, sans-serif; background:#f2f4f8; padding:20px;">
 
-              <h2 style="color:#013a67; margin-top:0;">
-                Order Shipped
-              </h2>
+<table width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td align="center">
 
-              <p style="color:#333;">
-                Hi <strong>{{ first_name | default("Customer") }}</strong>,
-              </p>
+<table width="600" style="background:#ffffff; border-radius:8px; overflow:hidden;">
 
-              <p>
-                Your order <strong>#{{ order_id }}</strong> has been shipped successfully.
-              </p>
+<!-- Header -->
+<tr>
+<td style="background:#013a67; color:#ffffff; padding:26px; text-align:center;">
+<h2 style="margin:0; font-size:22px;">
+Order Shipped 📦
+</h2>
+</td>
+</tr>
 
-              <table cellpadding="6" style="border-collapse:collapse; margin:12px 0;">
-                <tr>
-                  <td style="color:#013a67;"><strong>Tracking ID:</strong></td>
-                  <td>{{ tracking_id }}</td>
-                </tr>
-              </table>
+<!-- Content -->
+<tr>
+<td style="padding:24px; color:#2c3e50;">
 
-              <p>
-                You can track your order using the button below:
-              </p>
+<!-- Highlight -->
+<div style="background:#e1aa12; color:#ffffff; padding:14px 16px; border-radius:6px; margin-bottom:18px; font-weight:bold;">
+Your order is on the way!
+</div>
 
-              <p style="margin:20px 0;">
-                <a href="{{ tracking_url }}" target="_blank"
-                   style="background:#013a67; color:#ffffff; padding:12px 20px; text-decoration:none; border-radius:4px; font-weight:bold;">
-                   Track Your Order
-                </a>
-              </p>
+<p style="font-size:16px;">
+Hi <strong>{{ first_name | default("Customer") }}</strong>,
+</p>
 
-              <p>
-                Thank you for shopping with {{ store_name }}.
-              </p>
+<p>
+Your order <strong>#{{ order_id }}</strong> has been shipped successfully.
+</p>
 
-              <p style="margin-top:20px;">
-                — <strong>{{ store_name }} Team</strong>
-              </p>
+<!-- Info card -->
+<table cellpadding="8" width="100%" style="background:#f7f9fc; border-radius:6px; margin-top:12px;">
 
-              <hr style="margin:24px 0; border:none; border-top:1px solid #e1aa12;">
+<tr>
+<td width="150"><strong style="color:#013a67;">Tracking ID</strong></td>
+<td>{{ tracking_id }}</td>
+</tr>
 
-              <small style="color:#777;">
-                This is an automated shipping notification.
-              </small>
+</table>
 
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
+<p style="margin-top:18px;">
+You can track your shipment using the button below:
+</p>
+
+<p style="text-align:center; margin:22px 0;">
+<a href="{{ tracking_url }}" target="_blank"
+style="background:#013a67; color:#ffffff; padding:12px 20px; text-decoration:none; border-radius:6px; font-weight:bold;">
+Track Your Order
+</a>
+</p>
+
+<p>
+Thank you for shopping with {{ store_name }}.
+</p>
+
+<p style="margin-top:18px;">
+— <strong>{{ store_name }} Team</strong>
+</p>
+
+<hr style="margin:24px 0; border:none; border-top:1px solid #e0e4ea;">
+
+<small style="color:#888;">
+Automated shipping notification
+</small>
+
+</td>
+</tr>
+
+<!-- Footer -->
+<tr>
+<td style="background:#f7f9fc; padding:16px; text-align:center; color:#6c757d; font-size:13px;">
+© {{ current_year }}
+<span style="color:#013a67; font-weight:bold;">Hithabodha Bookstore. All rights reserved.</span>
+</td>
+</tr>
+
+</table>
+
+</td>
+</tr>
+</table>
+
 </body>
 </html>

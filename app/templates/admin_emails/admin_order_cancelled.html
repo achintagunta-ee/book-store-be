@@ -1,74 +1,101 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <title>Order Cancelled by User - Order #{{ order_id }}</title>
+<meta charset="utf-8">
+<title>Order Cancelled by User</title>
 </head>
 
-<body style="font-family: Arial, sans-serif; background:#f5f5f5; padding:20px;">
-  <table width="100%" cellpadding="0" cellspacing="0">
-    <tr>
-      <td align="center">
-        <table width="600" style="background:#ffffff; padding:24px; border-radius:6px; border-top:6px solid #e1aa12;">
-          <tr>
-            <td>
+<body style="font-family: Arial, sans-serif; background:#f2f4f8; padding:20px;">
 
-              <h2 style="color:#013a67; margin-top:0;">
-                Order Cancelled by User
-              </h2>
+<table width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td align="center">
 
-              <div style="background:#fff3f3; border-left:4px solid #c0392b; padding:12px; margin:16px 0;">
-                <strong>Order #{{ order_id }} has been cancelled</strong>
-              </div>
+<table width="600" style="background:#ffffff; border-radius:8px; overflow:hidden;">
 
-              <table cellpadding="6" style="border-collapse:collapse;">
-                <tr>
-                  <td style="color:#013a67;"><strong>Customer Name:</strong></td>
-                  <td>{{ user_name }}</td>
-                </tr>
-                <tr>
-                  <td style="color:#013a67;"><strong>Email:</strong></td>
-                  <td>{{ user_email }}</td>
-                </tr>
-                <tr>
-                  <td style="color:#013a67;"><strong>Order Total:</strong></td>
-                  <td>₹{{ order_total }}</td>
-                </tr>
-              </table>
+<!-- Header -->
+<tr>
+<td style="background:#013a67; color:#ffffff; padding:26px; text-align:center;">
+<h2 style="margin:0; font-size:22px;">
+Order Cancelled by User
+</h2>
+</td>
+</tr>
 
-              {% if refund_required %}
-              <div style="background:#fff8e1; border-left:4px solid #e1aa12; padding:12px; margin:16px 0;">
-                <strong>Refund Required</strong><br>
-                Payment was made for this order. Refund needs to be processed.<br>
-                <strong>Refund Amount:</strong> ₹{{ order_total }}
-              </div>
-              {% endif %}
+<!-- Content -->
+<tr>
+<td style="padding:24px; color:#2c3e50;">
 
-              <p style="margin-top:16px;">
-                Please review the order in the admin panel and process any necessary refunds.
-              </p>
+<!-- Critical alert -->
+<div style="background:#c0392b; color:#ffffff; padding:14px 16px; border-radius:6px; margin-bottom:18px; font-weight:bold;">
+Order #{{ order_id }} has been cancelled by the customer.
+</div>
 
-              <p>
-                <a href="{{ base_url }}/admin/orders/{{ order_id }}" style="color:#013a67; font-weight:bold;">
-                  View Order in Admin Panel
-                </a>
-              </p>
+<!-- Info card -->
+<table cellpadding="8" width="100%" style="background:#f7f9fc; border-radius:6px;">
 
-              <p style="color:#013a67; font-weight:bold;">
-                — System Notification
-              </p>
+<tr>
+<td width="160"><strong style="color:#013a67;">Customer Name</strong></td>
+<td>{{ user_name }}</td>
+</tr>
 
-              <hr style="margin:24px 0; border:none; border-top:1px solid #e1aa12;">
+<tr>
+<td><strong style="color:#013a67;">Email</strong></td>
+<td>{{ user_email }}</td>
+</tr>
 
-              <small style="color:#777;">
-                This is an automated notification from {{ store_name }}
-              </small>
+<tr>
+<td><strong style="color:#013a67;">Order Total</strong></td>
+<td>₹{{ order_total }}</td>
+</tr>
 
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
+</table>
+
+{% if refund_required %}
+<div style="background:#fff8e1; padding:14px; border-left:4px solid #e1aa12; border-radius:6px; margin-top:18px;">
+<strong>Refund Required</strong><br>
+Payment was made for this order. Refund needs to be processed.<br>
+<strong>Refund Amount:</strong> ₹{{ order_total }}
+</div>
+{% endif %}
+
+<p style="margin-top:18px;">
+Please review the order in the admin panel and process any necessary refunds.
+</p>
+
+<p style="margin-top:12px;">
+<a href="{{ base_url }}/admin/orders/{{ order_id }}"
+style="color:#013a67; font-weight:bold;">
+View Order in Admin Panel
+</a>
+</p>
+
+<p style="color:#6c757d;">
+— System Notification
+</p>
+
+<hr style="margin:24px 0; border:none; border-top:1px solid #e0e4ea;">
+
+<small style="color:#888;">
+Admin-only cancellation alert
+</small>
+
+</td>
+</tr>
+
+<!-- Footer -->
+<tr>
+<td style="background:#f7f9fc; padding:16px; text-align:center; color:#6c757d; font-size:13px;">
+© {{ current_year }}
+<span style="color:#013a67; font-weight:bold;">Hithabodha Bookstore</span>
+</td>
+</tr>
+
+</table>
+
+</td>
+</tr>
+</table>
+
 </body>
 </html>

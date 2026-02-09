@@ -1,5 +1,3 @@
-Subject: Your order #{{ order_id }} has been delivered
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -7,61 +5,82 @@ Subject: Your order #{{ order_id }} has been delivered
   <title>Order Delivered</title>
 </head>
 
-<body style="margin:0; padding:0; font-family: Arial, Helvetica, sans-serif; background-color:#f5f5f5;">
-  <table width="100%" cellpadding="0" cellspacing="0">
-    <tr>
-      <td align="center" style="padding:30px 0;">
-        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:6px; border-top:6px solid #e1aa12;">
+<body style="font-family: Arial, sans-serif; background:#f2f4f8; padding:20px;">
 
-          <!-- Header -->
-          <tr>
-            <td style="padding:24px; text-align:center;">
-              <h1 style="color:#013a67; margin:0; font-size:22px;">
-                Order Delivered 🎉
-              </h1>
-            </td>
-          </tr>
+<table width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td align="center">
 
-          <!-- Body -->
-          <tr>
-            <td style="padding:0 24px 24px 24px; color:#333;">
+<table width="600" style="background:#ffffff; border-radius:8px; overflow:hidden;">
 
-              <p style="font-size:16px;">
-                Hi <strong>{{ first_name }}</strong>,
-              </p>
+<!-- Header -->
+<tr>
+<td style="background:#013a67; color:#ffffff; padding:26px; text-align:center;">
+<h2 style="margin:0; font-size:22px;">
+Order Delivered 🎉
+</h2>
+</td>
+</tr>
 
-              <p style="font-size:15px;">
-                We’re happy to let you know that your order has been successfully delivered.
-              </p>
+<!-- Content -->
+<tr>
+<td style="padding:24px; color:#2c3e50;">
 
-              <table width="100%" cellpadding="6" cellspacing="0" style="margin:20px 0; border-collapse:collapse;">
-                <tr>
-                  <td style="background:#f2f2f2; color:#013a67;"><strong>Order ID</strong></td>
-                  <td style="background:#f2f2f2;">#{{ order_id }}</td>
-                </tr>
-              </table>
+<!-- Highlight -->
+<div style="background:#e1aa12; color:#ffffff; padding:14px 16px; border-radius:6px; margin-bottom:18px; font-weight:bold;">
+Your order has been successfully delivered.
+</div>
 
-              <p style="font-size:14px;">
-                We hope you enjoy your purchase. If you have any issues or feedback, feel free to reach out to us.
-              </p>
+<p style="font-size:16px;">
+Hi <strong>{{ first_name }}</strong>,
+</p>
 
-              <p style="margin-top:20px;">
-                Thank you for shopping with us.<br>
-                <strong>{{ store_name }} Team</strong>
-              </p>
+<p>
+We’re happy to let you know that your order has arrived safely.
+</p>
 
-              <hr style="margin:24px 0; border:none; border-top:1px solid #e1aa12;">
+<!-- Info card -->
+<table cellpadding="8" width="100%" style="background:#f7f9fc; border-radius:6px; margin-top:12px;">
 
-              <small style="color:#777;">
-                © {{ store_name }}. All rights reserved.
-              </small>
+<tr>
+<td width="150"><strong style="color:#013a67;">Order ID</strong></td>
+<td>#{{ order_id }}</td>
+</tr>
 
-            </td>
-          </tr>
+</table>
 
-        </table>
-      </td>
-    </tr>
-  </table>
+<p style="margin-top:18px;">
+We hope you enjoy your purchase. If you have any issues or feedback,
+feel free to contact us anytime.
+</p>
+
+<p style="margin-top:18px;">
+Thank you for shopping with us,<br>
+<strong>{{ store_name }} Team</strong>
+</p>
+
+<hr style="margin:24px 0; border:none; border-top:1px solid #e0e4ea;">
+
+<small style="color:#888;">
+Automated delivery confirmation
+</small>
+
+</td>
+</tr>
+
+<!-- Footer -->
+<tr>
+<td style="background:#f7f9fc; padding:16px; text-align:center; color:#6c757d; font-size:13px;">
+© {{ current_year }}
+<span style="color:#013a67; font-weight:bold;">Hithabodha Bookstore. All rights reserved.</span>
+</td>
+</tr>
+
+</table>
+
+</td>
+</tr>
+</table>
+
 </body>
 </html>

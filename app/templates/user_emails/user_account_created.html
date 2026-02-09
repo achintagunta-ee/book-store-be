@@ -2,59 +2,89 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Welcome to {{ store_name }}</title>
+  <title>Welcome to Hithabodha Bookstore</title>
 </head>
 
-<body style="font-family: Arial, sans-serif; background:#f5f5f5; padding:20px;">
-  <table width="100%" cellpadding="0" cellspacing="0">
-    <tr>
-      <td align="center">
-        <table width="600" style="background:#ffffff; padding:24px; border-radius:6px; border-top:6px solid #e1aa12;">
-          <tr>
-            <td>
+<body style="font-family: Arial, sans-serif; background:#f2f4f8; padding:20px;">
 
-              <h2 style="color:#013a67; margin-top:0;">
-                Welcome to {{ store_name }} 🎉
-              </h2>
+<table width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td align="center">
 
-              <p style="color:#333;">
-                Hi <strong>{{ first_name }}</strong>,
-              </p>
+<table width="600" style="background:#ffffff; border-radius:8px; overflow:hidden;">
 
-              <p>
-                Your account has been created successfully. You can now sign in and start exploring our books.
-              </p>
+<!-- Header -->
+<tr>
+<td style="background:#013a67; color:#ffffff; padding:26px; text-align:center;">
+<h2 style="margin:0; font-size:22px;">
+Welcome to Hithabodha Bookstore 🎉
+</h2>
+</td>
+</tr>
 
-              <table cellpadding="6" style="border-collapse:collapse; margin:16px 0;">
-                <tr>
-                  <td style="color:#013a67;"><strong>Email:</strong></td>
-                  <td>{{ email }}</td>
-                </tr>
-                <tr>
-                  <td style="color:#013a67;"><strong>Username:</strong></td>
-                  <td>{{ username }}</td>
-                </tr>
-              </table>
+<!-- Content -->
+<tr>
+<td style="padding:24px; color:#2c3e50;">
 
-              <p>
-                If you did not create this account, please contact us immediately.
-              </p>
+<!-- Yellow highlight -->
+<div style="background:#e1aa12; color:#ffffff; padding:14px 16px; border-radius:6px; margin-bottom:18px; font-weight:bold;">
+Your account has been created successfully.
+</div>
 
-              <p style="color:#013a67; font-weight:bold;">
-                — {{ store_name }} Team
-              </p>
+<p style="font-size:16px;">
+Hi <strong>{{ first_name }}</strong>,
+</p>
 
-              <hr style="margin:24px 0; border:none; border-top:1px solid #e1aa12;">
+<p>
+You can now sign in and start exploring our books.
+</p>
 
-              <small style="color:#777;">
-                Welcome email • {{ store_name }}
-              </small>
+<!-- Info card -->
+<table cellpadding="8" width="100%" style="background:#f7f9fc; border-radius:6px; margin-top:12px;">
 
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
+<tr>
+<td width="150"><strong style="color:#013a67;">Email</strong></td>
+<td>{{ email }}</td>
+</tr>
+
+<tr>
+<td><strong style="color:#013a67;">Username</strong></td>
+<td>{{ username }}</td>
+</tr>
+
+</table>
+
+<p style="margin-top:18px;">
+If you did not create this account, please contact us immediately.
+</p>
+
+<p style="margin-top:18px;">
+Welcome aboard,<br>
+<strong>Hithabodha Bookstore Team</strong>
+</p>
+
+<hr style="margin:24px 0; border:none; border-top:1px solid #e0e4ea;">
+
+<small style="color:#888;">
+Welcome email • automated notification
+</small>
+
+</td>
+</tr>
+
+<!-- Footer -->
+<tr>
+<td style="background:#f7f9fc; padding:16px; text-align:center; color:#6c757d; font-size:13px;">
+© {{ current_year }}
+<span style="color:#013a67; font-weight:bold;">Hithabodha Bookstore.All rights reserved.</span>
+</td>
+</tr>
+
+</table>
+
+</td>
+</tr>
+</table>
+
 </body>
 </html>

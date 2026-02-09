@@ -5,54 +5,80 @@
   <title>Low Stock Alert</title>
 </head>
 
-<body style="font-family: Arial, sans-serif; background:#f5f5f5; padding:20px;">
-  <table width="100%" cellpadding="0" cellspacing="0">
-    <tr>
-      <td align="center">
-        <table width="600" style="background:#ffffff; padding:24px; border-radius:6px; border-top:6px solid #e1aa12;">
-          <tr>
-            <td>
+<body style="font-family: Arial, sans-serif; background:#f2f4f8; padding:20px;">
 
-              <h2 style="color:#013a67; margin-top:0;">
-                Low Stock Alert ⚠️
-              </h2>
+<table width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td align="center">
 
-              <p style="color:#333;">
-                The following book is running low on stock:
-              </p>
+<table width="600" style="background:#ffffff; border-radius:8px; overflow:hidden;">
 
-              <table cellpadding="6" style="border-collapse:collapse;">
-                <tr>
-                  <td style="color:#013a67;"><strong>Title:</strong></td>
-                  <td>{{ book_title }}</td>
-                </tr>
-                <tr>
-                  <td style="color:#013a67;"><strong>Remaining Stock:</strong></td>
-                  <td style="color:#e1aa12; font-weight:bold;">
-                    {{ stock }}
-                  </td>
-                </tr>
-              </table>
+<!-- Header -->
+<tr>
+<td style="background:#013a67; color:#ffffff; padding:26px; text-align:center;">
+<h2 style="margin:0; font-size:22px;">
+Low Stock Alert ⚠️
+</h2>
+</td>
+</tr>
 
-              <div style="background:#fff8e1; border-left:4px solid #e1aa12; padding:12px; margin-top:16px;">
-                Please restock soon to avoid order issues.
-              </div>
+<!-- Content -->
+<tr>
+<td style="padding:24px; color:#2c3e50;">
 
-              <p style="color:#013a67; font-weight:bold; margin-top:20px;">
-                — System Notification
-              </p>
+<!-- Yellow highlight -->
+<div style="background:#e1aa12; color:#ffffff; padding:14px 16px; border-radius:6px; margin-bottom:18px; font-weight:bold;">
+A book is running low on stock.
+</div>
 
-              <hr style="margin:24px 0; border:none; border-top:1px solid #e1aa12;">
+<!-- Info card -->
+<table cellpadding="8" width="100%" style="background:#f7f9fc; border-radius:6px;">
 
-              <small style="color:#777;">
-                Admin-only notification
-              </small>
+<tr>
+<td width="160"><strong style="color:#013a67;">Title</strong></td>
+<td>{{ book_title }}</td>
+</tr>
 
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
+<tr>
+<td><strong style="color:#013a67;">Remaining Stock</strong></td>
+<td style="color:#e1aa12; font-weight:bold;">
+{{ stock }}
+</td>
+</tr>
+
+</table>
+
+<!-- Warning box -->
+<div style="background:#fff8e1; padding:14px; border-left:4px solid #e1aa12; border-radius:6px; margin-top:18px;">
+Please restock soon to avoid order issues.
+</div>
+
+<p style="margin-top:18px; color:#6c757d;">
+— System Notification
+</p>
+
+<hr style="margin:24px 0; border:none; border-top:1px solid #e0e4ea;">
+
+<small style="color:#888;">
+Admin-only stock alert
+</small>
+
+</td>
+</tr>
+
+<!-- Footer -->
+<tr>
+<td style="background:#f7f9fc; padding:16px; text-align:center; color:#6c757d; font-size:13px;">
+© {{ current_year }}
+<span style="color:#013a67; font-weight:bold;">Hithabodha Bookstore</span>
+</td>
+</tr>
+
+</table>
+
+</td>
+</tr>
+</table>
+
 </body>
 </html>
