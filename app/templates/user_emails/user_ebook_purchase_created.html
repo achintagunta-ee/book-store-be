@@ -1,9 +1,57 @@
-<p>Hi {{first_name}},</p>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Complete Your Payment</title>
+</head>
 
-<p>You started purchasing <b>{{book_title}}</b>.</p>
+<body style="font-family: Arial, sans-serif; background:#f5f5f5; padding:20px;">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center">
+        <table width="600" style="background:#ffffff; padding:24px; border-radius:6px; border-top:6px solid #e1aa12;">
+          <tr>
+            <td>
 
-<p>Amount: ₹{{amount}}</p>
+              <h2 style="color:#013a67; margin-top:0;">
+                Complete Your Purchase
+              </h2>
 
-<p>Please complete the payment within 15 minutes to get lifetime access.</p>
+              <p style="color:#333;">
+                Hi <strong>{{ first_name }}</strong>,
+              </p>
 
-<p>Thank you,<br>Hithabodha Store</p>
+              <p>
+                You started purchasing <strong>{{ book_title }}</strong>.
+              </p>
+
+              <table cellpadding="6" style="border-collapse:collapse; margin:12px 0;">
+                <tr>
+                  <td style="color:#013a67;"><strong>Amount:</strong></td>
+                  <td style="color:#e1aa12; font-weight:bold;">₹{{ amount }}</td>
+                </tr>
+              </table>
+
+              <div style="background:#fff8e1; border-left:4px solid #e1aa12; padding:12px; margin:16px 0;">
+                Please complete the payment within <strong>15 minutes</strong> to get lifetime access.
+              </div>
+
+              <p>
+                Thank you,<br>
+                <strong>{{ store_name or "Hithabodha Store" }}</strong>
+              </p>
+
+              <hr style="margin:24px 0; border:none; border-top:1px solid #e1aa12;">
+
+              <small style="color:#777;">
+                This is an automated payment reminder.
+              </small>
+
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

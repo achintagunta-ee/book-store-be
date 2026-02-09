@@ -1,55 +1,72 @@
 Subject: Your order has been placed
 
 <!DOCTYPE html>
-
 <html>
 <head>
   <meta charset="UTF-8" />
   <title>Order Placed</title>
 </head>
-<body style="margin:0; padding:0; font-family: Arial, Helvetica, sans-serif; background-color:#f7f7f7;">
+
+<body style="margin:0; padding:0; font-family: Arial, Helvetica, sans-serif; background-color:#f5f5f5;">
   <table width="100%" cellpadding="0" cellspacing="0">
     <tr>
-      <td align="center" style="padding: 30px 0;">
-        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:6px; overflow:hidden;">
+      <td align="center" style="padding:30px 0;">
+        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:6px; border-top:6px solid #e1aa12;">
 
-```
-      <!-- Header -->
-      <tr>
-        <td style="background:#2c3e50; padding:20px; text-align:center;">
-          <h1 style="color:#ffffff; margin:0; font-size:22px;">
-            {{ store_name }}
-          </h1>
-        </td>
-      </tr>
+          <!-- Header -->
+          <tr>
+            <td style="padding:24px; text-align:center;">
+              <h1 style="color:#013a67; margin:0; font-size:22px;">
+                {{ store_name }}
+              </h1>
+            </td>
+          </tr>
 
-      <!-- Body -->
-      <tr>
-        <td style="padding:30px;">
-          <p style="font-size:16px; margin:0 0 15px;">
-            Hi <strong>{{ first_name }}</strong>,
-          </p>
+          <!-- Body -->
+          <tr>
+            <td style="padding:0 24px 24px 24px; color:#333;">
 
-          <p style="font-size:15px; margin:0 0 15px;">
-            Thank you for placing your order with us 🎉  
-            Your order has been successfully placed and is currently awaiting payment confirmation.
-          </p>
+              <p style="font-size:16px;">
+                Hi <strong>{{ first_name }}</strong>,
+              </p>
 
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0; border-collapse:collapse;">
-            <tr>
-              <td style="padding:10px; background:#f2f2f2; font-size:14px;">
-                <strong>Order ID:</strong>
-              </td>
-              <td style="padding:10px; background:#f2f2f2; font-size:14px;">
-                #{{ order_id }}
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:10px; border-top:1px solid #ddd; font-size:14px;">
-                <strong>Order Total:</strong>
-              </td>
-              <td style="padding:10px; border-top:1px solid #ddd; font-size:14px;">
-                ₹{{ total }}
-              </td>
-     
-```
+              <p style="font-size:15px;">
+                Thank you for placing your order with us 🎉  
+                Your order has been successfully placed and is currently awaiting payment confirmation.
+              </p>
+
+              <table width="100%" cellpadding="6" cellspacing="0" style="margin:20px 0; border-collapse:collapse;">
+                <tr>
+                  <td style="background:#f2f2f2; color:#013a67;"><strong>Order ID</strong></td>
+                  <td style="background:#f2f2f2;">#{{ order_id }}</td>
+                </tr>
+                <tr>
+                  <td style="color:#013a67;"><strong>Order Total</strong></td>
+                  <td style="color:#e1aa12; font-weight:bold;">₹{{ total }}</td>
+                </tr>
+              </table>
+
+              <p>
+                We’ll notify you once the payment is confirmed and your order is processed.
+              </p>
+
+              <p style="margin-top:20px;">
+                Thank you for shopping with us.<br>
+                <strong>{{ store_name }} Team</strong>
+              </p>
+
+              <hr style="margin:24px 0; border:none; border-top:1px solid #e1aa12;">
+
+              <small style="color:#777;">
+                This is an automated order notification.
+              </small>
+
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

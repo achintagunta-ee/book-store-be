@@ -1,44 +1,74 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <title>Order Cancelled by User - Order #{{ order_id }}</title>
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .alert { background-color: #ffe6e6; padding: 15px; border-left: 4px solid #dc3545; margin: 15px 0; }
-        .info-box { background-color: #f8f9fa; padding: 15px; margin: 15px 0; }
-    </style>
+  <meta charset="utf-8">
+  <title>Order Cancelled by User - Order #{{ order_id }}</title>
 </head>
-<body>
-    <div class="container">
-        <h2>📋 Order Cancelled by User</h2>
-        
-        <div class="alert">
-            <h3>Order #{{ order_id }} has been cancelled</h3>
-        </div>
-        
-        <div class="info-box">
-            <h4>Customer Details:</h4>
-            <p><strong>Name:</strong> {{ user_name }}</p>
-            <p><strong>Email:</strong> {{ user_email }}</p>
-            <p><strong>Order Total:</strong> ₹{{ order_total }}</p>
-        </div>
-        
-        {% if refund_required %}
-        <div class="info-box" style="background-color: #fff3cd; border-left: 4px solid #ffc107;">
-            <h4>⚠️ Refund Required</h4>
-            <p>Payment was made for this order. Refund needs to be processed.</p>
-            <p><strong>Refund Amount:</strong> ₹{{ order_total }}</p>
-        </div>
-        {% endif %}
-        
-        <p>Please review the order in the admin panel and process any necessary refunds.</p>
-        
-        <p><a href="{{ base_url }}/admin/orders/{{ order_id }}">View Order in Admin Panel</a></p>
-        
-        <hr>
-        <p><small>This is an automated notification from {{ store_name }}</small></p>
-    </div>
+
+<body style="font-family: Arial, sans-serif; background:#f5f5f5; padding:20px;">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center">
+        <table width="600" style="background:#ffffff; padding:24px; border-radius:6px; border-top:6px solid #e1aa12;">
+          <tr>
+            <td>
+
+              <h2 style="color:#013a67; margin-top:0;">
+                Order Cancelled by User
+              </h2>
+
+              <div style="background:#fff3f3; border-left:4px solid #c0392b; padding:12px; margin:16px 0;">
+                <strong>Order #{{ order_id }} has been cancelled</strong>
+              </div>
+
+              <table cellpadding="6" style="border-collapse:collapse;">
+                <tr>
+                  <td style="color:#013a67;"><strong>Customer Name:</strong></td>
+                  <td>{{ user_name }}</td>
+                </tr>
+                <tr>
+                  <td style="color:#013a67;"><strong>Email:</strong></td>
+                  <td>{{ user_email }}</td>
+                </tr>
+                <tr>
+                  <td style="color:#013a67;"><strong>Order Total:</strong></td>
+                  <td>₹{{ order_total }}</td>
+                </tr>
+              </table>
+
+              {% if refund_required %}
+              <div style="background:#fff8e1; border-left:4px solid #e1aa12; padding:12px; margin:16px 0;">
+                <strong>Refund Required</strong><br>
+                Payment was made for this order. Refund needs to be processed.<br>
+                <strong>Refund Amount:</strong> ₹{{ order_total }}
+              </div>
+              {% endif %}
+
+              <p style="margin-top:16px;">
+                Please review the order in the admin panel and process any necessary refunds.
+              </p>
+
+              <p>
+                <a href="{{ base_url }}/admin/orders/{{ order_id }}" style="color:#013a67; font-weight:bold;">
+                  View Order in Admin Panel
+                </a>
+              </p>
+
+              <p style="color:#013a67; font-weight:bold;">
+                — System Notification
+              </p>
+
+              <hr style="margin:24px 0; border:none; border-top:1px solid #e1aa12;">
+
+              <small style="color:#777;">
+                This is an automated notification from {{ store_name }}
+              </small>
+
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>

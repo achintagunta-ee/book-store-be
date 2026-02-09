@@ -1,29 +1,67 @@
-<h2>Order Shipped</h2>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Order Shipped</title>
+</head>
 
-<p>Hi {{ first_name | default("Customer") }},</p>
+<body style="font-family: Arial, sans-serif; background:#f5f5f5; padding:20px;">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center">
+        <table width="600" style="background:#ffffff; padding:24px; border-radius:6px; border-top:6px solid #e1aa12;">
+          <tr>
+            <td>
 
-<p>
-  Your order <b>#{{ order_id }}</b> has been shipped successfully.
-</p>
+              <h2 style="color:#013a67; margin-top:0;">
+                Order Shipped
+              </h2>
 
-<p>
-  <b>Tracking ID:</b> {{ tracking_id }}
-</p>
+              <p style="color:#333;">
+                Hi <strong>{{ first_name | default("Customer") }}</strong>,
+              </p>
 
-<p>
-  You can track your order using the link below:
-</p>
+              <p>
+                Your order <strong>#{{ order_id }}</strong> has been shipped successfully.
+              </p>
 
-<p>
-  <a href="{{ tracking_url }}" target="_blank">
-    Track Your Order
-  </a>
-</p>
+              <table cellpadding="6" style="border-collapse:collapse; margin:12px 0;">
+                <tr>
+                  <td style="color:#013a67;"><strong>Tracking ID:</strong></td>
+                  <td>{{ tracking_id }}</td>
+                </tr>
+              </table>
 
-<p>
-  Thank you for shopping with {{ store_name }}.
-</p>
+              <p>
+                You can track your order using the button below:
+              </p>
 
-<p>
-  — {{ store_name }} Team
-</p>
+              <p style="margin:20px 0;">
+                <a href="{{ tracking_url }}" target="_blank"
+                   style="background:#013a67; color:#ffffff; padding:12px 20px; text-decoration:none; border-radius:4px; font-weight:bold;">
+                   Track Your Order
+                </a>
+              </p>
+
+              <p>
+                Thank you for shopping with {{ store_name }}.
+              </p>
+
+              <p style="margin-top:20px;">
+                — <strong>{{ store_name }} Team</strong>
+              </p>
+
+              <hr style="margin:24px 0; border:none; border-top:1px solid #e1aa12;">
+
+              <small style="color:#777;">
+                This is an automated shipping notification.
+              </small>
+
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

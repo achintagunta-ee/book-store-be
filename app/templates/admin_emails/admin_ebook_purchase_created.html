@@ -1,5 +1,66 @@
-<p>Admin Alert:</p>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Purchase Started</title>
+</head>
 
-<p>User {{user_email}} started purchasing <b>{{book_title}}</b>.</p>
+<body style="font-family: Arial, sans-serif; background:#f5f5f5; padding:20px;">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center">
+        <table width="600" style="background:#ffffff; padding:24px; border-radius:6px; border-top:6px solid #e1aa12;">
+          <tr>
+            <td>
 
-<p>Amount: ₹{{amount}}</p>
+              <h2 style="color:#013a67; margin-top:0;">
+                Purchase Started
+              </h2>
+
+              <p style="color:#333;">
+                A user has started purchasing an eBook on the platform.
+              </p>
+
+              <table cellpadding="6" style="border-collapse:collapse;">
+                <tr>
+                  <td style="color:#013a67;"><strong>User:</strong></td>
+                  <td>{{ user_email }}</td>
+                </tr>
+                <tr>
+                  <td style="color:#013a67;"><strong>eBook:</strong></td>
+                  <td>{{ book_title }}</td>
+                </tr>
+                <tr>
+                  <td style="color:#013a67;"><strong>Amount:</strong></td>
+                  <td>₹{{ amount }}</td>
+                </tr>
+                <tr>
+                  <td style="color:#013a67;"><strong>Status:</strong></td>
+                  <td style="color:#e1aa12; font-weight:bold;">
+                    Pending
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin-top:16px;">
+                You will be notified once the purchase is completed.
+              </p>
+
+              <p style="color:#013a67; font-weight:bold;">
+                — System Notification
+              </p>
+
+              <hr style="margin:24px 0; border:none; border-top:1px solid #e1aa12;">
+
+              <small style="color:#777;">
+                Admin-only notification
+              </small>
+
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

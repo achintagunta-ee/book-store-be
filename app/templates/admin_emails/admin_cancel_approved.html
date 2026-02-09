@@ -4,51 +4,80 @@
   <meta charset="UTF-8">
   <title>Cancellation Approved</title>
 </head>
-<body style="font-family: Arial, sans-serif; background:#f5f5f5; padding:20px;">
+
+<body style="font-family: Arial, sans-serif; background:#f2f4f8; padding:20px;">
+
   <table width="100%" cellpadding="0" cellspacing="0">
     <tr>
       <td align="center">
-        <table width="600" style="background:#ffffff; padding:24px; border-radius:6px;">
+
+        <table width="600" style="background:#ffffff; border-radius:8px; overflow:hidden;">
+
+          <!-- Header -->
           <tr>
-            <td>
-              <h2 style="color:#2c3e50;">Cancellation Approved</h2>
+            <td style="background:#013a67; color:#ffffff; padding:26px; text-align:center;">
+              <h2 style="margin:0; font-size:22px;">
+                ❌ Cancellation Approved
+              </h2>
+            </td>
+          </tr>
 
-              <p>
-                A cancellation request has been approved with the following details:
-              </p>
+          <!-- Content -->
+          <tr>
+            <td style="padding:24px; color:#2c3e50;">
 
-              <table cellpadding="6">
+              <!-- Yellow highlight -->
+              <div style="background:#e1aa12; color:#ffffff; padding:14px 16px; border-radius:6px; margin-bottom:18px; font-weight:bold;">
+                A cancellation request has been approved.
+              </div>
+
+              <table cellpadding="8" width="100%" style="background:#f7f9fc; border-radius:6px;">
                 <tr>
-                  <td><strong>Order ID:</strong></td>
+                  <td width="150"><strong style="color:#013a67;">Order ID</strong></td>
                   <td>#{{ order_id }}</td>
                 </tr>
                 <tr>
-                  <td><strong>Customer:</strong></td>
+                  <td><strong style="color:#013a67;">Customer</strong></td>
                   <td>{{ first_name }}</td>
                 </tr>
                 <tr>
-                  <td><strong>Status:</strong></td>
-                  <td style="color:#27ae60;">Approved</td>
+                  <td><strong style="color:#013a67;">Status</strong></td>
+                  <td style="color:#e1aa12; font-weight:bold;">
+                    Approved
+                  </td>
                 </tr>
               </table>
 
-              <p style="margin-top:16px;">
+              <p style="margin-top:18px;">
                 Refund (if applicable) should be processed via the refund workflow.
               </p>
 
-              <p>
+              <p style="color:#6c757d;">
                 — System Notification
               </p>
 
-              <hr style="margin:24px 0;">
+              <hr style="margin:24px 0; border:none; border-top:1px solid #e0e4ea;">
+
               <small style="color:#888;">
-                Admin-only notification
+                Admin-only cancellation alert
               </small>
+
             </td>
           </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#f7f9fc; padding:16px; text-align:center; color:#6c757d; font-size:13px;">
+              © {{ current_year }}
+              <span style="color:#013a67; font-weight:bold;">Hithabodha Bookstore</span>
+            </td>
+          </tr>
+
         </table>
+
       </td>
     </tr>
   </table>
+
 </body>
 </html>

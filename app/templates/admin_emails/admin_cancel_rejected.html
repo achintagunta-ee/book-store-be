@@ -1,65 +1,81 @@
-Subject: Cancellation Rejected – Order #{{ order_id }}
-
 <!DOCTYPE html>
-
 <html>
 <head>
   <meta charset="UTF-8" />
   <title>Cancellation Rejected</title>
 </head>
-<body style="margin:0; padding:0; font-family: Arial, Helvetica, sans-serif; background:#f4f4f4;">
+
+<body style="font-family: Arial, sans-serif; background:#f2f4f8; padding:20px;">
+
   <table width="100%" cellpadding="0" cellspacing="0">
     <tr>
-      <td align="center" style="padding:30px 0;">
-        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:6px;">
+      <td align="center">
 
-```
-      <!-- Header -->
-      <tr>
-        <td style="background:#2c3e50; padding:18px; text-align:center;">
-          <h2 style="color:#ffffff; margin:0;">
-            Cancellation Rejected
-          </h2>
-        </td>
-      </tr>
+        <table width="600" style="background:#ffffff; border-radius:8px; overflow:hidden;">
 
-      <!-- Body -->
-      <tr>
-        <td style="padding:30px;">
-          <p style="font-size:14px;">
-            A cancellation request has been rejected with the following details:
-          </p>
+          <!-- Header -->
+          <tr>
+            <td style="background:#013a67; color:#ffffff; padding:26px; text-align:center;">
+              <h2 style="margin:0; font-size:22px;">
+                🚫 Cancellation Rejected
+              </h2>
+            </td>
+          </tr>
 
-          <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin:20px 0;">
-            <tr>
-              <td style="padding:10px; background:#f2f2f2;"><strong>Order ID</strong></td>
-              <td style="padding:10px; background:#f2f2f2;">#{{ order_id }}</td>
-            </tr>
-            <tr>
-              <td style="padding:10px;"><strong>Customer Email</strong></td>
-              <td style="padding:10px;">{{ customer_email }}</td>
-            </tr>
-            <tr>
-              <td style="padding:10px;"><strong>Reason</strong></td>
-              <td style="padding:10px;">{{ reason }}</td>
-            </tr>
-          </table>
+          <!-- Content -->
+          <tr>
+            <td style="padding:24px; color:#2c3e50;">
 
-          <p style="font-size:13px; color:#555;">
-            No further action is required.
-          </p>
+              <!-- Yellow highlight -->
+              <div style="background:#e1aa12; color:#ffffff; padding:14px 16px; border-radius:6px; margin-bottom:18px; font-weight:bold;">
+                A cancellation request has been rejected.
+              </div>
 
-          <p style="font-size:13px; margin-top:20px;">
-            — System Notification
-          </p>
-        </td>
-      </tr>
+              <table cellpadding="8" width="100%" style="background:#f7f9fc; border-radius:6px;">
+                <tr>
+                  <td width="150"><strong style="color:#013a67;">Order ID</strong></td>
+                  <td>#{{ order_id }}</td>
+                </tr>
+                <tr>
+                  <td><strong style="color:#013a67;">Customer Email</strong></td>
+                  <td>{{ customer_email }}</td>
+                </tr>
+                <tr>
+                  <td><strong style="color:#013a67;">Reason</strong></td>
+                  <td>{{ reason }}</td>
+                </tr>
+              </table>
 
-    </table>
-  </td>
-</tr>
-```
+              <p style="margin-top:18px;">
+                No further action is required.
+              </p>
 
+              <p style="color:#6c757d;">
+                — System Notification
+              </p>
+
+              <hr style="margin:24px 0; border:none; border-top:1px solid #e0e4ea;">
+
+              <small style="color:#888;">
+                Admin-only cancellation alert
+              </small>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#f7f9fc; padding:16px; text-align:center; color:#6c757d; font-size:13px;">
+              © {{ current_year }}
+              <span style="color:#013a67; font-weight:bold;">Hithabodha Bookstore</span>
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
   </table>
+
 </body>
 </html>

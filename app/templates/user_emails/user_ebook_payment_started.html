@@ -4,46 +4,51 @@
   <meta charset="UTF-8">
   <title>eBook Payment Started</title>
 </head>
-<body style="font-family: Arial, sans-serif; background:#f7f7f7; padding:20px;">
+
+<body style="font-family: Arial, sans-serif; background:#f5f5f5; padding:20px;">
   <table width="100%" cellpadding="0" cellspacing="0">
     <tr>
       <td align="center">
-        <table width="600" style="background:#ffffff; padding:24px; border-radius:6px;">
+        <table width="600" style="background:#ffffff; padding:24px; border-radius:6px; border-top:6px solid #e1aa12;">
           <tr>
             <td>
-              <h2 style="color:#2c3e50;">Hello {{ first_name }},</h2>
 
-              <p>
+              <h2 style="color:#013a67; margin-top:0;">
+                Hello {{ first_name }},
+              </h2>
+
+              <p style="color:#333;">
                 You’ve successfully started the payment process for the eBook:
               </p>
 
-              <p style="font-size:16px; margin:16px 0;">
-                <strong>{{ book_title }}</strong>
+              <p style="font-size:16px; margin:16px 0; font-weight:bold;">
+                {{ book_title }}
               </p>
 
               <p>
-                <strong>Amount:</strong> ₹{{ amount }}
+                <strong style="color:#013a67;">Amount:</strong>
+                <span style="color:#e1aa12; font-weight:bold;">₹{{ amount }}</span>
               </p>
 
               <p>
-                Please complete the payment to get instant lifetime access to
-                your eBook.
+                Please complete the payment to get instant lifetime access to your eBook.
               </p>
 
               <p>
-                If the payment was not completed, you can retry from your
-                account dashboard.
+                If the payment was not completed, you can retry from your account dashboard.
               </p>
 
               <p style="margin-top:24px;">
                 Happy reading! 📘<br>
-                <strong>Hithabodha Bookstore</strong>
+                <strong>{{ store_name or "Hithabodha Bookstore" }}</strong>
               </p>
 
-              <hr style="margin:24px 0;">
-              <small style="color:#888;">
+              <hr style="margin:24px 0; border:none; border-top:1px solid #e1aa12;">
+
+              <small style="color:#777;">
                 This is an automated message regarding your eBook purchase.
               </small>
+
             </td>
           </tr>
         </table>
