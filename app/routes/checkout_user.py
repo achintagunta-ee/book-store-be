@@ -201,7 +201,13 @@ def checkout_summary(
     ).all()
 
     if not cart_items:
-        raise HTTPException(400, "Your cart is empty.")
+        return {
+        "has_address": len(addresses) > 0,
+        "addresses": addresses,
+        "summary": None,
+        "message": "Your cart is empty."
+    }
+
 
     # If user has no addresses → frontend will show Address Form
     if len(addresses) == 0:
@@ -243,8 +249,6 @@ def checkout_summary(
         "summary": {
             "subtotal": subtotal,
             "shipping": shipping,
-            "cover_image":book.cover_image,
-            "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None,
             "total": total,
             "items": item_list
         }
