@@ -353,6 +353,10 @@ def update_order_status(
     normalized_status = new_status.strip().lower()
     allowed = ALLOWED_TRANSITIONS.get(order.status, [])
 
+    # 🔥 ADMIN MANUAL PAYMENT OVERRIDE (testing)
+    if normalized_status == "paid" and order.status == "pending":
+        allowed.append("paid")
+
     if normalized_status not in allowed:
         raise HTTPException(
             400,
@@ -368,6 +372,7 @@ def update_order_status(
 
     elif normalized_status == "delivered":
         order.delivered_at = datetime.utcnow()
+    
 
     order.updated_at = datetime.utcnow()
     session.add(order)
@@ -375,6 +380,35 @@ def update_order_status(
 
     # 🔥 Load user AFTER commit
     user = session.get(User, order.user_id)
+
+    # -------------------------------
+    # 💰 PAYMENT SUCCESS EVENT
+    # -------------------------------
+    if normalized_status == "paid":
+        dispatch_order_event(
+            event=OrderEvent.PAYMENT_SUCCESS,
+            order=order,
+            user=user,
+            session=session,
+            notify_user=True,
+            notify_admin=True,
+            extra={
+                "popup_message": "Payment marked as paid by admin",
+                "admin_title": "Payment Marked Paid",
+                "admin_content": f"Order #{order.id} marked paid by admin",
+
+                "user_template": "user_emails/user_payment_success.html",
+                "user_subject": f"Payment success #{order.id}",
+
+                "admin_template": "admin_emails/admin_payment_received.html",
+                "admin_subject": f"Manual payment received #{order.id}",
+
+                "order_id": order.id,
+                "amount": order.total,
+                "first_name": user.first_name,
+            }
+        )
+
 
     # -------------------------------
     # 🚚 ORDER SHIPPED EVENT
@@ -590,7 +624,6 @@ def create_offline_order(
         "summary": {
             "subtotal": subtotal,
             "shipping": shipping,
-            "cover_image":book.cover_image,
             "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None,
             "total": total
         }
