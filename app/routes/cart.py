@@ -120,8 +120,6 @@ def get_cart(
         "summary": {
             "subtotal": subtotal,
             "shipping": shipping,
-            "cover_image":book.cover_image,
-            "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None,
             "final_total": final_total
         }
     }
