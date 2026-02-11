@@ -41,6 +41,9 @@ from fastapi.responses import FileResponse
 import os
 from app.notifications import dispatch_order_event
 from app.notifications import OrderEvent
+from fastapi import Request
+from app.core.rate_limit import limiter
+
 # Initialize Razorpay client
 razorpay_client = razorpay.Client(
     auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
@@ -72,7 +75,9 @@ def _cached_guest_order(order_id: int, bucket: int):
         }
 
 @router.post("")
+@limiter.limit("2/minute")
 def guest_checkout(
+    request: Request,
     payload: GuestCheckoutSchema,
     session: Session = Depends(get_session)
 ):

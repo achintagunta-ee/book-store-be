@@ -330,8 +330,8 @@ def notify_customer(
         user_id=user.id,
         trigger_source="manual_resend",
         related_id=order.id,
-        title="Admin Reminder",
-        content=f"Admin resent notification for order #{order.id}",
+        title="Order Remainder",
+        content=f"We’ve sent an update about your order #{order.id}",
     )
 
     session.commit()
@@ -393,7 +393,7 @@ def update_order_status(
             notify_user=True,
             notify_admin=True,
             extra={
-                "popup_message": "Payment marked as paid by admin",
+                "popup_message": "Payment Successful",
                 "admin_title": "Payment Marked Paid",
                 "admin_content": f"Order #{order.id} marked paid by admin",
 
@@ -423,9 +423,9 @@ def update_order_status(
             notify_admin=True,
             extra={
                 "user_template": "user_emails/user_order_shipped.html",
-                "user_subject": "Your order has been shipped",
-                #"admin_template": "admin_emails/admin_order_shipped.html",
-                #"admin_subject": "Order shipped",
+                "user_subject": "Your order #{order.id} has been shipped",
+                "admin_template": "admin_emails/admin_order_shipped.html",
+                "admin_subject": "Order #{order.id} shipped",
                 "first_name": user.first_name,
                 "order_id": order.id,
                 "tracking_id": order.tracking_id,
@@ -446,9 +446,9 @@ def update_order_status(
             notify_admin=True,
             extra={
                 "user_template": "user_emails/user_order_delivered.html",
-                "user_subject": "Your order has been delivered",
+                "user_subject": "Your order #{order.id} has been delivered",
                 "admin_template": "admin_emails/admin_order_delivered.html",
-                "admin_subject": "Order delivered",
+                "admin_subject": "Order #{order.id} delivered",
                 "first_name": user.first_name,
                 "order_id": order.id,
                 "customer_email": user.email,

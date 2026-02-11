@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlmodel import Session, select
 from app.config import Settings
 from app.database import get_session
@@ -16,6 +16,7 @@ from fastapi import BackgroundTasks
 from app.services.email_service import send_email
 from app.utils.template import render_template
 from app.config import settings
+from app.core.rate_limit import limiter
 
 def base_context():
     return {
@@ -102,7 +103,8 @@ def register_user(
     )
 
 @router.post("/login", response_model=Token)
-def login(payload: UserLogin, session: Session = Depends(get_session)):
+@limiter.limit("5/minute")
+def login(request: Request,payload: UserLogin, session: Session = Depends(get_session)):
     user = session.exec(select(User).where(User.email == payload.email)).first()
 
     if not user or not verify_password(payload.password, user.password):
@@ -142,12 +144,14 @@ def google_login(request: GoogleTokenRequest, session: Session = Depends(get_ses
 
 
 @router.post("/forgot-password")
+@limiter.limit("3/minute")
 def forgot_password(
-    request: ForgotPasswordRequest,
+    request: Request,
+    payload: ForgotPasswordRequest,
     background_tasks: BackgroundTasks,
     session: Session = Depends(get_session)
 ):
-    user = session.exec(select(User).where(User.email == request.email)).first()
+    user = session.exec(select(User).where(User.email == payload.email)).first()
     if not user:
         raise HTTPException(404, "User not found")
 
@@ -179,8 +183,11 @@ class ResetPasswordByCode(BaseModel):
     new_password: str
 
 @router.post("/reset-password")
-def reset_password(request: ResetPasswordByCode, session: Session = Depends(get_session)):
-    user = session.exec(select(User).where(User.email == request.email)).first()
+@limiter.limit("3/minute")
+def reset_password(
+    request: Request,
+    payload: ResetPasswordByCode, session: Session = Depends(get_session)):
+    user = session.exec(select(User).where(User.email == payload.email)).first()
 
     if not user:
         raise HTTPException(404, "User not found")

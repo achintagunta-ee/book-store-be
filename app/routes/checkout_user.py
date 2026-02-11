@@ -44,6 +44,9 @@ from app.utils.cache_helpers import (
 
 )
 from fastapi import BackgroundTasks
+from fastapi import Request
+from app.core.rate_limit import limiter
+
 
 
 
@@ -424,7 +427,9 @@ def create_razorpay_order(
 }
 
 @router.post("/verify-razorpay-payment")
+@limiter.limit("10/minute")
 def verify_razorpay_payment(
+    request: Request,
     payload: RazorpayPaymentVerifySchema,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),

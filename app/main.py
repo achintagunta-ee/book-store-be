@@ -16,6 +16,7 @@ from app.routes import (
     checkout_user,
     ebooks,
     ebooks_admin,
+    health,
     order_cancellation,
     public_settings,
     user_library,
@@ -97,6 +98,15 @@ app = FastAPI(
         }
     ],
 )
+# Rate limiting setup
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from app.core.rate_limit import limiter
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(R2PublicURLMiddleware)
 
@@ -143,6 +153,8 @@ app.include_router(ebooks.router,prefix="/ebooks",tags= ["Ebook Purchase"])
 app.include_router(user_library.router,prefix="/users/library",tags= ["Users Library"])
 app.include_router(ebooks_admin.router,prefix="/ebooks/admin",tags=["Ebook Admin"]),
 app.include_router(admin_analytics.router,prefix="/admin/analytics", tags=["Admin Analytics"])
+app.include_router(health.router,prefix="/health",tags=["Health"])
+
 
 # Use system temp directory instead of local uploads folder
 UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "hithabodha_uploads")
