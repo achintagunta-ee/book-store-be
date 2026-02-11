@@ -29,7 +29,8 @@ from app.routes import (
     cart,
     wishlist,
     storage,
-    book_inventory   
+    book_inventory,
+    admin_analytics
 )
 
 import os
@@ -140,8 +141,8 @@ app.include_router(order_cancellation.router,prefix="/orders/cancellations",tags
 app.include_router(admin_cancellation.router,prefix="/admin/cancellations",tags= ["Admin Order Cancellation"])
 app.include_router(ebooks.router,prefix="/ebooks",tags= ["Ebook Purchase"])
 app.include_router(user_library.router,prefix="/users/library",tags= ["Users Library"])
-app.include_router(ebooks_admin.router,prefix="/ebooks/admin",tags=["Ebook Admin"])
-
+app.include_router(ebooks_admin.router,prefix="/ebooks/admin",tags=["Ebook Admin"]),
+app.include_router(admin_analytics.router,prefix="/admin/analytics", tags=["Admin Analytics"])
 
 # Use system temp directory instead of local uploads folder
 UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "hithabodha_uploads")
