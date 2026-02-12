@@ -1,8 +1,8 @@
+import secrets
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlmodel import Session, select
 from app.config import Settings
 from app.database import get_session
-from app.models import order, user
 from app.models.user import User
 from app.schemas.user_schemas import UserRegister, UserLogin, Token, UserResponse
 from app.schemas.google_schemas import GoogleTokenRequest
@@ -155,18 +155,22 @@ def forgot_password(
     if not user:
         raise HTTPException(404, "User not found")
 
-    reset_code = str(randint(100000, 999999))
-    user.reset_code = reset_code
-    user.reset_code_expires = datetime.utcnow() + timedelta(minutes=15)
+    token = secrets.token_urlsafe(32)
+
+    user.reset_code = token
+    user.reset_code_expires = datetime.utcnow() + timedelta(minutes=30)
     session.commit()
 
+    reset_url = f"{settings.base_url}/reset-password/{token}" 
+
     html = render_template(
-        "user_emails/user_reset_password.html",
-        first_name=user.first_name,
-        reset_code=reset_code,
-        expires_in=15,
-        store_name="Hithabodha Bookstore"
-    )
+    "user_emails/user_reset_password.html",
+    **base_context(),
+    first_name=user.first_name,
+    reset_url=reset_url,
+    username=user.email
+)
+
 
     background_tasks.add_task(
         send_email,
@@ -185,31 +189,24 @@ class ResetPasswordByCode(BaseModel):
 @router.post("/reset-password")
 @limiter.limit("3/minute")
 def reset_password(
+    token: str,
     request: Request,
     payload: ResetPasswordByCode, session: Session = Depends(get_session)):
-    user = session.exec(select(User).where(User.email == payload.email)).first()
-
+    user = session.exec(select(User).where(User.reset_code == token)).first()
+    
     if not user:
-        raise HTTPException(404, "User not found")
-
-    # Check OTP
-    if user.reset_code != request.code:
-        raise HTTPException(400, "Invalid reset code")
+        raise HTTPException(400, "Invalid token")
 
     if user.reset_code_expires < datetime.utcnow():
-        raise HTTPException(400, "Reset code expired")
+        raise HTTPException(400, "Token expired")
 
-    # Update password
-    user.password = hash_password(request.new_password)
-
-    # Clear OTP after use
+    user.password = hash_password(payload.new_password)
     user.reset_code = None
     user.reset_code_expires = None
 
-    session.add(user)
     session.commit()
 
-    return {"message": "Password successfully reset"}
+    return {"message": "Password reset successful"}
 
 
 
