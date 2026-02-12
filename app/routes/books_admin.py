@@ -141,6 +141,11 @@ def create_book(
     "excerpt":book.excerpt,
     "isbn":book.isbn,
     "category_id":book.category_id,
+    "category": {
+    "id": category.id,
+    "name": category.name,
+    "description": category.description
+},
     "author":book.author,
     "language":book.language,
     "description":book.description,
@@ -266,7 +271,10 @@ def filter_books_admin(
                 "discount_price": b.discount_price,
                 "offer_price": b.offer_price,
                 "rating": b.rating,
-                "category_id": b.category_id,
+                "category": {
+            "id": b.category.id,
+            "name": b.category.name
+        },
                 "is_featured": b.is_featured,
                 "is_featured_author": b.is_featured_author,
                 "stock": b.stock,

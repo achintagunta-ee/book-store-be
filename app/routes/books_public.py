@@ -140,11 +140,9 @@ def advanced_search_books(
 # ------------------ FILTER BOOKS ------------------
 
 
-
-
 @router.get("/filter")
 def filter_books(
-    category: str | None = None,
+    category_id: int | None = None,
     author: str | None = None,
     min_price: float | None = None,
     max_price: float | None = None,
@@ -153,24 +151,18 @@ def filter_books(
     limit: int = Query(12, ge=1, le=50),
     session: Session = Depends(get_session)
 ):
-    query = select(Book).where(Book.is_deleted == False)
+    query = (
+    select(Book, Category)
+    .outerjoin(Category, Book.category_id == Category.id)
+    .where(Book.is_deleted == False)
+)
+
+
 
 
     # CATEGORY FILTER
-    if category:
-        cat = session.exec(
-            select(Category).where(Category.name.ilike(f"%{category}%"))
-        ).first()
-
-        if not cat:
-            return {
-                "total_items": 0,
-                "results": [],
-                "page": page,
-                "total_pages": 0
-            }
-
-        query = query.where(Book.category_id == cat.id)
+    if category_id is not None:
+        query = query.where(Book.category_id == category_id)
 
     # AUTHOR FILTER
     if author:
@@ -184,8 +176,9 @@ def filter_books(
         query = query.where(Book.price <= max_price)
 
     # RATING FILTER
-    if rating is not None:
+    if rating is not None and rating > 0:
         query = query.where(Book.rating >= rating)
+
 
     # ORDER
     query = query.order_by(Book.updated_at.desc())
@@ -194,7 +187,7 @@ def filter_books(
 
     return {
         "filters": {
-            "category": category,
+            "category_id": category_id,
             "author": author,
             "min_price": min_price,
             "max_price": max_price,
@@ -209,13 +202,17 @@ def filter_books(
                 "title": b.title,
                 "author": b.author,
                 "price": b.price,
+                 "category": {
+                 "id": c.id if c else None,
+                  "name": c.name if c else None
+        },          
                 "discount_price": b.discount_price,
                 "offer_price": b.offer_price,
                 "rating": b.rating,
                 "cover_image": b.cover_image,
                 "cover_image_url": to_presigned_url(b.cover_image)if b.cover_image else None
             }
-            for b in data["results"]
+            for (b,c) in data["results"]
         ]
     }
 

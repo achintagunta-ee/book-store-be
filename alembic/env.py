@@ -13,7 +13,7 @@ sys.path.append(BASE_DIR)
 
 from app.config import settings
 from sqlmodel import SQLModel
-import app.models
+from app.models import *
 
 config = context.config
 

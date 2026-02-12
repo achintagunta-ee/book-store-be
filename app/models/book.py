@@ -1,4 +1,4 @@
-from sqlmodel import SQLModel, Field ,Relationship
+from sqlmodel import Column, ForeignKey, Integer, SQLModel, Field ,Relationship
 from typing import Optional, TYPE_CHECKING , List
 from datetime import datetime
 from app.models.review import Review
@@ -51,7 +51,13 @@ class Book(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     # category
-    category_id: Optional[int] = Field(default=None, foreign_key="category.id")
+    category_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("category.id", ondelete="RESTRICT"),
+            nullable=False
+        )
+    )
     category: Optional["Category"] = Relationship(back_populates="books")
 
     # tags
