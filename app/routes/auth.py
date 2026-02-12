@@ -189,10 +189,12 @@ class ResetPasswordByCode(BaseModel):
 @router.post("/reset-password")
 @limiter.limit("3/minute")
 def reset_password(
-    token: str,
     request: Request,
-    payload: ResetPasswordByCode, session: Session = Depends(get_session)):
-    user = session.exec(select(User).where(User.reset_code == token)).first()
+    payload: ResetPasswordByCode, 
+    session: Session = Depends(get_session)
+):
+    
+    user = session.exec(select(User).where(User.reset_code == payload.code)).first()
     
     if not user:
         raise HTTPException(400, "Invalid token")
