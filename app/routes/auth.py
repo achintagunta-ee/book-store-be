@@ -161,7 +161,8 @@ def forgot_password(
     user.reset_code_expires = datetime.utcnow() + timedelta(minutes=30)
     session.commit()
 
-    reset_url = f"{settings.base_url}/reset-password/{token}" 
+    reset_url = f"{settings.base_url.rstrip('/')}/reset-password/{token}"
+
 
     html = render_template(
     "user_emails/user_reset_password.html",
