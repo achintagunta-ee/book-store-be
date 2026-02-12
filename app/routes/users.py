@@ -166,18 +166,32 @@ def get_order_history(
 )
 
 
-    data["results"] = [
-        {
+    results = []
+
+    for o in data["results"]:
+        items = session.exec(
+            select(OrderItem).where(OrderItem.order_id == o.id)
+        ).all()
+
+        results.append({
             "order_id": f"#{o.id}",
             "raw_id": o.id,
             "date": o.created_at.strftime("%B %d, %Y"),
             "total": o.total,
             "status": o.status,
-            "details_url": f"/profile/orders/{o.id}"
-        }
-        for o in data["results"]
-    ]
+            "details_url": f"/profile/orders/{o.id}",
+            "items": [
+                {
+                    "book_title": i.book_title,
+                    "price": i.price,
+                    "quantity": i.quantity,
+                    "total": i.price * i.quantity
+                }
+                for i in items
+            ]
+        })
 
+    data["results"] = results
     return data
 
 
