@@ -199,6 +199,7 @@ def filter_books_admin(
     rating: float | None = None,
     is_featured: bool | None = None,
     is_featured_author: bool | None = None,
+    is_archived: bool | None = None,
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=50),
     session: Session = Depends(get_session),
@@ -250,6 +251,10 @@ def filter_books_admin(
 
     if is_featured_author is not None:
         query = query.where(Book.is_featured_author == is_featured_author)
+    # Archive filter
+    if is_archived is not None:
+        query = query.where(Book.is_archived == is_archived)
+
 
     # Sort newest first
     query = query.order_by(Book.updated_at.desc())
@@ -278,6 +283,7 @@ def filter_books_admin(
                 "is_featured": b.is_featured,
                 "is_featured_author": b.is_featured_author,
                 "stock": b.stock,
+                "is_archived": b.is_archived,
                 "is_ebook": b.is_ebook,
                 "updated_at": b.updated_at,
             }
