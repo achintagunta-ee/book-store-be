@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 import razorpay
+from app.models.order_event import OrderEvent
+
 from sqlalchemy import func
 from sqlmodel import Session, select 
 from app.database import get_session
@@ -30,9 +32,6 @@ from uuid import uuid4
 from app.models.payment import Payment
 from fastapi.responses import FileResponse
 import os
-from app.notifications import dispatch_order_event
-from app.notifications import OrderEvent
-from functools import lru_cache
 import time
 from app.utils.cache_helpers import cached_addresses, _ttl_bucket
 
@@ -106,6 +105,38 @@ def track_order(
         ]
     }
 
+@router.get("/{order_id}/timeline")
+def order_timeline(
+    order_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    order = session.get(Order, order_id)
+    if not order:
+        raise HTTPException(404, "Order not found")
+
+    # 🔐 Security
+    if user.role != "admin" and order.user_id != user.id:
+        raise HTTPException(403, "Not allowed")
+
+    events = session.exec(
+        select(OrderEvent)
+        .where(OrderEvent.order_id == order_id)
+        .order_by(OrderEvent.created_at.asc())
+    ).all()
+
+    return {
+        "success": True,
+        "data": [
+            {
+                "status": e.event_type,
+                "label": e.label,
+                "time": e.created_at,
+                "meta": e.meta,
+            }
+            for e in events
+        ]
+    }
 
 
 #View Invoice 

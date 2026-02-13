@@ -133,9 +133,9 @@ def guest_checkout(
         subtotal=subtotal,
         shipping=shipping,
         total=total,
-        payment_expires_at=datetime.utcnow() + timedelta(hours=2)),
+        payment_expires_at=datetime.utcnow() + timedelta(hours=2),
     
-
+    )
     session.add(order)
     session.commit()
     session.refresh(order)
@@ -189,6 +189,8 @@ def guest_checkout(
     order.gateway_order_id = razorpay_order["id"]
     session.commit()
 
+    order.payment_expires_at = datetime.utcnow() + GUEST_PAYMENT_EXPIRY
+
     if order.user_id:
      cached_address_and_cart(order.user_id, _ttl_bucket())
      cached_addresses(order.user_id, _ttl_bucket())
@@ -224,7 +226,7 @@ def verify_guest_payment(
     if not order or order.placed_by != "guest":
         raise HTTPException(status_code=404, detail="Order not found")
     
-    if order.payment_expires_at and datetime.utcnow() + GUEST_PAYMENT_EXPIRY:
+    if order.payment_expires_at and datetime.utcnow() > order.payment_expires_at:
          raise HTTPException(400, "Payment expired. Please create a new order.")
 
     #  Idempotency guard (VERY IMPORTANT)

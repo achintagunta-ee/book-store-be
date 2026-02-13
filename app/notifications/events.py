@@ -6,6 +6,8 @@ class OrderEvent(str, Enum):
     PAYMENT_SUCCESS = "payment_success"
     SHIPPED = "shipped"
     DELIVERED = "delivered"
+    CANCELLED = "cancelled"
+    REFUNDED = "refunded"
     CANCEL_REQUESTED = "cancel_requested"
     CANCEL_REJECTED = "cancel_rejected"
     CANCEL_APPROVED = "cancel_approved"

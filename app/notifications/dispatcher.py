@@ -5,7 +5,16 @@ from app.notifications.email_handlers import send_user_email, send_admin_email
 from app.services.notification_service import create_notification
 from app.models.notifications import RecipientRole
 from app.notifications.events import OrderEvent
+from app.services.order_event_service import log_order_event
 
+EVENT_LABELS = {
+    OrderEvent.ORDER_PLACED: "Order placed",
+    OrderEvent.PAYMENT_SUCCESS: "Payment confirmed",
+    OrderEvent.SHIPPED: "Order shipped",
+    OrderEvent.DELIVERED: "Order delivered",
+    OrderEvent.CANCELLED: "Order cancelled",
+    OrderEvent.REFUNDED: "Refund issued",
+}
 
 def dispatch_order_event(
     *,
@@ -26,6 +35,16 @@ def dispatch_order_event(
     - admin email
     - admin in-app notifications
     """
+    # ✅ Timeline logging (automatic)
+    label = EVENT_LABELS.get(event, event.value)
+
+    log_order_event(
+        session=session,
+        order_id=order.id,
+        event_type=event.value,
+        label=label,
+        created_by="system" if not user else "user",
+    )
 
     rules = NOTIFICATION_RULES.get(event, {})
     extra = extra or {}
