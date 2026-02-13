@@ -48,73 +48,33 @@ class OrderStatus(str, Enum):
     cancelled = "cancelled"
     failed = "failed"
 
+
+
 @router.get("")
 def list_orders(
     page: int = 1,
     limit: int = 10,
     status: str | None = None,
     search: str | None = None,
+    type: str | None = Query(None, pattern="^(user|guest|all)$"),
     admin: User = Depends(get_current_admin),
 ):
-    return _cached_orders(page, limit, status, search, _ttl_bucket())
-
-
-@lru_cache(maxsize=512)
-def _cached_order_details(order_id: int, bucket: int):
-    from app.database import get_session
-    from app.models.order import Order
-    from app.models.order_item import OrderItem
-    from app.models.user import User
-    from sqlmodel import select
-
-    with next(get_session()) as session:
-        result = session.exec(
-            select(Order, User)
-            .join(User, User.id == Order.user_id)
-            .where(Order.id == order_id)
-        ).first()
-
-        if not result:
-            return None
-
-        order, user = result
-
-        items = session.exec(
-            select(OrderItem).where(OrderItem.order_id == order.id)
-        ).all()
-
-        return {
-            "order_id": order.id,
-            "customer": {
-                "name": f"{user.first_name} {user.last_name}",
-                "email": user.email,
-            },
-            "status": order.status,
-            "created_at": order.created_at,
-            "items": [
-                {
-                    "title": i.book_title,
-                    "price": i.price,
-                    "quantity": i.quantity,
-                    "total": i.price * i.quantity,
-                }
-                for i in items
-            ],
-            "invoice_url": f"/admin/orders/{order.id}/invoice",
-        }
-
+    return _cached_orders(page, limit, status, search, type, _ttl_bucket())
 
 @lru_cache(maxsize=256)
-def _cached_orders(page, limit, status, search, bucket):
-    from app.database import get_session
-    from sqlmodel import select
-    from app.models.order import Order
-    from app.models.user import User
-    from app.utils.pagination import paginate
+def _cached_orders(page, limit, status, search, type,bucket):
+    
 
     with next(get_session()) as session:
 
-        query = select(Order, User).join(User, User.id == Order.user_id)
+        query = select(Order, User).outerjoin(User, User.id == Order.user_id)
+
+        #  filter user vs guest
+        if type == "guest":
+            query = query.where(Order.placed_by == "guest")
+
+        elif type == "user":
+            query = query.where(Order.user_id != None)
 
         if status:
             query = query.where(Order.status == status)
@@ -133,10 +93,20 @@ def _cached_orders(page, limit, status, search, bucket):
         formatted = []
 
         for order, user in data["results"]:
+              # guest-safe formatting
+            if user:
+                username = f"{user.first_name} {user.last_name}"
+                email = user.email
+                placed_by = "user"
+            else:
+                username = f"{order.guest_name}"
+                email = order.guest_email
+                placed_by = "guest"
             formatted.append({
                 "order_id": order.id,
-                "customer": f"{user.first_name} {user.last_name}",
-                "email": user.email,
+                "order_type": placed_by,
+                "customer_name": username,
+                "email": email,
                 "date": order.created_at,
                 "total": order.total,
                 "status": order.status,
@@ -177,6 +147,46 @@ def view_order_status(
         "status": order.status,
         "updated_at": order.updated_at
     }
+
+
+@lru_cache(maxsize=512)
+def _cached_order_details(order_id: int, bucket: int):
+    with next(get_session()) as session:
+        result = session.exec(
+            select(Order, User)
+            .join(User, User.id == Order.user_id)
+            .where(Order.id == order_id)
+        ).first()
+
+        if not result:
+            return None
+
+        order, user = result
+
+        items = session.exec(
+            select(OrderItem).where(OrderItem.order_id == order.id)
+        ).all()
+
+        return {
+            "order_id": order.id,
+            "customer": {
+                "name": f"{user.first_name} {user.last_name}",
+                "email": user.email,
+            },
+            "status": order.status,
+            "created_at": order.created_at,
+            "items": [
+                {
+                    "title": i.book_title,
+                    "price": i.price,
+                    "quantity": i.quantity,
+                    "total": i.price * i.quantity,
+                }
+                for i in items
+            ],
+            "invoice_url": f"/admin/orders/{order.id}/invoice",
+        }
+
 
 # b) Order Details
 @router.get("/{order_id}")
