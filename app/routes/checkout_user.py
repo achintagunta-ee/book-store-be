@@ -13,7 +13,7 @@ from app.routes.book_detail import clear_book_detail_cache
 from app.schemas.user_schemas import RazorpayPaymentVerifySchema
 from app.services.email_service import send_order_confirmation
 from app.services.email_service import send_email
-from app.services.order_expiry_service import PAYMENT_EXPIRY_DAYS
+from app.services.payment_expiry import USER_PAYMENT_EXPIRY
 from app.services.payment_service import finalize_payment
 from app.services.r2_helper import to_presigned_url
 from app.utils.template import render_template
@@ -381,7 +381,7 @@ def create_razorpay_order(
     order.gateway_order_id = razorpay_order["id"]   # 🔥 REQUIRED
     session.commit()
 
-    order.payment_expires_at = datetime.utcnow() + timedelta(days=7)
+    order.payment_expires_at = datetime.utcnow() + USER_PAYMENT_EXPIRY
 
     popup_data = dispatch_order_event(
         event=OrderEvent.ORDER_PLACED,
@@ -446,7 +446,7 @@ def verify_razorpay_payment(
     if not order or order.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    if datetime.utcnow() > order.created_at + timedelta(PAYMENT_EXPIRY_DAYS):
+    if datetime.utcnow() > order.created_at + USER_PAYMENT_EXPIRY:
         order.status = "expired"
         session.commit()
         raise HTTPException(
@@ -710,7 +710,7 @@ def complete_payment(
     if order.status == "paid":
         raise HTTPException(400, "Order already paid")
     
-    if datetime.utcnow() > order.created_at + timedelta(PAYMENT_EXPIRY_DAYS):
+    if datetime.utcnow() > order.created_at + USER_PAYMENT_EXPIRY:
         order.status = "expired"
         session.commit()
         raise HTTPException(

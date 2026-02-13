@@ -8,7 +8,8 @@ from app.models.user import User
 from app.models.order import Order 
 from app.models.order_item import OrderItem
 from app.models.address import Address
-from app.services.order_expiry_service import PAYMENT_EXPIRY_DAYS
+
+from app.services.payment_expiry import GUEST_PAYMENT_EXPIRY
 from app.utils.cache_helpers import (
     cached_address_and_cart,
     cached_addresses,
@@ -132,8 +133,8 @@ def guest_checkout(
         subtotal=subtotal,
         shipping=shipping,
         total=total,
-        payment_expires_at=datetime.utcnow() + timedelta(days=7),
-    )
+        payment_expires_at=datetime.utcnow() + timedelta(hours=2)),
+    
 
     session.add(order)
     session.commit()
@@ -217,25 +218,27 @@ def verify_guest_payment(
     payload: GuestPaymentVerifySchema,
     session: Session = Depends(get_session)
 ):
-    # 1️⃣ Fetch order safely
+    #  Fetch order safely
     order = session.get(Order, payload.order_id)
 
     if not order or order.placed_by != "guest":
         raise HTTPException(status_code=404, detail="Order not found")
     
-    if order.payment_expires_at and datetime.utcnow() > order.payment_expires_at:
+    if order.payment_expires_at and datetime.utcnow() + GUEST_PAYMENT_EXPIRY:
          raise HTTPException(400, "Payment expired. Please create a new order.")
 
-    # 2️⃣ 🔒 Idempotency guard (VERY IMPORTANT)
+    #  Idempotency guard (VERY IMPORTANT)
     if order.status == "paid":
         return {
             "message": "Payment already processed",
             "order_id": order.id,
         }
-    
+    if order.status in ["expired", "cancelled"]:
+      raise HTTPException(400, "Order is no longer valid")
 
 
-    # 3️⃣ Verify Razorpay signature
+
+    #  Verify Razorpay signature
     try:
         razorpay_client.utility.verify_payment_signature({
             "razorpay_order_id": payload.razorpay_order_id,
@@ -245,7 +248,7 @@ def verify_guest_payment(
     except razorpay.errors.SignatureVerificationError:
         raise HTTPException(status_code=400, detail="Payment verification failed")
 
-    # 4️⃣ Finalize payment (idempotent)
+    #  Finalize payment (idempotent)
     payment = finalize_payment(
         session=session,
         order=order,
@@ -258,7 +261,7 @@ def verify_guest_payment(
         gateway_signature=payload.razorpay_signature,
     )
 
-    # 5️⃣ Guest confirmation email
+    #  Guest confirmation email
     dispatch_order_event(
     user=None,
     event=OrderEvent.PAYMENT_SUCCESS,
