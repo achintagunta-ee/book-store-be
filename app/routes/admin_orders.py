@@ -56,7 +56,7 @@ def list_orders(
     limit: int = 10,
     status: str | None = None,
     search: str | None = None,
-    type: str | None = Query(None, pattern="^(user|guest|all)$"),
+    type: str | None = Query(None, pattern="^(user|guest|admin|all)$"),
     admin: User = Depends(get_current_admin),
 ):
     return _cached_orders(page, limit, status, search, type, _ttl_bucket())
@@ -75,6 +75,9 @@ def _cached_orders(page, limit, status, search, type,bucket):
 
         elif type == "user":
             query = query.where(Order.user_id != None)
+
+        elif type == "admin":
+            query = query.where(Order.placed_by == "admin")
 
         if status:
             query = query.where(Order.status == status)
@@ -104,7 +107,7 @@ def _cached_orders(page, limit, status, search, type,bucket):
                 placed_by = "guest"
             formatted.append({
                 "order_id": order.id,
-                "order_type": placed_by,
+                "order_type": order.placed_by,
                 "customer_name": username,
                 "email": email,
                 "date": order.created_at,
