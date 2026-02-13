@@ -401,8 +401,8 @@ def update_book(
     return book
 
 
-@router.delete("/{book_id}")
-def delete_book(
+@router.patch("/{book_id}/archive")
+def archive_book(
     book_id: int,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
@@ -413,19 +413,41 @@ def delete_book(
     book = session.get(Book, book_id)
     if not book:
         raise HTTPException(404, "Book not found")
-    
-    if book.cover_image:
-        delete_r2_file(book.cover_image)
 
-    book.is_deleted = True
+    # ❌ Do NOT delete files
+    # Archived books may be restored later
+    book.is_archived = True
+
     session.add(book)
     session.commit()
+
     clear_books_cache()
     clear_admin_books_cache()
-    clear_admin_cache()
     clear_inventory_cache()
 
     return {"message": "Book archived"}
+
+@router.patch("/{book_id}/restore")
+def restore_book(
+    book_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != "admin":
+        raise HTTPException(403, "Admin access required")
+
+    book = session.get(Book, book_id)
+    if not book:
+        raise HTTPException(404, "Book not found")
+
+    book.is_archived = False
+    session.add(book)
+    session.commit()
+
+    clear_books_cache()
+    clear_admin_books_cache()
+
+    return {"message": "Book restored"}
 
 @router.post("/{book_id}/upload-ebook")
 def upload_ebook_pdf(

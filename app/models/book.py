@@ -76,5 +76,6 @@ class Book(SQLModel, table=True):
     def in_stock(self) -> bool:
         return self.stock is not None and self.stock > 0
     is_deleted: bool = Field(default=False, index=True)
+    is_archived: bool = Field(default=False, index=True)
 
 

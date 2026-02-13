@@ -56,11 +56,11 @@ def _cached_inventory_summary(bucket: int):
         }
 
 
-@router.get("/inventory/summary")
+@router.get("/summary")
 def inventory_summary(admin: User = Depends(get_current_admin)):
     return _cached_inventory_summary(_ttl_bucket())
 
-@router.get("/inventory")
+@router.get("")
 def inventory_list(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
@@ -135,7 +135,7 @@ def inventory_list(
     }
 
 
-@router.patch("/inventory/{book_id}")
+@router.patch("/{book_id}")
 def update_book_inventory(
     book_id: int,
     stock: int,

@@ -154,7 +154,7 @@ def filter_books(
     query = (
     select(Book, Category)
     .outerjoin(Category, Book.category_id == Category.id)
-    .where(Book.is_deleted == False)
+    .where( Book.is_archived == False,Book.is_deleted == False)
 )
 
 
