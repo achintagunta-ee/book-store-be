@@ -27,4 +27,5 @@ dependencies = [
     "razorpay>=2.0.0",
     "slowapi>=0.1.9",
     "rapidfuzz>=3.14.3",
+    "openpyxl>=3.1.5",
 ]

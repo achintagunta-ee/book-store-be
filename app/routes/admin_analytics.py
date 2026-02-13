@@ -7,9 +7,9 @@ from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.user import User
 from fastapi.responses import StreamingResponse
-import csv
 import io
 from datetime import datetime
+from openpyxl import Workbook
 
 
 
@@ -100,136 +100,122 @@ def category_sales(session: Session = Depends(get_session)):
     return [{"category": c, "sold": s} for c, s in data]
 
 @router.get("/export")
-def export_analytics_report(session: Session = Depends(get_session)):
+def export_excel_report(session: Session = Depends(get_session)):
 
-    def generate():
-        buffer = io.StringIO()
-        writer = csv.writer(buffer)
+    wb = Workbook()
 
-        # ------------------------
-        # Overview section
-        # ------------------------
-        total_revenue = session.exec(
-            select(func.sum(Order.total)).where(Order.status == "paid")
-        ).one() or 0
+    # =========================
+    # SHEET 1 — OVERVIEW
+    # =========================
+    ws = wb.active
+    ws.title = "Overview"
 
-        total_orders = session.exec(
-            select(func.count(Order.id)).where(Order.status == "paid")
-        ).one() or 0
+    total_revenue = session.exec(
+        select(func.sum(Order.total)).where(Order.status == "paid")
+    ).one() or 0
 
-        avg_order = total_revenue / total_orders if total_orders else 0
+    total_orders = session.exec(
+        select(func.count(Order.id)).where(Order.status == "paid")
+    ).one() or 0
 
-        writer.writerow(["=== OVERVIEW ==="])
-        writer.writerow(["Total Revenue", total_revenue])
-        writer.writerow(["Total Orders", total_orders])
-        writer.writerow(["Average Order Value", avg_order])
-        writer.writerow([])
+    avg_order = total_revenue / total_orders if total_orders else 0
 
-        yield buffer.getvalue()
-        buffer.seek(0)
-        buffer.truncate(0)
+    ws.append(["Metric", "Value"])
+    ws.append(["Total Revenue", total_revenue])
+    ws.append(["Total Orders", total_orders])
+    ws.append(["Average Order Value", avg_order])
 
-        # ------------------------
-        # Revenue chart
-        # ------------------------
-        writer.writerow(["=== REVENUE BY DAY ==="])
-        writer.writerow(["Date", "Revenue"])
+    # =========================
+    # SHEET 2 — REVENUE
+    # =========================
+    ws = wb.create_sheet("Revenue by Day")
+    ws.append(["Date", "Revenue"])
 
-        data = session.exec(
-            select(
-                func.date(Order.created_at),
-                func.sum(Order.total)
-            )
-            .where(Order.status == "paid")
-            .group_by(func.date(Order.created_at))
-            .order_by(func.date(Order.created_at))
-        ).all()
+    revenue_data = session.exec(
+        select(
+            func.date(Order.created_at),
+            func.sum(Order.total)
+        )
+        .where(Order.status == "paid")
+        .group_by(func.date(Order.created_at))
+        .order_by(func.date(Order.created_at))
+    ).all()
 
-        for d, total in data:
-            writer.writerow([d, total])
+    for d, total in revenue_data:
+        ws.append([str(d), total])
 
-        writer.writerow([])
-        yield buffer.getvalue()
-        buffer.seek(0)
-        buffer.truncate(0)
+    # =========================
+    # SHEET 3 — TOP BOOKS
+    # =========================
+    ws = wb.create_sheet("Top Books")
+    ws.append(["Title", "Units Sold"])
 
-        # ------------------------
-        # Top books
-        # ------------------------
-        writer.writerow(["=== TOP BOOKS ==="])
-        writer.writerow(["Title", "Units Sold"])
+    books = session.exec(
+        select(
+            OrderItem.book_title,
+            func.sum(OrderItem.quantity)
+        )
+        .group_by(OrderItem.book_title)
+        .order_by(func.sum(OrderItem.quantity).desc())
+        .limit(5)
+    ).all()
 
-        books = session.exec(
-            select(
-                OrderItem.book_title,
-                func.sum(OrderItem.quantity)
-            )
-            .group_by(OrderItem.book_title)
-            .order_by(func.sum(OrderItem.quantity).desc())
-            .limit(5)
-        ).all()
+    for title, sold in books:
+        ws.append([title, sold])
 
-        for title, sold in books:
-            writer.writerow([title, sold])
+    # =========================
+    # SHEET 4 — TOP CUSTOMERS
+    # =========================
+    ws = wb.create_sheet("Top Customers")
+    ws.append(["Email", "Orders", "Total Spent"])
 
-        writer.writerow([])
-        yield buffer.getvalue()
-        buffer.seek(0)
-        buffer.truncate(0)
+    customers = session.exec(
+        select(
+            User.email,
+            func.count(Order.id),
+            func.sum(Order.total)
+        )
+        .join(Order, Order.user_id == User.id)
+        .where(Order.status == "paid")
+        .group_by(User.email)
+        .order_by(func.sum(Order.total).desc())
+        .limit(5)
+    ).all()
 
-        # ------------------------
-        # Top customers
-        # ------------------------
-        writer.writerow(["=== TOP CUSTOMERS ==="])
-        writer.writerow(["Email", "Orders", "Total Spent"])
+    for email, orders, spent in customers:
+        ws.append([email, orders, spent])
 
-        customers = session.exec(
-            select(
-                User.email,
-                func.count(Order.id),
-                func.sum(Order.total)
-            )
-            .join(Order, Order.user_id == User.id)
-            .where(Order.status == "paid")
-            .group_by(User.email)
-            .order_by(func.sum(Order.total).desc())
-            .limit(5)
-        ).all()
+    # =========================
+    # SHEET 5 — CATEGORY SALES
+    # =========================
+    ws = wb.create_sheet("Category Sales")
+    ws.append(["Category", "Units Sold"])
 
-        for email, orders, spent in customers:
-            writer.writerow([email, orders, spent])
+    categories = session.exec(
+        select(
+            Category.name,
+            func.sum(OrderItem.quantity)
+        )
+        .join(Book, Book.category_id == Category.id)
+        .join(OrderItem, OrderItem.book_id == Book.id)
+        .group_by(Category.name)
+    ).all()
 
-        writer.writerow([])
-        yield buffer.getvalue()
-        buffer.seek(0)
-        buffer.truncate(0)
+    for category, sold in categories:
+        ws.append([category, sold])
 
-        # ------------------------
-        # Category sales
-        # ------------------------
-        writer.writerow(["=== CATEGORY SALES ==="])
-        writer.writerow(["Category", "Units Sold"])
+    # =========================
+    # SAVE TO MEMORY
+    # =========================
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
 
-        categories = session.exec(
-            select(
-                Category.name,
-                func.sum(OrderItem.quantity)
-            )
-            .join(Book, Book.category_id == Category.id)
-            .join(OrderItem, OrderItem.book_id == Book.id)
-            .group_by(Category.name)
-        ).all()
-
-        for category, sold in categories:
-            writer.writerow([category, sold])
-
-        yield buffer.getvalue()
-
-    filename = f"analytics_report_{datetime.utcnow().date()}.csv"
+    filename = f"analytics_report_{datetime.utcnow().date()}.xlsx"
 
     return StreamingResponse(
-        generate(),
-        media_type="text/csv",
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"'
         },
