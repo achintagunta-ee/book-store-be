@@ -10,6 +10,9 @@ from fastapi.responses import StreamingResponse
 import io
 from datetime import datetime
 from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from openpyxl.chart import BarChart, Reference
+
 
 
 
@@ -99,16 +102,38 @@ def category_sales(session: Session = Depends(get_session)):
 
     return [{"category": c, "sold": s} for c, s in data]
 
+
+
 @router.get("/export")
-def export_excel_report(session: Session = Depends(get_session)):
+def export_excel(session: Session = Depends(get_session)):
 
     wb = Workbook()
+    thin = Border(
+        left=Side(style="thin"),
+        right=Side(style="thin"),
+        top=Side(style="thin"),
+        bottom=Side(style="thin"),
+    )
+
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="4F81BD")
+    center = Alignment(horizontal="center")
+
+    currency = "₹#,##0.00"
 
     # =========================
-    # SHEET 1 — OVERVIEW
+    # Sheet 1 — Overview
     # =========================
     ws = wb.active
     ws.title = "Overview"
+
+    ws.append(["Metric", "Value"])
+
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.border = thin
+        cell.alignment = center
 
     total_revenue = session.exec(
         select(func.sum(Order.total)).where(Order.status == "paid")
@@ -118,63 +143,100 @@ def export_excel_report(session: Session = Depends(get_session)):
         select(func.count(Order.id)).where(Order.status == "paid")
     ).one() or 0
 
-    avg_order = total_revenue / total_orders if total_orders else 0
+    avg = total_revenue / total_orders if total_orders else 0
 
-    ws.append(["Metric", "Value"])
-    ws.append(["Total Revenue", total_revenue])
-    ws.append(["Total Orders", total_orders])
-    ws.append(["Average Order Value", avg_order])
+    rows = [
+        ["Total Revenue", total_revenue],
+        ["Total Orders", total_orders],
+        ["Average Order Value", avg],
+    ]
+
+    for r in rows:
+        ws.append(r)
+
+    for row in ws.iter_rows(min_row=2):
+        row[1].number_format = currency
+        for cell in row:
+            cell.border = thin
+            cell.alignment = center
 
     # =========================
-    # SHEET 2 — REVENUE
+    # Sheet 2 — Revenue by Day
     # =========================
-    ws = wb.create_sheet("Revenue by Day")
-    ws.append(["Date", "Revenue"])
+    ws2 = wb.create_sheet("Revenue")
 
-    revenue_data = session.exec(
-        select(
-            func.date(Order.created_at),
-            func.sum(Order.total)
-        )
+    ws2.append(["Date", "Revenue"])
+
+    for cell in ws2[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.border = thin
+        cell.alignment = center
+
+    data = session.exec(
+        select(func.date(Order.created_at), func.sum(Order.total))
         .where(Order.status == "paid")
         .group_by(func.date(Order.created_at))
         .order_by(func.date(Order.created_at))
     ).all()
 
-    for d, total in revenue_data:
-        ws.append([str(d), total])
+    for d, total in data:
+        ws2.append([d, total])
+
+    for row in ws2.iter_rows(min_row=2):
+        row[1].number_format = currency
+        for cell in row:
+            cell.border = thin
+            cell.alignment = center
+
+    # Chart
+    chart = BarChart()
+    chart.title = "Revenue Trend"
+
+    data_ref = Reference(ws2, min_col=2, min_row=1, max_row=len(data)+1)
+    cats = Reference(ws2, min_col=1, min_row=2, max_row=len(data)+1)
+
+    chart.add_data(data_ref, titles_from_data=True)
+    chart.set_categories(cats)
+
+    ws2.add_chart(chart, "D3")
 
     # =========================
-    # SHEET 3 — TOP BOOKS
+    # Sheet 3 — Top Books
     # =========================
-    ws = wb.create_sheet("Top Books")
-    ws.append(["Title", "Units Sold"])
+    ws3 = wb.create_sheet("Top Books")
+    ws3.append(["Title", "Units Sold"])
+
+    for cell in ws3[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.border = thin
+        cell.alignment = center
 
     books = session.exec(
-        select(
-            OrderItem.book_title,
-            func.sum(OrderItem.quantity)
-        )
+        select(OrderItem.book_title, func.sum(OrderItem.quantity))
         .group_by(OrderItem.book_title)
         .order_by(func.sum(OrderItem.quantity).desc())
         .limit(5)
     ).all()
 
     for title, sold in books:
-        ws.append([title, sold])
+        ws3.append([title, sold])
 
     # =========================
-    # SHEET 4 — TOP CUSTOMERS
+    # Sheet 4 — Top Customers
     # =========================
-    ws = wb.create_sheet("Top Customers")
-    ws.append(["Email", "Orders", "Total Spent"])
+    ws4 = wb.create_sheet("Top Customers")
+    ws4.append(["Email", "Orders", "Total Spent"])
+
+    for cell in ws4[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.border = thin
+        cell.alignment = center
 
     customers = session.exec(
-        select(
-            User.email,
-            func.count(Order.id),
-            func.sum(Order.total)
-        )
+        select(User.email, func.count(Order.id), func.sum(Order.total))
         .join(Order, Order.user_id == User.id)
         .where(Order.status == "paid")
         .group_by(User.email)
@@ -183,40 +245,41 @@ def export_excel_report(session: Session = Depends(get_session)):
     ).all()
 
     for email, orders, spent in customers:
-        ws.append([email, orders, spent])
+        ws4.append([email, orders, spent])
 
     # =========================
-    # SHEET 5 — CATEGORY SALES
+    # Sheet 5 — Category Sales
     # =========================
-    ws = wb.create_sheet("Category Sales")
-    ws.append(["Category", "Units Sold"])
+    ws5 = wb.create_sheet("Category Sales")
+    ws5.append(["Category", "Units Sold"])
+
+    for cell in ws5[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.border = thin
+        cell.alignment = center
 
     categories = session.exec(
-        select(
-            Category.name,
-            func.sum(OrderItem.quantity)
-        )
+        select(Category.name, func.sum(OrderItem.quantity))
         .join(Book, Book.category_id == Category.id)
         .join(OrderItem, OrderItem.book_id == Book.id)
         .group_by(Category.name)
     ).all()
 
-    for category, sold in categories:
-        ws.append([category, sold])
+    for name, sold in categories:
+        ws5.append([name, sold])
 
     # =========================
-    # SAVE TO MEMORY
+    # Save file
     # =========================
     buffer = io.BytesIO()
     wb.save(buffer)
     buffer.seek(0)
 
-    filename = f"analytics_report_{datetime.utcnow().date()}.xlsx"
+    filename = f"analytics_{datetime.utcnow().date()}.xlsx"
 
     return StreamingResponse(
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"'
-        },
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
