@@ -200,6 +200,7 @@ def filter_books(
             {
                 "id": b.id,
                 "title": b.title,
+                "slug":b.slug,
                 "author": b.author,
                 "price": b.price,
                  "category": {
@@ -215,7 +216,6 @@ def filter_books(
             for (b,c) in data["results"]
         ]
     }
-
 
 @lru_cache(maxsize=128)
 def _cached_featured_books(bucket: int):
