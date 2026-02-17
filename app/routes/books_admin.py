@@ -286,6 +286,8 @@ def filter_books_admin(
                 "is_archived": b.is_archived,
                 "is_ebook": b.is_ebook,
                 "updated_at": b.updated_at,
+                "cover_image": b.cover_image,
+                "cover_image_url": to_presigned_url(b.cover_image) if b.cover_image else None,
             }
             for b in data["results"]
         ]
