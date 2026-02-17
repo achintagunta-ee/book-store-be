@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 from app.database import get_session
 from app.models.ebook_purchase import EbookPurchase
@@ -22,16 +22,13 @@ def _ttl_bucket() -> int:
 
 @lru_cache(maxsize=512)
 def _cached_my_ebooks(user_id: int, bucket: int):
-    from app.database import get_session
-    from app.models.ebook_purchase import EbookPurchase
-    from app.models.book import Book
-    from sqlmodel import select
 
     with next(get_session()) as session:
         purchases = session.exec(
             select(EbookPurchase)
             .where(EbookPurchase.user_id == user_id)
             .where(EbookPurchase.status == "paid")
+            .order_by(EbookPurchase.created_at.desc())
         ).all()
 
         result = []
@@ -48,21 +45,30 @@ def _cached_my_ebooks(user_id: int, bucket: int):
             })
 
         return result
-
-
+    
 @router.get("")
 def my_library(
-    current_user: User = Depends(get_current_user)
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=50),
+    current_user: User = Depends(get_current_user),
 ):
-    return _cached_my_ebooks(current_user.id, _ttl_bucket())
-
-def my_ebook_library(current_user: User = Depends(get_current_user)):
     data = _cached_my_ebooks(current_user.id, _ttl_bucket())
 
-    for item in data:
-        item["cover_image_url"] = to_presigned_url(item["cover_image_key"])
+    total_items = len(data)
+    total_pages = (total_items + limit - 1) // limit
 
-    return data
+    start = (page - 1) * limit
+    end = start + limit
+
+    paginated = data[start:end]
+
+    return {
+        "total_items": total_items,
+        "total_pages": total_pages,
+        "current_page": page,
+        "results": paginated
+    }
+
 
 
 
