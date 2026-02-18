@@ -1,17 +1,17 @@
 from sqlmodel import Session
-from app.models import user
 from app.models.notifications import (
     Notification,
     RecipientRole,
     NotificationChannel,
     NotificationStatus,
 )
+from app.models.user import User
 
 def create_notification(
     *,
     session: Session,
     recipient_role: RecipientRole,
-    user_id: int | None,
+    user: User | None,
     trigger_source: str,
     related_id: int,
     title: str,
@@ -20,11 +20,11 @@ def create_notification(
 ):
     notification = Notification(
         recipient_role=recipient_role,
-        user_id=user_id,
-        user_first_name=user.first_name,
-        user_last_name=user.last_name,
-        user_email=user.email,
-        user_username=user.username,
+        user_id=user.id if user else None,
+        user_first_name=user.first_name if user else None,
+        user_last_name=user.last_name if user else None,
+        user_email=user.email if user else None,
+        user_username=user.username if user else None,
         trigger_source=trigger_source,
         related_id=related_id,
         title=title,

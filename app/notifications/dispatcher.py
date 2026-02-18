@@ -68,7 +68,7 @@ def dispatch_order_event(
         create_notification(
             session=session,
             recipient_role=RecipientRole.admin,
-            user_id=None,
+             user=user,
             trigger_source=event.value,
             related_id=getattr(order, "id", None),
             title=extra.get("admin_title", "Order Update"),
