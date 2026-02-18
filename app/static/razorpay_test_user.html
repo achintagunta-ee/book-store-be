@@ -35,12 +35,12 @@
 <pre id="output">Click "Pay Now" to start checkout</pre>
 
 <script>
-const API_BASE = "http://localhost:8000/checkout";
+const API_BASE = "https://hbn-be.efficientemengineering.com/checkout";
 
 /**
  * Replace with your actual USER JWT token
  */
-const USER_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NzMwNDg3MzR9.WhlKNfjfOnZsi2-KEEhqQBhrdGAjYo3YIOhZZgLMU_4";
+const USER_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NzE0MTQ1ODF9.cvd4RmMWPTKM_ZL3h9EV_xmORdPc1vHwFZmWrPQ26VQ";
 
 async function startCheckout() {
     const output = document.getElementById("output");
