@@ -361,6 +361,8 @@ def list_customer_notifications(
         {
             "notification_id": n.id,
             "title": n.title,
+            "username" :n.username,
+            "email": n.email,
             "content": n.content,
             "status": n.status,
             "created_at": n.created_at,

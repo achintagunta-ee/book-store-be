@@ -106,6 +106,8 @@ def _cached_admin_notifications(page, limit, trigger_source, status, category, b
 
             data = {
             "notification_id": n.id,
+            "customer": f"{n.user_first_name} {n.user_last_name}",
+            "email": n.user_email,
             "title": n.title,
             "content": n.content,
             "trigger_source": n.trigger_source,
