@@ -407,7 +407,7 @@ def update_order_status(
             notify_admin=True,
             extra={
                 "popup_message": "Payment Successful",
-                "admin_title": "Payment Marked Paid",
+                "admin_title": "Payment Successful",
                 "admin_content": f"Order #{order.id} marked paid by admin",
 
                 "user_template": "user_emails/user_payment_success.html",
