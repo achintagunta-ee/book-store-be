@@ -968,6 +968,7 @@ def list_my_payments(
         "filters": {
             "search": search,
             "status": status,
+            "customer_name": f"{current_user.first_name} {current_user.last_name}",
             "method": method,
             "payment_type": payment_type,
             "min_amount": min_amount,
