@@ -175,6 +175,7 @@ def get_order_history(
 
         results.append({
             "order_id": f"#{o.id}",
+            "customer_name": f"{current_user.first_name} {current_user.last_name}",
             "raw_id": o.id,
             "date": o.created_at.strftime("%B %d, %Y"),
             "total": o.total,
