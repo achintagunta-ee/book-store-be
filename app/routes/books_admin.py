@@ -27,7 +27,7 @@ router = APIRouter()
 
 BOOK_COVER_DIR = os.path.join(tempfile.gettempdir(), "hithabodha_uploads", "book_covers")
 os.makedirs(BOOK_COVER_DIR, exist_ok=True)
-CACHE_TTL = 60 * 60  # 60 minutes
+CACHE_TTL = 60   # 60 minutes
 
 def _ttl_bucket() -> int:
     """

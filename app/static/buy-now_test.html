@@ -38,13 +38,14 @@
 /**
  * ✅ LOCAL API BASE
  */
-const API_BASE = "https://hbn-be.efficientemengineering.com/book";
+/* const API_BASE = "https://hbn-be.efficientemengineering.com/book"; */
 
+const API_BASE = "http://localhost:8000/book";
 /**
  * 🔐 LOCAL USER JWT TOKEN
  * Generate this from localhost login
  */
-const USER_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NzE0MTY2NjB9.g-NM5oo1sDNsQNpegYR0yiwCAJFCXg3qgdmHpyLwKxY";
+const USER_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3Nzc2MzM4MzB9.o7ZzQD73F-nGzkkrQw0pjYy_tHfr9kaXyE_-w0XA6yc";
 
 async function startBuyNow() {
     const output = document.getElementById("output");

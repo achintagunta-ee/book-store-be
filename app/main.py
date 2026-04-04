@@ -116,6 +116,7 @@ app.add_middleware(
         "http://localhost:5173",
         "http://localhost:3000",
         "http://127.0.0.1:5173",
+        "http://127.0.0.1:5500",
         "http://127.0.0.1:8000",
         "http://localhost:8000",
         "https://hbn-be.efficientemengineering.com",
@@ -163,11 +164,9 @@ os.makedirs(BOOK_COVER_DIR, exist_ok=True)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
-app.mount(
-    "/static",
-    StaticFiles(directory=os.path.join(BASE_DIR, "static")),
-    name="static"
-)
+app.mount("/static",StaticFiles(directory=os.path.join(BASE_DIR, "static")),name="static")
+
+
 @app.get("/")
 def root():
     return {

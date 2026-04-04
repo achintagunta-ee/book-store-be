@@ -27,7 +27,7 @@ from app.utils.token import get_current_admin
 load_dotenv()
 
 router = APIRouter()
-CACHE_TTL = 60 * 60  # 60 minutes
+CACHE_TTL = 60   # 60 minutes
 
 def _ttl_bucket() -> int:
     """
