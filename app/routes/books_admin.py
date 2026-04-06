@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, HTTPExcep
 from sqlmodel import Session, select
 from app.database import get_session
 from app.models import book
+from app.models import category
 from app.models.book import Book
 from app.models.book_image import BookImage
 from app.models.category import Category
@@ -97,6 +98,7 @@ def create_book(
         tags=tags,
         category_id=category_id
     )
+    
 
     session.add(book)
     session.commit()
@@ -113,6 +115,7 @@ def create_book(
     clear_admin_books_cache()
     clear_admin_cache()
     clear_inventory_cache()
+        
 
 
     return {
@@ -145,6 +148,7 @@ def create_book(
         for img in book.images
     ]
 }
+
 
 @router.get("/list")
 def admin_book_list(
@@ -292,9 +296,49 @@ def get_book_admin(
         raise HTTPException(403, "Admin access required")
 
     book = _cached_admin_book(book_id, _ttl_bucket())
+    print("BOOK DATA 👉", book)
     if not book:
         raise HTTPException(404, "Book not found")
-    return book
+    category = book.category 
+    return {
+    "id": book.id,
+    "title": book.title,
+    "slug": book.slug,
+    "cover_image": book.cover_image,
+    "cover_image_url": to_presigned_url(book.cover_image) if book.cover_image else None,
+
+    "offer_price": book.offer_price,
+    "discount_price": book.discount_price,
+    "excerpt": book.excerpt,
+    "isbn": book.isbn,
+
+    "category_id": book.category_id,
+    "category": {
+        "id": category.id,
+        "name": category.name,
+        "description": category.description
+    } if category else None,
+
+    "author": book.author,
+    "language": book.language,
+    "description": book.description,
+    "publisher": book.publisher,
+    "rating": book.rating,
+
+    "is_featured": book.is_featured,
+    "is_featured_author": book.is_featured_author,
+    "published_date": book.published_date,
+    "tags": book.tags,
+
+    "images": [
+        {
+            "id": img.id,
+            "url": to_presigned_url(img.image_url)
+        }
+        for img in book.images
+    ]
+}
+
 
 
 
