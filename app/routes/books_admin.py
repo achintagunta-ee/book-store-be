@@ -60,8 +60,7 @@ def create_book(
     is_featured_author: bool = Form(False),
     tags: str = Form(None),
     category_id: int = Form(...),
-    images: list[UploadFile] = File([]), #Multiple images support
-
+    cover_image: UploadFile = File(None),
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
@@ -103,26 +102,12 @@ def create_book(
     session.commit()
     session.refresh(book)
      # ✅ Upload gallery images to R2
-    uploaded_images = []
-
-    for i, img in enumerate(images):
-        key = upload_book_cover(img, title)
-
-        image = BookImage(
-            book_id=book.id,
-            image_url=key,
-            sort_order=i
-        )
-
-        session.add(image)
-        uploaded_images.append(key)
-
-    session.commit()
-    # First image becomes thumbnail
-    book.cover_image = uploaded_images[0] if uploaded_images else None
-    session.add(book)
-    session.commit()
-    session.refresh(book)
+    if cover_image:
+        key = upload_book_cover(cover_image, title)
+        book.cover_image = key
+        session.add(book)
+        session.commit()
+        session.refresh(book)
 
     clear_books_cache()
     clear_admin_books_cache()
