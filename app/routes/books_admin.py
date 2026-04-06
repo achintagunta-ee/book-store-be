@@ -290,13 +290,13 @@ def filter_books_admin(
 @router.get("/{book_id}")
 def get_book_admin(
     book_id: int,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
 ):
     if current_user.role != "admin":
         raise HTTPException(403, "Admin access required")
 
-    book = _cached_admin_book(book_id, _ttl_bucket())
-    print("BOOK DATA 👉", book)
+    book = session.get(Book, book_id)
     if not book:
         raise HTTPException(404, "Book not found")
     category = book.category 
