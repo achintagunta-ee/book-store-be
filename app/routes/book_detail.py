@@ -144,7 +144,8 @@ def _cached_book_detail(book_id: int, bucket: int):
                     "slug": b.slug,
                     "price": b.price,
                     "cover_image": b.cover_image,
-                    "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None
+                    "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None,
+                    "author": b.author
                 }
                 for b in related_books
             ],
