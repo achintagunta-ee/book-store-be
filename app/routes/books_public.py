@@ -211,7 +211,8 @@ def filter_books(
                 "offer_price": b.offer_price,
                 "rating": b.rating,
                 "cover_image": b.cover_image,
-                "cover_image_url": to_presigned_url(b.cover_image)if b.cover_image else None
+                "cover_image_url": to_presigned_url(b.cover_image)if b.cover_image else None,
+                "language": b.language,
             }
             for (b,c) in data["results"]
         ]
@@ -453,6 +454,7 @@ def dynamic_search_books(
                 "cover_image": b.cover_image,
                 "cover_image_url": to_presigned_url(b.cover_image)if b.cover_image else None,
                 "price": b.price,
+                "language": b.language,
             }
             for b in data["results"]
         ]
@@ -505,6 +507,7 @@ def list_books_paginated(
                 "category_id": b.category_id,
                 "is_ebook": b.is_ebook,
                 "updated_at": b.updated_at,
+                "language": b.language,
             }
             for b in data["results"]
         ]

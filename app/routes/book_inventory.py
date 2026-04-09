@@ -114,6 +114,7 @@ def inventory_list(
             "price": b.price,
             "status": status,
             "updated_at": b.updated_at,
+            "language": b.language,
 
             # Admin UI actions
             "actions": {
@@ -184,5 +185,6 @@ def update_book_inventory(
             "current_stock": book.stock,
             "status": stock_status,
             "updated_at": book.updated_at,
+            "language": book.language,
         }
     }

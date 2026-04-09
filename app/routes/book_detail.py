@@ -123,6 +123,7 @@ def _cached_book_detail(book_id: int, bucket: int):
                 "cover_image": book.cover_image,
                 "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None,
                 "description": book.description,
+                "language": book.language,
                 "author": book.author,
                 "images": [
                     {
@@ -147,7 +148,8 @@ def _cached_book_detail(book_id: int, bucket: int):
                     "price": b.price,
                     "cover_image": b.cover_image,
                     "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None,
-                    "author": b.author
+                    "author": b.author,
+                    "language": b.language,
                 }
                 for b in related_books
             ],
