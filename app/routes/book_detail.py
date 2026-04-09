@@ -122,6 +122,8 @@ def _cached_book_detail(book_id: int, bucket: int):
                 "price": book.price,
                 "cover_image": book.cover_image,
                 "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None,
+                "description": book.description,
+                "author": book.author,
                 "images": [
                     {
                         "id": img.id,
