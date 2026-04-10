@@ -48,7 +48,7 @@ def create_book(
     excerpt: str = Form(None),
     author: str = Form(...),
     description: str = Form(...),
-    language: str = Form(None),
+    language: str = Form(...),
     rating: float = Form(None),
     price: float = Form(...),
     discount_price: float = Form(None),
@@ -74,10 +74,8 @@ def create_book(
 
     if not slug or slug.strip() == "":
         slug = slugify(title)
-
+    language = language if language and language.strip() else None
 # Upload image to R2
-
-    
     book = Book(
         title=title,
         slug=slug,
@@ -165,7 +163,29 @@ def admin_book_list(
 
     query = query.order_by(Book.updated_at.desc())
 
-    return paginate(session=session, query=query, page=page, limit=limit)
+    data = paginate(session=session, query=query, page=page, limit=limit)
+
+    return {
+    "total_books": data["total_items"],
+    "results": [
+        {
+            "id": b.id,
+            "title": b.title,
+            "author": b.author,
+            "price": b.price,
+            "discount_price": b.discount_price,
+            "offer_price": b.offer_price,
+            "description": b.description,
+            "language": b.language,   # ✅ ADD THIS
+            "category": {
+                "id": b.category.id,
+                "name": b.category.name
+            } if b.category else None,
+            "cover_image_url": to_presigned_url(b.cover_image) if b.cover_image else None
+        }
+        for b in data["results"]
+    ]
+}
 
 
 @lru_cache(maxsize=256)
