@@ -99,6 +99,7 @@ def get_cart(
             "slug": book.slug,
             "cover_image":book.cover_image,
             "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None,
+            "author": book.author,
             "price": book.price,
             "discount_price": book.discount_price,
             "offer_price": book.offer_price,
@@ -222,6 +223,7 @@ def get_my_cart(
             "price": item.price,
             "cover_image":book.cover_image,
             "cover_image_url": to_presigned_url(book.cover_image)if book.cover_image else None,
+            "author": book.author,
             "quantity": item.quantity,
             "total": line_total
         })
