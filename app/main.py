@@ -9,6 +9,7 @@ from app.routes import (
     admin_notifications,
     admin_orders,
     admin_payments,
+    admin_reviews,
     admin_settings,
     auth,
     books_public,
@@ -143,6 +144,7 @@ app.include_router(wishlist.router, prefix="/wishlist" , tags=["Wishlist"])
 app.include_router(storage.router, prefix="/storage",tags=["Files Storage"])
 app.include_router(admin.router,prefix="/admin",tags= ["Admin Endpoints"])
 app.include_router(admin_payments.router,prefix="/admin/payments",tags= ["Admin Payments"])
+app.include_router(admin_reviews.router,prefix="/admin/reviews",tags= ["Admin Reviews"])
 app.include_router(admin_orders.router,prefix="/admin/orders",tags= ["Admin Orders"])
 app.include_router(admin_notifications.router,prefix="/admin/notifications",tags= ["Admin Notifications"])
 app.include_router(book_inventory.router,prefix="/admin/book/inventory",tags= ["Book Inventory"])
