@@ -294,6 +294,7 @@ def filter_books_admin(
                 "stock": b.stock,
                 "is_archived": b.is_archived,
                 "is_ebook": b.is_ebook,
+                 "language": b.language,
                 "description": b.description,
                 "updated_at": b.updated_at,
                 "cover_image": b.cover_image,
