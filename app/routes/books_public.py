@@ -147,6 +147,7 @@ def filter_books(
     min_price: float | None = None,
     max_price: float | None = None,
     rating: float | None = None,
+    language: str | None = None,
     page: int = Query(1, ge=1),
     limit: int = Query(12, ge=1, le=50),
     session: Session = Depends(get_session)
@@ -156,10 +157,6 @@ def filter_books(
     .outerjoin(Category, Book.category_id == Category.id)
     .where( Book.is_archived == False,Book.is_deleted == False)
 )
-
-
-
-
     # CATEGORY FILTER
     if category_id is not None:
         query = query.where(Book.category_id == category_id)
@@ -178,6 +175,10 @@ def filter_books(
     # RATING FILTER
     if rating is not None and rating > 0:
         query = query.where(Book.rating >= rating)
+
+    # LANGUAGE FILTER
+    if language:
+        query = query.where(Book.language.ilike(f"%{language}%"))
 
 
     # ORDER

@@ -209,6 +209,7 @@ def filter_books_admin(
     is_featured: bool | None = None,
     is_featured_author: bool | None = None,
     is_archived: bool | None = None,
+    language: str | None = None,
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=50),
     session: Session = Depends(get_session),
@@ -263,6 +264,9 @@ def filter_books_admin(
     # Archive filter
     if is_archived is not None:
         query = query.where(Book.is_archived == is_archived)
+    # LANGUAGE FILTER
+    if language:
+        query = query.where(Book.language.ilike(f"%{language}%"))
 
 
     # Sort newest first
