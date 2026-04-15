@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from slugify import slugify
 from sqlmodel import Session, func, select
@@ -142,12 +142,12 @@ def advanced_search_books(
 
 @router.get("/filter")
 def filter_books(
-    category_id: int | None = None,
-    author: str | None = None,
+    category_id: List[int] | None = Query(None),
+    author: List[str] | None = Query(None),
     min_price: float | None = None,
     max_price: float | None = None,
     rating: float | None = None,
-    language: str | None = None,
+    language: List[str] | None = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(12, ge=1, le=50),
     session: Session = Depends(get_session)
@@ -159,11 +159,11 @@ def filter_books(
 )
     # CATEGORY FILTER
     if category_id is not None:
-        query = query.where(Book.category_id == category_id)
+        query = query.where(Book.category_id.in_(category_id))
 
     # AUTHOR FILTER
     if author:
-        query = query.where(Book.author.ilike(f"%{author}%"))
+        query = query.where(Book.author.in_(author))
 
     # PRICE FILTERS
     if min_price is not None:
@@ -178,7 +178,7 @@ def filter_books(
 
     # LANGUAGE FILTER
     if language:
-        query = query.where(Book.language.ilike(f"%{language}%"))
+        query = query.where(Book.language.in_(language))
 
 
     # ORDER
