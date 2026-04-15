@@ -142,12 +142,13 @@ def advanced_search_books(
 
 @router.get("/filter")
 def filter_books(
-    category_id: List[int] | None = Query(None),
-    author: List[str] | None = Query(None),
+    category_id: Optional[List[int]] = Query(None),
+    category: Optional[str] = None,
+    author: Optional[str] = None,
     min_price: float | None = None,
-    max_price: float | None = None,
+    max_price: Optional[float] = None,
     rating: float | None = None,
-    language: List[str] | None = Query(None),
+    language: Optional[str] = None,
     page: int = Query(1, ge=1),
     limit: int = Query(12, ge=1, le=50),
     session: Session = Depends(get_session)
@@ -160,10 +161,22 @@ def filter_books(
     # CATEGORY FILTER
     if category_id is not None:
         query = query.where(Book.category_id.in_(category_id))
+    elif category:
+        category_names = [c.strip() for c in category.split(",")]
+
+        categories = session.exec(
+            select(Category).where(Category.name.in_(category_names))
+    ).all()
+
+        ids = [c.id for c in categories]
+
+        if ids:
+            query = query.where(Book.category_id.in_(ids))
 
     # AUTHOR FILTER
     if author:
-        query = query.where(Book.author.in_(author))
+        author_list = [a.strip() for a in author.split(",")]
+        query = query.where(Book.author.in_(author_list))
 
     # PRICE FILTERS
     if min_price is not None:
@@ -178,11 +191,14 @@ def filter_books(
 
     # LANGUAGE FILTER
     if language:
-        query = query.where(Book.language.in_(language))
+        language_list = [l.strip() for l in language.split(",")]
+        query = query.where(Book.language.in_(language_list))
 
 
     # ORDER
     query = query.order_by(Book.updated_at.desc())
+    offset = (page - 1) * limit
+    query = query.offset(offset).limit(limit)
 
     data = paginate(session=session, query=query, page=page, limit=limit)
 
