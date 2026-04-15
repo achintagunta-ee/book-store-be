@@ -13,7 +13,7 @@ from app.services.r2_helper import to_presigned_url
 from app.utils.pagination import paginate
 from rapidfuzz import fuzz
 router = APIRouter()
-CACHE_TTL = 60 * 60  # 60 minutes
+CACHE_TTL = 60   # 60 minutes
 
 def _ttl_bucket() -> int:
     """
