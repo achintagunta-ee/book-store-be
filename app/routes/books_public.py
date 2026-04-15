@@ -1,5 +1,6 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
+from requests import session
 from slugify import slugify
 from sqlmodel import Session, func, select
 from app.database import get_session
@@ -158,14 +159,17 @@ def filter_books(
     .outerjoin(Category, Book.category_id == Category.id)
     .where( Book.is_archived == False,Book.is_deleted == False)
 )
+    base_query = select(Book) 
     # CATEGORY FILTER
-    if category_id is not None:
-        query = query.where(Book.category_id.in_(category_id))
-    elif category:
-        category_names = [c.strip() for c in category.split(",")]
+    from sqlalchemy import func
+
+    if category:
+        category_names = [c.strip().lower() for c in category.split(",")]
 
         categories = session.exec(
-            select(Category).where(Category.name.in_(category_names))
+        select(Category).where(
+            func.trim(func.lower(Category.name)).in_(category_names)
+        )
     ).all()
 
         ids = [c.id for c in categories]
@@ -200,11 +204,16 @@ def filter_books(
     offset = (page - 1) * limit
     query = query.offset(offset).limit(limit)
 
+    # ✅ total count WITH filters
+    count_query = select(func.count()).select_from(base_query.subquery())
+    total_items = session.exec(count_query).one()
+
     data = paginate(session=session, query=query, page=page, limit=limit)
 
     return {
         "filters": {
             "category_id": category_id,
+            "category": category,
             "author": author,
             "min_price": min_price,
             "max_price": max_price,
