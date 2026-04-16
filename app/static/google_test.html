@@ -2,33 +2,39 @@
 <html>
 <head>
   <title>Google Login Test</title>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
-
 <h2>Test Google Login</h2>
+<button id="loginBtn">Sign in with Google</button>
 
-<div id="g_id_onload"
-     data-client_id="YOUR_GOOGLE_CLIENT_ID"
-     data-callback="onGoogleLogin">
-</div>
-
-<div class="g_id_signin"></div>
-
+<script src="https://accounts.google.com/gsi/client"></script>
 <script>
-function onGoogleLogin(response) {
+document.getElementById('loginBtn').onclick = function() {
+  google.accounts.id.initialize({
+    client_id: "236934080084-7ke334vtnqtdemhn4pqb2ahqgt9r5j3j.apps.googleusercontent.com",
+    callback: handleToken
+  });
+  google.accounts.id.prompt();
+};
+
+function handleToken(response) {
   fetch("http://localhost:8000/auth/google", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token: response.credential })
   })
-  .then(res => res.json())
+  .then(r => r.json())
   .then(data => {
-    console.log("Backend response:", data);
-    alert("Login success. Check console.");
+    console.log(data);
+    if (data.access_token) {
+      localStorage.setItem("access_token", data.access_token);
+      document.body.innerHTML += `<textarea rows="5" cols="80">${data.access_token}</textarea>`;
+      alert("✅ Success! Token saved.");
+    } else {
+      alert("❌ " + JSON.stringify(data));
+    }
   });
 }
 </script>
-
 </body>
 </html>

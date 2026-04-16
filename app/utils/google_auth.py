@@ -10,10 +10,10 @@ def verify_google_token(token: str) -> Optional[Dict[str, str]]:
         id_info = id_token.verify_oauth2_token(
             token,
             requests.Request(),
-            settings.google_client_id
+            settings.GOOGLE_CLIENT_ID
         )
         
-        if id_info['aud'] != settings.google_client_id:
+        if id_info['aud'] != settings.GOOGLE_CLIENT_ID:
             print("Token audience mismatch")
             return None
         

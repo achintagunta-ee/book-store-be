@@ -113,34 +113,66 @@ def login(request: Request,payload: UserLogin, session: Session = Depends(get_se
     token = create_access_token({"user_id": user.id})
     return Token(access_token=token, token_type="bearer")
 
-
+from app.utils.google_auth import verify_google_token
 @router.post("/google", response_model=Token)
-def google_login(request: GoogleTokenRequest, session: Session = Depends(get_session)):
+def google_login(
+    request: GoogleTokenRequest,
+    session: Session = Depends(get_session)
+):
     google_user = verify_google_token(request.token)
     if not google_user:
         raise HTTPException(401, "Invalid Google token")
 
-    user = session.exec(select(User).where(User.email == google_user["email"])).first()
+    # check if user exists
+    user = session.exec(
+        select(User).where(User.email == google_user["email"])
+    ).first()
 
+    # if not, create them
     if not user:
-        names = google_user.get("name", "").split(" ")
-        first_name = names[0]
-        last_name = names[1] if len(names) > 1 else ""
-
+        names = google_user.get("name", "").split(" ", 1)
         user = User(
-            first_name=first_name,
-            last_name=last_name,
+            first_name=names[0],
+            last_name=names[1] if len(names) > 1 else "",
             username=google_user["email"],
             email=google_user["email"],
-            password=None,
+            password=hash_password(secrets.token_urlsafe(16)),  # random password
         )
-
         session.add(user)
         session.commit()
         session.refresh(user)
 
+    # return JWT exactly like normal login
     token = create_access_token({"user_id": user.id})
     return Token(access_token=token, token_type="bearer")
+
+# @router.post("/google", response_model=Token)
+#def google_login(request: GoogleTokenRequest, session: Session = Depends(get_session)):
+   # google_user = verify_google_token(request.token)
+   # if not google_user:
+   #     raise HTTPException(401, "Invalid Google token")
+
+   # user = session.exec(select(User).where(User.email == google_user["email"])).first()
+
+   # if not user:
+      #  names = google_user.get("name", "").split(" ")
+      #  first_name = names[0]
+      #  last_name = names[1] if len(names) > 1 else ""
+
+   #     user = User(
+      #      first_name=first_name,
+       #     last_name=last_name,
+       #     username=google_user["email"],
+        #    email=google_user["email"],
+      #      password=None,
+      #  )
+
+      #  session.add(user)
+      #  session.commit()
+      #  session.refresh(user)
+
+    #token = create_access_token({"user_id": user.id})
+    #return Token(access_token=token, token_type="bearer")
 
 
 @router.post("/forgot-password")
