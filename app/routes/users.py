@@ -120,16 +120,34 @@ def _cached_home(bucket: int):
 
         return {
             "featured_books": [serialize(b) for b in session.exec(
-                select(Book).where(Book.is_featured == True).limit(12)
+                select(Book).where(
+                Book.is_featured == True,
+                Book.is_archived == False,
+                Book.is_deleted == False
+            ).limit(12)
             ).all()],
+
             "featured_authors_books": [serialize(b) for b in session.exec(
-                select(Book).where(Book.is_featured_author == True).limit(12)
+                select(Book).where(
+                Book.is_featured_author == True,
+                Book.is_archived == False,
+                Book.is_deleted == False
+            ).limit(12)
             ).all()],
+
+            
             "new_arrivals": [serialize(b) for b in session.exec(
-                select(Book).order_by(Book.published_date.desc()).limit(12)
+                select(Book).where(
+                Book.is_archived == False,
+                Book.is_deleted == False
+                ).order_by(Book.published_date.desc()).limit(12)
             ).all()],
+
             "popular_books": [serialize(b) for b in session.exec(
-                select(Book).order_by(Book.rating.desc()).limit(12)
+                select(Book).where(
+                    Book.is_archived == False,
+                    Book.is_deleted == False
+                ).order_by(Book.rating.desc()).limit(12)
             ).all()],
             "categories": session.exec(select(Category)).all()
         }
