@@ -18,7 +18,7 @@ document.getElementById('loginBtn').onclick = function() {
 };
 
 function handleToken(response) {
-  fetch("http://localhost:8000/auth/google", {
+  fetch("https://hbn-be.efficientemengineering.com/auth/google", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token: response.credential })
