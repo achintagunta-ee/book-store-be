@@ -152,7 +152,7 @@ def get_books_by_category(
 
     query = select(Book).where(
     Book.category_id == category.id,
-    Book.is_deleted == False
+    Book.is_deleted == False,
 )
 
 
@@ -205,7 +205,7 @@ def list_books_by_category_name(
 
     query = select(Book).where(
     Book.category_id == category.id,
-    Book.is_deleted == False
+    Book.is_deleted == False,
 )
 
 

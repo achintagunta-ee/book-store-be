@@ -89,7 +89,7 @@ def advanced_search_books(
     limit: int = Query(10, ge=1, le=50),
     session: Session = Depends(get_session),
 ):
-    query = select(Book).where(Book.is_deleted == False)
+    query = select(Book).where(Book.is_deleted == False,Book.is_archived == False)
 
     # Text Search
     if q:
@@ -317,7 +317,8 @@ def list_books_by_category_name(
 
     query = select(Book).where(
     Book.category_id == category.id,
-    Book.is_deleted == False
+    Book.is_deleted == False,
+    Book.is_archived == False
 )
 
     if search:
@@ -496,7 +497,8 @@ def list_books_paginated(
     title: str | None = None,
     session: Session = Depends(get_session)
 ):
-    query = select(Book).where(Book.is_deleted == False)
+    query = select(Book).where(Book.is_deleted == False,
+                               Book.is_archived == False)
 
 
     # FILTERS

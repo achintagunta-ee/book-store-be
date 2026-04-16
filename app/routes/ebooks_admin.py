@@ -98,7 +98,8 @@ def list_admin_ebooks(
 ):
     query = select(Book).where(
     Book.is_ebook == True,
-    Book.is_deleted == False
+    Book.is_deleted == False,
+    
 )
 
 
